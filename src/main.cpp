@@ -1,0 +1,210 @@
+#include "grid_renderer.hpp"
+#include "stalberg_grid.hpp"
+
+#include "raylib.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <optional>
+#include <vector>
+
+namespace {
+
+constexpr int INITIAL_RADIUS = 6;
+constexpr int MIN_RADIUS = 2;
+constexpr int MAX_RADIUS = 14;
+constexpr std::uint32_t INITIAL_SEED = 1;
+
+void fitCamera(Camera2D& camera, const stalberg::StalbergGrid& grid)
+{
+    const stalberg::Bounds bounds = grid.getBounds();
+    camera.target = Vector2 {
+        (bounds.minimum.x + bounds.maximum.x) * 0.5F,
+        (bounds.minimum.y + bounds.maximum.y) * 0.5F
+    };
+
+    const float gridWidth = bounds.maximum.x - bounds.minimum.x;
+    const float gridHeight = bounds.maximum.y - bounds.minimum.y;
+    const float horizontalZoom = (static_cast<float>(GetScreenWidth()) - 90.0F) / gridWidth;
+    const float verticalZoom = (static_cast<float>(GetScreenHeight()) - 150.0F) / gridHeight;
+    camera.zoom = std::clamp(std::min(horizontalZoom, verticalZoom), 0.15F, 2.5F);
+}
+
+void handleCamera(Camera2D& camera, const stalberg::StalbergGrid& grid)
+{
+    camera.offset = Vector2 {
+        static_cast<float>(GetScreenWidth()) * 0.5F,
+        static_cast<float>(GetScreenHeight()) * 0.5F
+    };
+
+    if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE) || IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+        const Vector2 delta = GetMouseDelta();
+        camera.target.x -= delta.x / camera.zoom;
+        camera.target.y -= delta.y / camera.zoom;
+    }
+
+    const float wheel = GetMouseWheelMove();
+    if (wheel != 0.0F) {
+        const Vector2 mouse = GetMousePosition();
+        const Vector2 before = GetScreenToWorld2D(mouse, camera);
+        camera.zoom = std::clamp(camera.zoom * std::pow(1.15F, wheel), 0.1F, 5.0F);
+        const Vector2 after = GetScreenToWorld2D(mouse, camera);
+        camera.target.x += before.x - after.x;
+        camera.target.y += before.y - after.y;
+    }
+
+    if (IsKeyPressed(KEY_F)) {
+        fitCamera(camera, grid);
+    }
+}
+
+} // namespace
+
+int main()
+{
+#if defined(__linux__)
+    const char* display = std::getenv("DISPLAY");
+    const char* waylandDisplay = std::getenv("WAYLAND_DISPLAY");
+    if ((display == nullptr || display[0] == '\0')
+        && (waylandDisplay == nullptr || waylandDisplay[0] == '\0')) {
+        std::fprintf(stderr,
+            "Unable to open the raylib window: no graphical display is available.\n"
+            "DISPLAY and WAYLAND_DISPLAY are both unset.\n\n"
+            "Run this program from a terminal inside a desktop session, use SSH X11\n"
+            "forwarding (ssh -X), or run it in a VNC/RDP desktop. For a non-visible\n"
+            "smoke test only, use: xvfb-run -a ./build/stalberg_grid\n");
+        return EXIT_FAILURE;
+    }
+#endif
+
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
+    InitWindow(1280, 800, "Stalberg quad grid");
+    if (!IsWindowReady()) {
+        std::fprintf(stderr,
+            "raylib could not create a window. Check that your display server is running\n"
+            "and that DISPLAY or WAYLAND_DISPLAY points to it.\n");
+        return EXIT_FAILURE;
+    }
+    SetTargetFPS(60);
+
+    stalberg::StalbergGrid grid;
+    int radius = INITIAL_RADIUS;
+    std::uint32_t seed = INITIAL_SEED;
+    bool relaxing = true;
+    bool drawCenters = true;
+    grid.generate(radius, seed);
+    std::vector<bool> generatedCells(grid.getVertexCount(), false);
+
+    Camera2D camera {};
+    camera.offset = Vector2 { 640.0F, 400.0F };
+    camera.rotation = 0.0F;
+    fitCamera(camera, grid);
+
+    while (!WindowShouldClose()) {
+        bool regenerateRequested = false;
+        bool refitRequested = false;
+
+        if (IsKeyPressed(KEY_R)) {
+            ++seed;
+            regenerateRequested = true;
+        }
+        if (IsKeyPressed(KEY_LEFT)) {
+            seed = seed > INITIAL_SEED ? seed - 1 : INITIAL_SEED;
+            regenerateRequested = true;
+        }
+        if (IsKeyPressed(KEY_RIGHT)) {
+            ++seed;
+            regenerateRequested = true;
+        }
+        if (IsKeyPressed(KEY_UP) && radius < MAX_RADIUS) {
+            ++radius;
+            regenerateRequested = true;
+            refitRequested = true;
+        }
+        if (IsKeyPressed(KEY_DOWN) && radius > MIN_RADIUS) {
+            --radius;
+            regenerateRequested = true;
+            refitRequested = true;
+        }
+
+        if (regenerateRequested) {
+            grid.generate(radius, seed);
+            generatedCells.assign(grid.getVertexCount(), false);
+            relaxing = true;
+            if (refitRequested) {
+                fitCamera(camera, grid);
+            }
+        }
+
+        if (IsKeyPressed(KEY_SPACE)) {
+            relaxing = !relaxing;
+        }
+        if (IsKeyPressed(KEY_N)) {
+            relaxing = false;
+            grid.relaxOnce();
+        }
+        if (IsKeyPressed(KEY_P)) {
+            drawCenters = !drawCenters;
+        }
+        if (IsKeyPressed(KEY_C)) {
+            std::fill(generatedCells.begin(), generatedCells.end(), false);
+        }
+
+        handleCamera(camera, grid);
+        if (relaxing) {
+            grid.relaxOnce();
+            if (grid.getRelaxationSteps() >= stalberg::MAX_RELAXATION_STEPS) {
+                relaxing = false;
+            }
+        }
+
+        const Vector2 mouseScreen = GetMousePosition();
+        const bool mouseOverHud = mouseScreen.x >= 14.0F && mouseScreen.x <= 430.0F
+            && mouseScreen.y >= 14.0F && mouseScreen.y <= 145.0F;
+        std::optional<std::size_t> hoveredCell;
+        if (!mouseOverHud) {
+            const Vector2 mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
+            hoveredCell = stalberg::findDualCellAtPoint(
+                grid, stalberg::Point { mouseWorld.x, mouseWorld.y });
+        }
+
+        if (hoveredCell && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            generatedCells[*hoveredCell] = !generatedCells[*hoveredCell];
+        }
+
+        const std::size_t generatedCount = static_cast<std::size_t>(
+            std::count(generatedCells.begin(), generatedCells.end(), true));
+
+        BeginDrawing();
+        ClearBackground(Color { 47, 121, 137, 255 });
+
+        BeginMode2D(camera);
+        stalberg::drawGrid(grid, drawCenters, camera.zoom, generatedCells, hoveredCell);
+        EndMode2D();
+
+        DrawRectangle(14, 14, 416, 131, Color { 8, 31, 38, 220 });
+        DrawText("OSKAR STALBERG-STYLE QUAD GRID", 26, 24, 20, Color { 222, 235, 232, 255 });
+        DrawText(TextFormat("radius %d   seed %u   vertices %zu   quads %zu",
+                     grid.getRadius(), grid.getSeed(), grid.getVertexCount(), grid.getQuadCount()),
+            26, 52, 16, Color { 150, 178, 181, 255 });
+        DrawText(TextFormat("relaxation %d/%d%s   generated %zu", grid.getRelaxationSteps(),
+                     stalberg::MAX_RELAXATION_STEPS,
+                     relaxing ? "  (running)" : "  (paused)", generatedCount),
+            26, 74, 16, Color { 239, 180, 74, 255 });
+        DrawText("Hover/preview  left click/generate  C/clear", 26, 98, 14,
+            Color { 196, 225, 223, 255 });
+        DrawText("R/new seed  arrows/seed+size  Space/pause  N/step", 26, 120, 14,
+            Color { 150, 178, 181, 255 });
+        DrawText("P/centers  F/fit  wheel/zoom  middle or right drag/pan", 20,
+            GetScreenHeight() - 27, 14, Color { 25, 75, 87, 255 });
+
+        EndDrawing();
+    }
+
+    CloseWindow();
+    return 0;
+}

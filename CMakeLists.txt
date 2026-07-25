@@ -2,10 +2,6 @@ cmake_minimum_required(VERSION 3.20)
 
 project(stalberg_grid LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
 find_package(raylib 5.0 QUIET)
 
 if(NOT raylib_FOUND)
@@ -21,11 +17,30 @@ if(NOT raylib_FOUND)
     FetchContent_MakeAvailable(raylib)
 endif()
 
-add_executable(stalberg_grid main.cpp)
-target_link_libraries(stalberg_grid PRIVATE raylib)
+function(enable_project_warnings target)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /permissive-)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+endfunction()
 
-if(MSVC)
-    target_compile_options(stalberg_grid PRIVATE /W4 /permissive-)
-else()
-    target_compile_options(stalberg_grid PRIVATE -Wall -Wextra -Wpedantic)
+add_library(stalberg_grid_core src/stalberg_grid.cpp)
+target_include_directories(stalberg_grid_core PUBLIC src)
+target_compile_features(stalberg_grid_core PUBLIC cxx_std_20)
+enable_project_warnings(stalberg_grid_core)
+
+add_executable(stalberg_grid
+    src/main.cpp
+    src/grid_renderer.cpp
+)
+target_link_libraries(stalberg_grid PRIVATE stalberg_grid_core raylib)
+enable_project_warnings(stalberg_grid)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(stalberg_grid_tests tests/grid_tests.cpp)
+    target_link_libraries(stalberg_grid_tests PRIVATE stalberg_grid_core)
+    enable_project_warnings(stalberg_grid_tests)
+    add_test(NAME stalberg_grid_tests COMMAND stalberg_grid_tests)
 endif()

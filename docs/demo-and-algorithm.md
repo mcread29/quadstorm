@@ -1,6 +1,6 @@
 # Stålberg-Style Quad Grid Demo
 
-This document explains the raylib demo in this repository and the grid-generation algorithm implemented in `main.cpp`.
+This document explains the raylib demo in this repository and the grid-generation algorithm implemented in `src/stalberg_grid.cpp`.
 
 > **Name note:** The technique is associated with **Oskar Stålberg**, creator of *Townscaper*. It is sometimes incorrectly attributed to “Peter Stålberg.”
 
@@ -28,7 +28,7 @@ iterative vertex relaxation
 organic Stålberg-style grid
 ```
 
-The demo draws the final mesh as points and lines. Gold points mark the fixed outer boundary; light points can move during relaxation.
+The demo draws the final mesh as rounded linework with an oriented cross at each quad center. A solid-line junction is the center of each selectable dual cell; the surrounding quad centers become that cell's corners. Hovering previews a rounded dual cell and clicking commits or removes it.
 
 ## Building and running
 
@@ -53,7 +53,9 @@ raylib requires a graphical desktop. On a headless Linux machine, `xvfb-run -a .
 | Up / Down | Increase or decrease the hexagonal patch radius |
 | Space | Pause or resume automatic relaxation |
 | `N` | Perform one relaxation step and pause |
-| `P` | Toggle point rendering |
+| Left click | Generate or remove the hovered rounded cell |
+| `C` | Clear generated cells |
+| `P` | Toggle quad-center markers |
 | `F` | Fit the grid to the window |
 | Mouse wheel | Zoom around the mouse cursor |
 | Middle/right mouse drag | Pan the camera |
@@ -78,8 +80,13 @@ struct Axial {
 ### Vertices
 
 ```cpp
+struct Point {
+    float x;
+    float y;
+};
+
 struct Vertex {
-    Vector2 position;
+    Point position;
     bool fixed;
 };
 ```
@@ -106,11 +113,12 @@ This canonical representation means `(3, 8)` and `(8, 3)` identify the same undi
 The initial mesh uses three-index triangles. The final mesh uses four-index quads:
 
 ```cpp
-using Triangle = std::array<int, 3>;
-using Quad = std::array<int, 4>;
+using VertexIndex = std::size_t;
+using Triangle = std::array<VertexIndex, 3>;
+using Quad = std::array<VertexIndex, 4>;
 ```
 
-Intermediate faces are `std::vector<int>` because they can contain either three or four corners.
+Intermediate faces are `std::vector<VertexIndex>` because they can contain either three or four corners.
 
 ## Stage 1: generate a hexagonal triangular lattice
 
@@ -311,12 +319,14 @@ Ordinary Laplacian smoothing is simpler and demonstrates the topology-generation
 
 The final mesh is rendered inside a raylib `Camera2D`:
 
-- Every unique final edge is drawn once.
-- Interior points are light colored.
-- Fixed boundary points are gold.
-- Point radius and line thickness are divided by camera zoom, keeping them approximately constant in screen pixels. Above the default grid radius of 6, point radii also shrink in proportion to the grid radius so dense grids remain legible.
+- Every unique final edge is drawn once, with a small circle at each vertex to produce clean joins at every valence.
+- An oriented cross marks each quad centroid; its four arms point toward the quad's edge midpoints.
+- Every solid-line vertex acts as the center of a dual cell whose corners are the surrounding quad centers.
+- The dual cell under the pointer receives a translucent rounded ghost preview.
+- Clicking toggles a persistent generated-cell overlay; `C` clears all generated cells.
+- Marker size and line thickness are divided by camera zoom, keeping them approximately constant in screen pixels.
 
-The mesh is deliberately rendered without filled polygons so its connectivity remains visible.
+Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the selected mesh vertex. Boundary polygons also use centers reflected across boundary edges as ghost points; a one-quad corner receives an additional diagonal ghost. Generated cells are filled to their shared boundaries. The renderer counts their polygon edges, removes every edge used by two generated neighbors, and draws only the connected exterior outline with rounded joins. The hovered cell participates in the same union temporarily, so its ghost preview connects to existing generated cells. The underlying topology remains unchanged.
 
 The HUD shows:
 
@@ -353,15 +363,18 @@ The main generation methods in `StalbergGrid` correspond directly to the algorit
 | `subdivideFaces()` | Convert every intermediate face into quads |
 | `rebuildTopology()` | Build unique edges, neighbors, and boundary flags |
 | `relaxOnce()` | Perform one synchronous smoothing iteration |
-| `draw()` | Render unique edges and optional points |
 
-Outside the class:
+Rendering and application concerns are kept separate from the mesh core:
 
-| Function | Responsibility |
+| File / function | Responsibility |
 |---|---|
-| `fitCamera()` | Center and scale the patch to the window |
-| `handleCamera()` | Process pan, zoom, and fit input |
-| `main()` | Initialize raylib, process controls, update, and render |
+| `src/stalberg_grid.hpp` | Public mesh types and read-only topology views |
+| `src/stalberg_grid.cpp` | Grid generation, topology rebuilding, and relaxation |
+| `src/grid_renderer.cpp` / `drawGrid()` | Render unique edges, dual centers, generated cells, and the hover ghost |
+| `src/main.cpp` / `fitCamera()` | Center and scale the patch to the window |
+| `src/main.cpp` / `handleCamera()` | Process pan, zoom, and fit input |
+| `src/main.cpp` / `main()` | Initialize raylib, process controls, update, and render |
+| `tests/grid_tests.cpp` | Headless topology and relaxation characterization tests |
 
 ## Compact pseudocode
 

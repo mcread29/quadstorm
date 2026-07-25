@@ -18,8 +18,11 @@ A system raylib installation is used when available. Otherwise CMake downloads r
 ```sh
 cmake -S . -B build
 cmake --build build -j
+ctest --test-dir build --output-on-failure
 ./build/stalberg_grid
 ```
+
+The grid-generation core is a separate library, so its topology and relaxation tests run without opening a graphical window.
 
 ## Controls
 
@@ -30,12 +33,14 @@ cmake --build build -j
 | Up / Down | Change hex radius |
 | Space | Pause or resume relaxation |
 | `N` | Run one relaxation step |
-| `P` | Toggle points |
+| Left click | Generate or remove the hovered rounded cell |
+| `C` | Clear generated cells |
+| `P` | Toggle quad-center markers |
 | `F` | Fit grid to the window |
 | Mouse wheel | Zoom around cursor |
 | Middle/right drag | Pan |
 
-Gold points are pinned boundary vertices. Their fixed positions keep the outer hexagon intact during relaxation.
+Each solid-line junction is the center of a selectable dual cell. The surrounding crosses sit at quad centers and orient their arms toward that quad's four edge midpoints. Hovering previews the dual cell; clicking commits it without changing the underlying grid topology. Adjacent generated cells share one connected exterior outline rather than drawing separate cell borders.
 
 ## Linux: missing `DISPLAY`
 
