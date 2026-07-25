@@ -1,0 +1,428 @@
+# Stålberg-Style Quad Grid Demo
+
+This document explains the raylib demo in this repository and the grid-generation algorithm implemented in `main.cpp`.
+
+> **Name note:** The technique is associated with **Oskar Stålberg**, creator of *Townscaper*. It is sometimes incorrectly attributed to “Peter Stålberg.”
+
+## Overview
+
+The program generates an irregular mesh made entirely from quadrilateral faces. It starts from a regular triangular lattice inside a hexagonal boundary, randomly merges neighboring triangles, subdivides every remaining face into quads, and then smooths the result.
+
+The complete pipeline is:
+
+```text
+hexagonal set of lattice points
+        ↓
+regular triangular mesh
+        ↓
+randomly merge adjacent triangle pairs
+        ↓
+mixture of triangles and four-sided faces
+        ↓
+center-and-midpoint subdivision
+        ↓
+all-quad mesh
+        ↓
+iterative vertex relaxation
+        ↓
+organic Stålberg-style grid
+```
+
+The demo draws the final mesh as points and lines. Gold points mark the fixed outer boundary; light points can move during relaxation.
+
+## Building and running
+
+Configure and build the project with CMake:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+./build/stalberg_grid
+```
+
+CMake uses an installed raylib package when available. Otherwise it downloads and builds raylib 5.5 through `FetchContent`.
+
+raylib requires a graphical desktop. On a headless Linux machine, `xvfb-run -a ./build/stalberg_grid` can be used as a non-visible smoke test, but an X11/Wayland, VNC, RDP, or forwarded display is required to interact with the demo.
+
+## Controls
+
+| Input | Action |
+|---|---|
+| `R` | Increment the seed and generate a new grid |
+| Left / Right | Select the previous or next seed |
+| Up / Down | Increase or decrease the hexagonal patch radius |
+| Space | Pause or resume automatic relaxation |
+| `N` | Perform one relaxation step and pause |
+| `P` | Toggle point rendering |
+| `F` | Fit the grid to the window |
+| Mouse wheel | Zoom around the mouse cursor |
+| Middle/right mouse drag | Pan the camera |
+
+The initial radius is 6. Grid radii are limited to the range 2–14 by the interactive controls.
+
+## Core mesh data
+
+The implementation uses indexed mesh data. Faces refer to integer vertex indices instead of duplicating positions.
+
+### Axial lattice coordinates
+
+```cpp
+struct Axial {
+    int q;
+    int r;
+};
+```
+
+`Axial` identifies points in the original hexagonal/triangular lattice. It is only needed while constructing the initial mesh.
+
+### Vertices
+
+```cpp
+struct Vertex {
+    Vector2 position;
+    bool fixed;
+};
+```
+
+A fixed vertex is part of the final boundary and is not moved by relaxation.
+
+### Edges
+
+An `Edge` stores its smaller endpoint first:
+
+```text
+Edge(a, b) = (min(a, b), max(a, b))
+```
+
+This canonical representation means `(3, 8)` and `(8, 3)` identify the same undirected edge. It is used to:
+
+- Find triangles sharing an edge.
+- Share subdivision midpoints between neighboring faces.
+- Count final edge usage.
+- Build vertex adjacency.
+
+### Faces
+
+The initial mesh uses three-index triangles. The final mesh uses four-index quads:
+
+```cpp
+using Triangle = std::array<int, 3>;
+using Quad = std::array<int, 4>;
+```
+
+Intermediate faces are `std::vector<int>` because they can contain either three or four corners.
+
+## Stage 1: generate a hexagonal triangular lattice
+
+The program uses axial coordinates satisfying the hex-radius constraint:
+
+```text
+max(|q|, |r|, |q + r|) ≤ R
+```
+
+The code expresses the same constraint by iterating:
+
+```text
+q      = -R … R
+r_min  = max(-R, -q - R)
+r_max  = min( R, -q + R)
+r      = r_min … r_max
+```
+
+Each axial coordinate is converted to a 2D position using two axes separated by 60 degrees:
+
+```text
+x = spacing × (q + r/2)
+y = spacing × (√3/2 × r)
+```
+
+The demo uses a spacing of 58 world units.
+
+A radius-`R` patch contains:
+
+```text
+1 + 3R(R + 1)
+```
+
+original lattice points. For the default radius 6, that is 127 points.
+
+The important distinction is that the algorithm does not begin with hexagonal cells. It begins with **points on a triangular lattice whose outer boundary is a hexagon**.
+
+## Stage 2: triangulate the lattice
+
+Every elementary region in the lattice is connected as a triangle. From a lattice coordinate `(q, r)`, the code tests two triangle templates:
+
+```text
+up triangle:
+    (q, r), (q + 1, r), (q, r + 1)
+
+down triangle:
+    (q, r), (q + 1, r - 1), (q + 1, r)
+```
+
+A triangle is emitted only when all three points exist inside the hexagonal patch.
+
+A radius-`R` patch contains:
+
+```text
+T = 6R²
+```
+
+triangles. The default radius 6 therefore starts with 216 triangles.
+
+No Delaunay triangulation is required because connectivity in a regular triangular lattice is already known.
+
+## Stage 3: randomly pair triangles
+
+The program builds a map from each canonical edge to the triangles that use it. An edge with exactly two incident triangles is an interior edge and is a possible merge candidate.
+
+The candidate edges are shuffled with `std::mt19937` using the selected seed. The program then performs a greedy matching:
+
+```text
+mark every triangle as unpaired
+shuffle all interior edges
+
+for each candidate edge:
+    find its two incident triangles A and B
+    if A or B is already paired:
+        skip the edge
+    otherwise:
+        remove their shared edge conceptually
+        collect their four unique outer vertices
+        emit one four-sided face
+        mark A and B as paired
+
+emit every unpaired triangle unchanged
+```
+
+Two adjacent equilateral triangles always form a convex rhombus, so the initial lattice does not require an additional quad-quality test.
+
+The matching is intentionally incomplete. A greedy selection can leave triangles that no longer have an available unpaired neighbor. This is not an error; the subdivision stage handles both face types.
+
+Random pairing changes mesh **topology**, not just vertex positions. Different seeds create different arrangements of extraordinary vertices and therefore different relaxed patterns.
+
+## Stage 4: subdivide every face into quads
+
+This is the step that guarantees an all-quad result.
+
+For an ordered face with corners
+
+```text
+v₀, v₁, …, vₙ₋₁
+```
+
+the program creates:
+
+1. A midpoint for every edge:
+
+   ```text
+   mᵢ = (vᵢ + vᵢ₊₁) / 2
+   ```
+
+2. A face center:
+
+   ```text
+   c = (v₀ + v₁ + … + vₙ₋₁) / n
+   ```
+
+3. One quad at every original corner:
+
+   ```text
+   qᵢ = [vᵢ, mᵢ, c, mᵢ₋₁]
+   ```
+
+Indices wrap around the face boundary.
+
+Therefore:
+
+- A triangle produces 3 quads.
+- A four-sided face produces 4 quads.
+
+Midpoints are looked up by canonical edge key. Adjacent faces consequently reuse the same midpoint vertex, keeping the mesh connected and watertight.
+
+If `M` triangle pairs were merged from `T` original triangles, then `T - 2M` triangles remain. The final number of quads is:
+
+```text
+Q = 4M + 3(T - 2M)
+  = 3T - 2M
+```
+
+The default radius-6, seed-1 grid currently produces 460 quads.
+
+## Stage 5: rebuild topology and identify the boundary
+
+After subdivision, every quad contributes four edges. The program counts how many quads use each canonical edge:
+
+- Usage count 2: interior edge.
+- Usage count 1: boundary edge.
+
+Both endpoints of every boundary edge are marked `fixed`.
+
+The program also builds a neighbor set for every vertex from the final quad edges. This adjacency is used during relaxation and remains unchanged afterward.
+
+Pinning the boundary serves two purposes:
+
+1. It prevents Laplacian smoothing from shrinking the whole patch toward its center.
+2. It preserves the exact outer hexagon, which is useful when placing compatible patches next to one another.
+
+## Stage 6: relax the points
+
+The initial all-quad mesh still strongly resembles the triangular lattice. Relaxation moves interior vertices toward the average position of their connected neighbors.
+
+For an interior vertex `i` with neighbor set `N(i)`, the target is:
+
+```text
+             1
+averageᵢ = ───────  Σ positionⱼ
+           |N(i)|  j∈N(i)
+```
+
+The updated position is:
+
+```text
+positionᵢ' = positionᵢ
+           + λ(averageᵢ - positionᵢ)
+```
+
+The demo uses:
+
+```text
+λ = 0.12
+maximum iterations = 240
+```
+
+All new positions are computed into a separate array and applied simultaneously. Synchronous updates avoid making the result depend on vertex iteration order.
+
+Fixed boundary vertices do not move.
+
+### Why relaxation creates an organic grid
+
+The random triangle matching creates vertices with different local connectivity. After subdivision, Laplacian smoothing distributes those topological irregularities spatially. Straight lattice rows bend around unusual valences, while ordinary regions settle into more regular four-sided cells.
+
+The connectivity never changes during relaxation. Only geometry changes.
+
+### Relationship to Stålberg’s refined method
+
+This demo implements the commonly used **Laplacian relaxation** version of the technique. Stålberg also discussed relaxation rules that more explicitly encourage equal neighbor distances and square-like faces. A more advanced implementation could add a per-quad square-fitting force or a constrained optimization pass.
+
+Ordinary Laplacian smoothing is simpler and demonstrates the topology-generation pipeline clearly, but it does not mathematically guarantee square quads or equal edge lengths.
+
+## Rendering
+
+The final mesh is rendered inside a raylib `Camera2D`:
+
+- Every unique final edge is drawn once.
+- Interior points are light colored.
+- Fixed boundary points are gold.
+- Point radius and line thickness are divided by camera zoom, keeping them approximately constant in screen pixels. Above the default grid radius of 6, point radii also shrink in proportion to the grid radius so dense grids remain legible.
+
+The mesh is deliberately rendered without filled polygons so its connectivity remains visible.
+
+The HUD shows:
+
+- Current patch radius.
+- Random seed.
+- Final vertex count.
+- Final quad count.
+- Relaxation progress and pause state.
+
+## Camera behavior
+
+`F` computes a zoom from the theoretical width and height of the hexagonal lattice and centers the camera at the origin.
+
+Mouse-wheel zoom preserves the world position under the cursor:
+
+1. Record the world coordinate below the cursor.
+2. Change camera zoom.
+3. Recalculate the world coordinate below the cursor.
+4. Offset the camera target by the difference.
+
+Middle- or right-button dragging translates the camera target in world space.
+
+## Source-code map
+
+The main generation methods in `StalbergGrid` correspond directly to the algorithm stages:
+
+| Method | Responsibility |
+|---|---|
+| `generate()` | Run the complete generation pipeline |
+| `generateHexagonalLattice()` | Create axial points inside the hex boundary |
+| `triangulateLattice()` | Connect lattice points into elementary triangles |
+| `randomlyPairTriangles()` | Greedily merge random adjacent triangle pairs |
+| `orderedFace()` | Put face corners in consistent angular order |
+| `subdivideFaces()` | Convert every intermediate face into quads |
+| `rebuildTopology()` | Build unique edges, neighbors, and boundary flags |
+| `relaxOnce()` | Perform one synchronous smoothing iteration |
+| `draw()` | Render unique edges and optional points |
+
+Outside the class:
+
+| Function | Responsibility |
+|---|---|
+| `fitCamera()` | Center and scale the patch to the window |
+| `handleCamera()` | Process pan, zoom, and fit input |
+| `main()` | Initialize raylib, process controls, update, and render |
+
+## Compact pseudocode
+
+```text
+function generate(radius, seed):
+    points = makeHexLattice(radius)
+    triangles = connectTriangularLattice(points)
+
+    candidates = all edges shared by two triangles
+    shuffle(candidates, seed)
+
+    faces = []
+    paired = set()
+
+    for edge in candidates:
+        a, b = triangles incident to edge
+        if a not in paired and b not in paired:
+            faces.append(merge(a, b))
+            paired.add(a)
+            paired.add(b)
+
+    for triangle in triangles:
+        if triangle not in paired:
+            faces.append(triangle)
+
+    quads = []
+    sharedMidpoints = map()
+
+    for face in faces:
+        center = average(face corners)
+        for edge in face:
+            midpoint[edge] = getOrCreateSharedMidpoint(edge)
+        for corner in face:
+            quads.append([
+                corner,
+                next edge midpoint,
+                center,
+                previous edge midpoint
+            ])
+
+    count quad edges
+    pin vertices belonging to one-use edges
+    build vertex-neighbor lists
+
+function relaxOnce():
+    for each non-boundary vertex:
+        target = average(connected neighbors)
+        nextPosition = lerp(position, target, 0.12)
+    apply all next positions simultaneously
+```
+
+## Current scope and limitations
+
+The demo intentionally focuses on a single understandable patch. It does not currently implement:
+
+- Infinite chunk generation.
+- Cross-chunk relaxation.
+- Explicit square-fitting forces.
+- Face-quality optimization after relaxation.
+- Filled-cell selection or gameplay.
+- Mesh export.
+- Three-dimensional extrusion.
+
+An infinite version would generate compatible hexagonal chunks with deterministic seeds, preserve shared boundary topology, and relax either a larger neighborhood or overlapping chunks so seams remain smooth.
