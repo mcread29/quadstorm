@@ -128,8 +128,8 @@ bool roomLayoutIsValid(
         "room generation creates multiple rooms");
     valid &= check(layout.getRoomCount() <= stalberg::MAX_GENERATED_ROOMS,
         "every generated room has a unique renderer color");
-    valid &= check(connectedEdgeCenters.size() >= 3,
-        "rooms connect to the centers of at least three outer edges");
+    valid &= check(connectedEdgeCenters.size() >= 4,
+        "rooms connect to the centers of at least four outer edges");
     for (std::size_t index = 0; index < connectedEdgeCenters.size(); ++index) {
         const std::size_t cell = connectedEdgeCenters[index];
         valid &= check(cell < assignments.size() && vertices[cell].fixed,
@@ -319,6 +319,16 @@ bool compactLayoutsVaryAcrossGridSeeds()
         "compact layouts vary their outer connections across grid seeds");
 }
 
+bool largeLayoutUsesExpandedRoomBudget()
+{
+    stalberg::StalbergGrid grid;
+    grid.generate(14, 1);
+    stalberg::RoomLayout layout;
+    layout.generate(grid, 1);
+    return check(layout.getRoomCount() == stalberg::MAX_GENERATED_ROOMS,
+        "large layouts can generate all 32 rooms");
+}
+
 bool degenerateGridDoesNotCreateSingleCellRoom()
 {
     stalberg::StalbergGrid grid;
@@ -384,6 +394,7 @@ int main()
         }
     }
     valid &= compactLayoutsVaryAcrossGridSeeds();
+    valid &= largeLayoutUsesExpandedRoomBudget();
     valid &= degenerateGridDoesNotCreateSingleCellRoom();
     valid &= relaxationPreservesBoundary();
 

@@ -17,6 +17,7 @@ namespace {
 constexpr std::size_t MINIMUM_ROOM_SIZE = 2;
 constexpr std::size_t PREFERRED_ROOM_SIZE = 7;
 constexpr std::size_t MAXIMUM_ROOM_SIZE = 34;
+constexpr std::size_t REQUIRED_EDGE_CONNECTIONS = 4;
 
 std::uint64_t mix(std::uint64_t value)
 {
@@ -98,6 +99,25 @@ ShapeParameters randomShape(std::mt19937& random, float scale)
         type(random),
         std::cos(direction),
         std::sin(direction),
+        length(random) * scale,
+        width(random) * scale,
+        length(random) * scale
+    };
+}
+
+ShapeParameters randomRadialShape(
+    std::mt19937& random, float scale, float directionX, float directionY)
+{
+    std::uniform_real_distribution<float> turn(-0.3F, 0.3F);
+    std::uniform_real_distribution<float> length(3.0F, 5.4F);
+    std::uniform_real_distribution<float> width(1.2F, 1.75F);
+    const float angle = turn(random);
+    const float cosine = std::cos(angle);
+    const float sine = std::sin(angle);
+    return ShapeParameters {
+        1,
+        directionX * cosine - directionY * sine,
+        directionX * sine + directionY * cosine,
         length(random) * scale,
         width(random) * scale,
         length(random) * scale
@@ -368,6 +388,111 @@ std::vector<VertexIndex> growConnector(
     return path;
 }
 
+bool growBranchRoom(
+    const StalbergGrid& grid,
+    const std::vector<std::vector<VertexIndex>>& adjacency,
+    const std::vector<bool>& buildable,
+    float cellScale,
+    std::uint32_t generationSeed,
+    std::mt19937& random,
+    std::vector<int>& assignments,
+    std::vector<GeneratedRoom>& rooms,
+    std::size_t& occupiedCount,
+    bool radial)
+{
+    std::vector<VertexIndex> frontier = builtFrontier(adjacency, assignments);
+    if (frontier.empty()) {
+        return false;
+    }
+
+    if (radial && frontier.size() > 3) {
+        std::ranges::sort(frontier, [&](VertexIndex lhs, VertexIndex rhs) {
+            return distanceFromOrigin(grid.getVertices()[lhs].position)
+                < distanceFromOrigin(grid.getVertices()[rhs].position);
+        });
+        frontier.resize(std::max<std::size_t>(3, frontier.size() / 2));
+    }
+
+    const auto vertices = grid.getVertices();
+    std::uniform_real_distribution<float> turnDistribution(
+        radial ? -0.35F : -0.8F,
+        radial ? 0.35F : 0.8F);
+    std::uniform_int_distribution<int> connectorLengthDistribution(
+        radial ? 2 : 1,
+        radial ? 5 : 3);
+    constexpr std::size_t attemptsPerRoom = 90;
+
+    for (std::size_t attempt = 0; attempt < attemptsPerRoom; ++attempt) {
+        std::uniform_int_distribution<std::size_t> attachmentDistribution(
+            0, frontier.size() - 1);
+        const VertexIndex attachment = frontier[attachmentDistribution(random)];
+
+        Point direction = vertices[attachment].position;
+        const float directionLength = distanceFromOrigin(direction);
+        if (directionLength <= 0.0001F) {
+            const float angle = turnDistribution(random) * std::numbers::pi_v<float>;
+            direction = Point { std::cos(angle), std::sin(angle) };
+        } else {
+            direction.x /= directionLength;
+            direction.y /= directionLength;
+        }
+        const float turn = turnDistribution(random);
+        const float cosine = std::cos(turn);
+        const float sine = std::sin(turn);
+        const float directionX = direction.x * cosine - direction.y * sine;
+        const float directionY = direction.x * sine + direction.y * cosine;
+        const int connectorLength = connectorLengthDistribution(random);
+        const std::vector<VertexIndex> connector = growConnector(
+            grid,
+            adjacency,
+            buildable,
+            assignments,
+            attachment,
+            connectorLength,
+            directionX,
+            directionY,
+            generationSeed,
+            rooms.size() * 100000U + attempt * 1000U);
+        if (connector.size() != static_cast<std::size_t>(connectorLength + 1)) {
+            continue;
+        }
+
+        std::vector<bool> blocked(vertices.size(), false);
+        for (std::size_t i = 0; i + 1 < connector.size(); ++i) {
+            blocked[connector[i]] = true;
+        }
+        const VertexIndex roomSeed = connector.back();
+        const ShapeParameters shape = radial
+            ? randomRadialShape(random, cellScale, directionX, directionY)
+            : randomShape(random, cellScale);
+        const std::vector<VertexIndex> roomCells = makeRoomShape(
+            grid,
+            adjacency,
+            buildable,
+            assignments,
+            blocked,
+            roomSeed,
+            shape,
+            MAXIMUM_ROOM_SIZE);
+        if (roomCells.size() < PREFERRED_ROOM_SIZE) {
+            continue;
+        }
+
+        const int roomId = static_cast<int>(rooms.size());
+        for (std::size_t i = 0; i + 1 < connector.size(); ++i) {
+            assignments[connector[i]] = roomId;
+        }
+        for (const VertexIndex cell : roomCells) {
+            assignments[cell] = roomId;
+        }
+        const std::size_t roomSize = roomCells.size() + connector.size() - 1;
+        rooms.push_back(GeneratedRoom { roomId, roomSize });
+        occupiedCount += roomSize;
+        return true;
+    }
+    return false;
+}
+
 } // namespace
 
 int RoomLayout::getCellAssignment(VertexIndex cell) const
@@ -443,6 +568,31 @@ void RoomLayout::generate(const StalbergGrid& grid, std::uint32_t newSeed)
     rooms.push_back(GeneratedRoom { 0, centralCells.size() });
     std::size_t occupiedCount = centralCells.size();
 
+    // Sometimes establish a few radial branches before connecting the outside.
+    // This keeps an edge room from always being the room that reaches the center.
+    const std::size_t maximumEarlyBranches = desiredRooms
+            > REQUIRED_EDGE_CONNECTIONS + 1
+        ? std::min<std::size_t>(
+              4, desiredRooms - REQUIRED_EDGE_CONNECTIONS - 1)
+        : 0;
+    std::uniform_int_distribution<std::size_t> earlyBranchDistribution(
+        0, maximumEarlyBranches);
+    const std::size_t earlyBranchCount = earlyBranchDistribution(random);
+    for (std::size_t branch = 0; branch < earlyBranchCount; ++branch) {
+        if (!growBranchRoom(grid,
+                adjacency,
+                buildable,
+                cellScale,
+                generationSeed,
+                random,
+                cellAssignments,
+                rooms,
+                occupiedCount,
+                true)) {
+            break;
+        }
+    }
+
     // Randomize all six outer sides so compact grids do not repeatedly produce
     // the same three-way silhouette. Only an exact side-center cell is made
     // buildable, preserving negative space along the rest of the fixed boundary.
@@ -455,7 +605,7 @@ void RoomLayout::generate(const StalbergGrid& grid, std::uint32_t newSeed)
     std::ranges::shuffle(sideOrder, random);
 
     for (const std::size_t side : sideOrder) {
-        if (connectedEdgeCenters.size() >= 3) {
+        if (connectedEdgeCenters.size() >= REQUIRED_EDGE_CONNECTIONS) {
             break;
         }
         const VertexIndex edgeCenter = sideCenters[side];
@@ -541,87 +691,19 @@ void RoomLayout::generate(const StalbergGrid& grid, std::uint32_t newSeed)
         occupiedCount += connector.size() + roomCells.size();
     }
 
-    std::uniform_int_distribution<int> connectorLengthDistribution(1, 3);
-    std::uniform_real_distribution<float> turnDistribution(-0.8F, 0.8F);
-    constexpr std::size_t attemptsPerRoom = 90;
-
+    std::bernoulli_distribution radialGrowthDistribution(0.45);
     while (rooms.size() < desiredRooms && occupiedCount < coverageTarget) {
-        bool placed = false;
-        std::vector<VertexIndex> frontier = builtFrontier(
-            adjacency, cellAssignments);
-        if (frontier.empty()) {
-            break;
-        }
-
-        for (std::size_t attempt = 0; attempt < attemptsPerRoom; ++attempt) {
-            std::uniform_int_distribution<std::size_t> attachmentDistribution(
-                0, frontier.size() - 1);
-            const VertexIndex attachment = frontier[attachmentDistribution(random)];
-
-            Point direction = vertices[attachment].position;
-            float directionLength = distanceFromOrigin(direction);
-            if (directionLength <= 0.0001F) {
-                const float angle = turnDistribution(random) * std::numbers::pi_v<float>;
-                direction = Point { std::cos(angle), std::sin(angle) };
-            } else {
-                direction.x /= directionLength;
-                direction.y /= directionLength;
-            }
-            const float turn = turnDistribution(random);
-            const float cosine = std::cos(turn);
-            const float sine = std::sin(turn);
-            const float directionX = direction.x * cosine - direction.y * sine;
-            const float directionY = direction.x * sine + direction.y * cosine;
-            const int connectorLength = connectorLengthDistribution(random);
-            const std::vector<VertexIndex> connector = growConnector(
-                grid,
+        const bool radial = radialGrowthDistribution(random);
+        if (!growBranchRoom(grid,
                 adjacency,
                 buildable,
-                cellAssignments,
-                attachment,
-                connectorLength,
-                directionX,
-                directionY,
+                cellScale,
                 generationSeed,
-                rooms.size() * 100000U + attempt * 1000U);
-            if (connector.size() != static_cast<std::size_t>(connectorLength + 1)) {
-                continue;
-            }
-
-            std::vector<bool> blocked(vertices.size(), false);
-            for (std::size_t i = 0; i + 1 < connector.size(); ++i) {
-                blocked[connector[i]] = true;
-            }
-            const VertexIndex roomSeed = connector.back();
-            const std::vector<VertexIndex> roomCells = makeRoomShape(
-                grid,
-                adjacency,
-                buildable,
+                random,
                 cellAssignments,
-                blocked,
-                roomSeed,
-                randomShape(random, cellScale),
-                MAXIMUM_ROOM_SIZE);
-            if (roomCells.size() < PREFERRED_ROOM_SIZE) {
-                continue;
-            }
-
-            const int roomId = static_cast<int>(rooms.size());
-            for (std::size_t i = 0; i + 1 < connector.size(); ++i) {
-                cellAssignments[connector[i]] = roomId;
-            }
-            for (const VertexIndex cell : roomCells) {
-                cellAssignments[cell] = roomId;
-            }
-            rooms.push_back(GeneratedRoom {
-                roomId,
-                roomCells.size() + connector.size() - 1
-            });
-            occupiedCount += roomCells.size() + connector.size() - 1;
-            placed = true;
-            break;
-        }
-        if (!placed) {
+                rooms,
+                occupiedCount,
+                radial)) {
             break;
         }
     }

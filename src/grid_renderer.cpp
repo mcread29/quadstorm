@@ -35,9 +35,41 @@ constexpr std::array<Color, MAX_GENERATED_ROOMS> ROOM_COLORS {
     Color { 239, 135, 72, 190 },
     Color { 183, 203, 78, 190 },
     Color { 73, 190, 183, 190 },
-    Color { 129, 155, 225, 190 }
+    Color { 129, 155, 225, 190 },
+    Color { 234, 102, 121, 190 },
+    Color { 196, 133, 73, 190 },
+    Color { 225, 185, 117, 190 },
+    Color { 154, 198, 74, 190 },
+    Color { 67, 164, 108, 190 },
+    Color { 75, 189, 189, 190 },
+    Color { 80, 136, 186, 190 },
+    Color { 122, 109, 187, 190 },
+    Color { 171, 113, 202, 190 },
+    Color { 218, 127, 190, 190 },
+    Color { 178, 150, 116, 190 },
+    Color { 111, 176, 137, 190 },
+    Color { 93, 151, 166, 190 },
+    Color { 151, 164, 219, 190 },
+    Color { 203, 144, 166, 190 },
+    Color { 197, 187, 129, 190 }
 };
+
+consteval bool roomColorsAreUnique()
+{
+    for (std::size_t first = 0; first < ROOM_COLORS.size(); ++first) {
+        for (std::size_t second = first + 1; second < ROOM_COLORS.size(); ++second) {
+            const Color a = ROOM_COLORS[first];
+            const Color b = ROOM_COLORS[second];
+            if (a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 static_assert(ROOM_COLORS.size() == MAX_GENERATED_ROOMS);
+static_assert(roomColorsAreUnique());
 constexpr double OUTLINE_KEY_SCALE = 1000.0;
 
 struct EdgeHash {
