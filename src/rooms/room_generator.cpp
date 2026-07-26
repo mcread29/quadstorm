@@ -24,6 +24,8 @@ constexpr std::size_t PREFERRED_ROOM_SIZE = 7;
 constexpr std::size_t MAXIMUM_ROOM_SIZE = 34;
 constexpr std::size_t MINIMUM_EDGE_CONNECTIONS = 3;
 constexpr std::size_t MAXIMUM_EDGE_CONNECTIONS = 6;
+constexpr std::size_t MINIMUM_DIRECT_CONNECTION_LENGTH = 2;
+constexpr std::size_t MAXIMUM_DIRECT_CONNECTION_LENGTH = 8;
 
 std::uint64_t mix(std::uint64_t value)
 {
@@ -1372,6 +1374,8 @@ bool addCorridorRoom(
     int targetRoom,
     CellIndex protectedStart,
     CellIndex protectedExit,
+    std::size_t maximumDirectConnectionLength,
+    bool requireExplicitConnector,
     std::vector<int>& assignments,
     std::vector<GeneratedRoom>& rooms,
     std::vector<int>& connectorRooms,
@@ -1394,6 +1398,15 @@ bool addCorridorRoom(
             addRequiredDoorway(requiredDoorways, sourceRoom, targetRoom);
         }
         return touching;
+    }
+    if (!requireExplicitConnector
+        && path.size() <= maximumDirectConnectionLength) {
+        for (const CellIndex cell : path) {
+            assignments[cell] = sourceRoom;
+        }
+        rooms[static_cast<std::size_t>(sourceRoom)].cellCount += path.size();
+        addRequiredDoorway(requiredDoorways, sourceRoom, targetRoom);
+        return true;
     }
     if (path.size() == 1) {
         const CellIndex bridge = path.front();
@@ -1651,13 +1664,20 @@ ShooterGenerationResult generateShooterLayout(
 
     const auto plannedConnections
         = planArenaConnections(grid, requestedSeeds, generationSeed);
+    const float averageTarget = static_cast<float>(buildableCells.size())
+        * 0.36F / static_cast<float>(std::max<std::size_t>(requestedSeeds.size(), 1));
+    // A passage shorter than an arena's approximate diameter is a doorway
+    // transition, not another room. Keep one explicit connector for shooter
+    // structure, then reserve additional connector identities for long routes.
+    const std::size_t maximumDirectConnectionLength = std::clamp<std::size_t>(
+        static_cast<std::size_t>(std::sqrt(averageTarget)),
+        MINIMUM_DIRECT_CONNECTION_LENGTH,
+        MAXIMUM_DIRECT_CONNECTION_LENGTH);
     std::vector<bool> reservedSeeds(assignments.size(), false);
     for (const CellIndex seed : requestedSeeds) {
         reservedSeeds[seed] = true;
     }
     std::vector<CellIndex> arenaSeeds;
-    const float averageTarget = static_cast<float>(buildableCells.size())
-        * 0.36F / static_cast<float>(std::max<std::size_t>(requestedSeeds.size(), 1));
     std::uniform_real_distribution<float> sizeVariation(0.82F, 1.18F);
     for (std::size_t index = 0; index < requestedSeeds.size(); ++index) {
         const std::size_t targetSize = std::clamp<std::size_t>(
@@ -1704,6 +1724,8 @@ ShooterGenerationResult generateShooterLayout(
             second,
             result.startCell,
             result.exitCell,
+            maximumDirectConnectionLength,
+            result.connectorRooms.empty(),
             assignments,
             rooms,
             result.connectorRooms,
@@ -1734,9 +1756,13 @@ ShooterGenerationResult generateShooterLayout(
             connectedEntrances.push_back(entrance);
             continue;
         }
-        if (corridor.size() == 1) {
-            assignments[corridor.front()] = destinationRoom;
-            ++rooms[static_cast<std::size_t>(destinationRoom)].cellCount;
+        if (corridor.size()
+            <= std::max<std::size_t>(maximumDirectConnectionLength, 1)) {
+            for (const CellIndex cell : corridor) {
+                assignments[cell] = destinationRoom;
+            }
+            rooms[static_cast<std::size_t>(destinationRoom)].cellCount
+                += corridor.size();
         } else {
             corridor = widenCorridor(grid,
                 adjacency,

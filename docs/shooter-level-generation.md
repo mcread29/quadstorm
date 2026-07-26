@@ -265,23 +265,21 @@ The returned path contains only the cells between source and target; arena cells
 
 If routing returns no intermediate cells, generation checks whether the source and target physically touch. If they do, it records a direct required doorway. If they do not, the required tree edge failed.
 
-### One-cell route
+### Short routes
 
-A one-cell route is too small to publish as a room because every room must contain at least two cells.
+The generator estimates an arena's diameter from the average target arena size:
 
-The generator first attempts to create a two-cell connector:
+```text
+maximumDirectConnectionLength = clamp(sqrt(averageTarget), 2, 8)
+```
 
-1. Use the bridge cell.
-2. Borrow an adjacent cell from the source or target arena.
-3. Exclude the protected start and exit seed cells from donation.
-4. Verify that removing the donor leaves its arena connected and with at least two cells.
-5. Assign bridge and donor to a new connector room.
+After retaining one explicit connector for shooter structure, a route no longer than this limit is absorbed into the source arena and recorded as a direct source-to-target doorway. Separate connector identities are therefore reserved for passages that are long relative to their arenas instead of being inserted on nearly every mission-graph edge.
 
-If no safe donor exists, the bridge is absorbed into the source arena and the source/target doorway is recorded directly.
+When the first routed connection contains only one cell, it is too small to publish directly because every room must contain at least two cells. The generator attempts to pair the bridge with a safe donor cell from an endpoint arena. It protects the start and exit seeds and verifies that the donor arena remains connected with at least two cells. If no safe donor exists, the bridge is absorbed into the source arena and the source/target doorway is recorded directly.
 
-### Multi-cell route
+### Longer routes
 
-A route of at least two cells becomes a new `GeneratedRoom`. It receives two required doorway relationships:
+The first suitable routed connection and every route longer than the direct-link limit become new `GeneratedRoom` instances. Each receives two required doorway relationships:
 
 ```text
 source arena ↔ connector
@@ -310,8 +308,8 @@ Entrance path handling:
 
 - No path: mark the candidate incomplete.
 - Already on floor: record the entrance without adding cells.
-- One route cell before the destination: absorb it into the destination room.
-- Two or more route cells before the destination: create and opportunistically widen a connector room, then require a connector-to-destination doorway.
+- A route no longer than the active direct-link limit: absorb it into the destination room.
+- A longer route: create and opportunistically widen a connector room, then require a connector-to-destination doorway.
 
 The route-cell count includes the boundary entrance itself, so a one-cell route is commonly the entrance cell directly adjacent to destination floor.
 

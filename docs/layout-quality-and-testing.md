@@ -452,6 +452,8 @@ It then verifies identical assignments and quality score.
 - At most one deliberate loop.
 - Start-to-exit graph distance of at least three.
 
+`largeShooterLayoutUsesDirectArenaLinks()` checks that a representative radius 14 layout uses direct arena links, keeps connector count to at most half its arena count, and publishes at most one structural two-cell connector.
+
 Additional regressions cover:
 
 - Radius 2 compact layouts.

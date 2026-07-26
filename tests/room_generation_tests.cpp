@@ -183,8 +183,8 @@ bool shooterLayoutHasExplicitCombatStructure(const stalberg::StalbergGrid& grid)
                 "shooter corridors are explicit one- or two-ended passages");
         }
     }
-    valid &= check(arenaCount >= 3 && connectorCount >= 2,
-        "shooter layout creates multiple arenas and explicit corridors");
+    valid &= check(arenaCount >= 3 && connectorCount >= 1,
+        "shooter layout creates multiple arenas and an explicit corridor");
     valid &= check(arenaArea / static_cast<float>(std::max<std::size_t>(arenaCount, 1))
             > connectorArea
                 / static_cast<float>(std::max<std::size_t>(connectorCount, 1)),
@@ -214,6 +214,50 @@ bool shooterLayoutHasExplicitCombatStructure(const stalberg::StalbergGrid& grid)
             && distances[static_cast<std::size_t>(exitRoom)] >= 3,
         "shooter start and exit are separated by a meaningful main route");
     return valid;
+}
+
+bool largeShooterLayoutUsesDirectArenaLinks()
+{
+    stalberg::StalbergGrid grid;
+    grid.generate(14, 1);
+    grid.relaxToCompletion();
+    const auto layout = generateRooms(
+        grid, 2, stalberg::rooms::RoomGenerationMethod::ShooterLayout);
+    if (layout.getRoomCount() == 0) {
+        return check(false, "large shooter layout produces a playable mission graph");
+    }
+
+    std::size_t arenaCount = 0;
+    std::size_t connectorCount = 0;
+    std::size_t twoCellConnectorCount = 0;
+    std::size_t directArenaLinks = 0;
+    for (const auto& room : layout.getRooms()) {
+        if (room.role == stalberg::rooms::RoomRole::Connector) {
+            ++connectorCount;
+            if (room.cellCount == 2) {
+                ++twoCellConnectorCount;
+            }
+        } else {
+            ++arenaCount;
+        }
+    }
+    for (const auto& doorway : layout.getDoorways()) {
+        const auto firstRole = layout.getRooms()[
+            static_cast<std::size_t>(doorway.firstRegion)].role;
+        const auto secondRole = layout.getRooms()[
+            static_cast<std::size_t>(doorway.secondRegion)].role;
+        if (firstRole != stalberg::rooms::RoomRole::Connector
+            && secondRole != stalberg::rooms::RoomRole::Connector) {
+            ++directArenaLinks;
+        }
+    }
+
+    return check(directArenaLinks > 0,
+               "large shooter layouts turn short routes into direct arena links")
+        && check(connectorCount <= arenaCount / 2,
+            "large shooter layouts reserve connector rooms for long links")
+        && check(twoCellConnectorCount <= 1,
+            "large shooter layouts publish at most one structural two-cell connector");
 }
 
 bool bestOfCandidatesDoesNotReduceQuality(const stalberg::StalbergGrid& grid)
@@ -708,6 +752,7 @@ int main()
     valid &= roomGenerationIsRepeatable(
         grid, stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
     valid &= shooterLayoutHasExplicitCombatStructure(grid);
+    valid &= largeShooterLayoutUsesDirectArenaLinks();
     valid &= bestOfCandidatesDoesNotReduceQuality(grid);
     valid &= connectionOrderingDoesNotAffectGeneration(grid);
     valid &= roomInputIsIndependentFromLaterRelaxation();
