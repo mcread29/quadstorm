@@ -1370,6 +1370,8 @@ bool addCorridorRoom(
     const std::vector<bool>& buildable,
     int sourceRoom,
     int targetRoom,
+    CellIndex protectedStart,
+    CellIndex protectedExit,
     std::vector<int>& assignments,
     std::vector<GeneratedRoom>& rooms,
     std::vector<int>& connectorRooms,
@@ -1403,7 +1405,8 @@ bool addCorridorRoom(
                 continue;
             }
             for (const CellIndex neighbor : adjacency[bridge]) {
-                if (assignments[neighbor] == room
+                if (neighbor != protectedStart && neighbor != protectedExit
+                    && assignments[neighbor] == room
                     && roomRemainsConnectedWithout(
                         adjacency, assignments, room, neighbor)) {
                     donor = neighbor;
@@ -1699,6 +1702,8 @@ ShooterGenerationResult generateShooterLayout(
             buildable,
             first,
             second,
+            result.startCell,
+            result.exitCell,
             assignments,
             rooms,
             result.connectorRooms,
@@ -2858,7 +2863,7 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
         const bool shooterValid = options.method != RoomGenerationMethod::ShooterLayout
             || shooterCandidateIsValid(candidate);
         if (!entrancesValid || !structureValid || !shooterValid) {
-            if (candidateIndex + 1 == candidateLimit
+            if (candidateIndex + 1 == candidateLimit && !haveBest
                 && options.method == RoomGenerationMethod::ShooterLayout
                 && candidateLimit < 32) {
                 // Retry constrained grids only after the normal candidate budget

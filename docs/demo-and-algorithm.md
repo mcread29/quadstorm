@@ -4,6 +4,12 @@ This document explains the raylib demo in this repository and the grid-generatio
 
 > **Name note:** The technique is associated with **Oskar Stålberg**, creator of *Townscaper*. It is sometimes incorrectly attributed to “Peter Stålberg.”
 
+Room-generation details are split into focused documents:
+
+- [`room-generation-model.md`](room-generation-model.md) — physical neutral input and output API.
+- [`shooter-level-generation.md`](shooter-level-generation.md) — complete graph-first shooter pipeline.
+- [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
+
 ## Overview
 
 The program generates an irregular mesh made entirely from quadrilateral faces. It starts from a regular triangular lattice inside a hexagonal boundary, randomly merges neighboring triangles, subdivides every remaining face into quads, and then smooths the result.
@@ -332,19 +338,19 @@ The final mesh is rendered inside a raylib `Camera2D`:
 - Every unique final edge is drawn once, with a small circle at each vertex to produce clean joins at every valence.
 - An oriented cross marks each quad centroid; its four arms point toward the quad's edge midpoints.
 - Every solid-line vertex acts as the center of a dual cell whose corners are the surrounding quad centers.
-- Every room receives a unique translucent fill; there is no separate corridor region.
+- Every generated region receives a unique translucent fill. Shooter corridors are separate logical rooms but use the same diagnostic rendering style as arenas.
 - Shared edges inside one room disappear, leaving a connected exterior outline with quadratic rounded corners.
 - Boundaries between regions remain continuous; logical doorways do not create visible wall gaps.
 - Hovering one cell highlights its complete connected room.
 - Marker size and line thickness are divided by camera zoom, keeping them approximately constant in screen pixels.
 
-Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the logical cell. Shared `DualGrid` geometry now supplies polygon area, center clearance, traversal distance, and shared-boundary width to both the renderer and a neutral `RoomGrid`. The integration adapter owns the hex-specific policy that selects six boundary-side centers. The demo completes relaxation before taking this snapshot. The generator combines the room seed with a fingerprint of its neutral topology and physical metrics and supports three methods selectable with `M`.
+Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the logical cell. Shared `DualGrid` geometry now supplies polygons, area, center clearance, and shared-boundary width. The adapter combines that data with grid-vertex positions to calculate center-to-center traversal distance for the neutral `RoomGrid`. The integration adapter owns the hex-specific policy that selects six boundary-side centers. The demo completes relaxation before taking this snapshot. The generator combines the room seed with a fingerprint of its neutral topology and physical metrics and supports three methods selectable with `M`.
 
-The default **shooter layout** starts with an abstract mission graph. It anchors start and exit arenas near well-separated selected boundary entrances, distributes additional arena seeds using farthest-point sampling, and grows compact combat rooms around them while retaining negative space. A spatial minimum tree creates the main route and side branches; maps with enough routing capacity may receive one deliberate long-cycle loop. Each planned edge is routed through unoccupied cells with physical costs that penalize low clearance and narrow portals. Routes longer than one cell become separate connector rooms and gain lateral cells where space allows, producing corridors visibly narrower than their arenas. Only planned arena/corridor contacts become logical doorways, so incidental physical contact cannot introduce an unintended shortcut.
+The default **shooter layout** starts with an abstract mission graph. It anchors start and exit arenas near well-separated selected boundary entrances, distributes additional arena seeds using farthest-point sampling, and grows compact combat rooms around them while retaining negative space. A noise-perturbed Prim-like spatial tree creates the main route and side branches; maps with enough routing capacity may receive one deliberate long-cycle loop. Each planned edge is routed through unoccupied cells with physical costs that penalize low clearance and narrow portals. Routes longer than one cell become separate connector rooms and gain lateral cells where space allows. Compact links can remain direct arena doorways, and opportunistic widening does not mathematically guarantee that every connector is narrower than every arena. Only planned arena/corridor contacts become logical doorways, so incidental physical contact cannot introduce an unintended shortcut.
 
 The legacy **branching shapes** method starts with a central room, uses geometric compact, elongated, branching, irregular, and L-shaped masks, and extends radial branches. The **organic growth** method joins the selected entrances to the center, expands a noisy footprint balanced across six angular sectors, and partitions it with weighted multi-source growth. These legacy methods use a quality-weighted spanning tree plus a bounded loop budget over their resulting room contacts.
 
-All methods select uniformly from every concrete subset containing three to six candidate entrances. There are 20 three-side, 15 four-side, 6 five-side, and 1 six-side subsets, so those counts occur in a proportional 20:15:6:1 ratio. The selected entrance brief remains fixed while several deterministic candidates are generated and scored. Every accepted layout has connected multi-cell regions, distinct start and exit rooms, intentional negative space, and no more than 64 rooms. Each doorway publishes physical width and quality. Rooms publish physical area and a gameplay role: start, exit, combat, connector, hub, or reward. A tactical annotation pass marks wall-adjacent cover candidates and enemy-spawn candidates at least two cell steps from door thresholds. The diagnostic renderer still keeps boundaries visually continuous and rounds the resulting outlines.
+All methods select uniformly from every concrete subset containing three to six candidate entrances. There are 20 three-side, 15 four-side, 6 five-side, and 1 six-side subsets, so those counts occur in a proportional 20:15:6:1 ratio. The selected entrance brief remains fixed while several deterministic candidates are generated and scored. Every accepted layout has connected multi-cell regions, distinct start and exit rooms, intentional negative space, and no more than 64 rooms. Each doorway publishes physical width and quality. Rooms publish physical area and a gameplay role: start, exit, combat, connector, hub, or reward. A tactical annotation pass marks wall-adjacent cover candidates and enemy-spawn candidates away from published internal doorway thresholds. Exterior connected entrances require separate downstream filtering. The diagnostic renderer still keeps boundaries visually continuous and rounds the resulting outlines.
 
 The HUD shows:
 
@@ -356,7 +362,7 @@ The HUD shows:
 
 ## Camera behavior
 
-`F` computes a zoom from the theoretical width and height of the hexagonal lattice and centers the camera at the origin.
+`F` computes zoom from `grid.getBounds()` and centers the camera on the current bounds midpoint.
 
 Mouse-wheel zoom preserves the world position under the cursor:
 
@@ -390,7 +396,7 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/grid/stalberg_grid.cpp` | Grid generation, topology rebuilding, and relaxation |
 | `src/grid/dual_grid.hpp` | Renderer-independent dual polygons, cell measurements, and shared portal widths |
 | `src/rooms/room_grid.hpp` | Grid-independent cells, physical connections, buildability, and entrance candidates |
-| `src/rooms/room_generator.cpp` | Growth methods, weighted routing, controlled circulation, candidate scoring, and role assignment |
+| `src/rooms/room_generator.cpp` | Graph-first shooter planning, legacy growth methods, weighted routing, controlled circulation, candidate scoring, and role assignment |
 | `src/rooms/room_layout.hpp` | Read-only rooms, physical statistics, roles, tactical candidates, assignments, doorways, and quality metadata |
 | `src/integration/room_grid_adapter.cpp` | Translate `StalbergGrid` and select its hex-boundary entrances |
 | `src/grid_renderer.cpp` / `drawGrid()` | Render room fills, connected rounded boundaries, and dual centers |
