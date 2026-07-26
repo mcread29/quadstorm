@@ -9,7 +9,7 @@ The grid generator:
 3. Subdivides every triangle and four-sided face using shared edge midpoints and a face center.
 4. Applies iterative Laplacian relaxation while pinning the hexagonal boundary.
 
-As a separate pass, the room generator consumes a neutral cell-and-neighbor topology with explicit entrance candidates, grows one connected floor plan from the center to at least four entrances, and partitions it into as many as 64 irregular multi-cell rooms.
+As a separate pass, the room generator consumes a neutral cell-and-neighbor topology with explicit entrance candidates and offers two deterministic methods: branching geometric room shapes and organic multi-source growth. Both create one connected floor plan from the center to at least four entrances and partition it into as many as 64 irregular multi-cell rooms.
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
@@ -34,6 +34,7 @@ Grid generation and room generation are independent libraries. The room library 
 |---|---|
 | `R` | Generate the next random grid |
 | `G` | Generate a new room layout |
+| `M` | Switch between branching-shape and organic-growth room generation |
 | Left / Right | Change grid seed |
 | Up / Down | Change hex radius |
 | Space | Pause or resume relaxation |
@@ -43,7 +44,7 @@ Grid generation and room generation are independent libraries. The room library 
 | Mouse wheel | Zoom around cursor |
 | Middle/right drag | Pan |
 
-Each solid-line junction is one logical floor cell. Generation begins with a central room, may add a few slim radial branches near the middle, extends connected rooms to the centers of at least four randomly selected outer edges, then continues growing through short room connectors. The room seed is combined with a fingerprint of the supplied neutral topology so compact inputs do not repeatedly produce the same silhouette. New rooms use several structural templates—soft rectangles, galleries, capsules, and L-shapes—adapted to the irregular grid. Rooms always contain multiple connected cells, and every room receives a unique color. The generator preserves exterior negative space instead of filling the patch. Region boundaries remain continuous without doorway gaps, and hovering highlights the complete room under the pointer.
+Each solid-line junction is one logical floor cell. The default method begins with a central room, may add slim radial branches, extends rooms to at least four randomly selected outer-edge centers, and continues through short room connectors. Its rooms use soft rectangles, galleries, capsules, and L-shapes. The organic method first joins the center to four seed-varied, spatially separated entrances, then grows a noisy connected footprint while balancing expansion across six angular sectors. It partitions that footprint from spatially separated seeds with balanced multi-source frontier growth. Both methods preserve exterior negative space, produce only connected multi-cell rooms, and combine the room seed with a fingerprint of the neutral topology. Region boundaries remain continuous without doorway gaps, and hovering highlights the complete room under the pointer.
 
 ## Linux: missing `DISPLAY`
 

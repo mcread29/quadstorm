@@ -20,6 +20,17 @@ constexpr int MIN_RADIUS = 2;
 constexpr int MAX_RADIUS = 14;
 constexpr std::uint32_t INITIAL_SEED = 1;
 
+const char* roomMethodName(stalberg::rooms::RoomGenerationMethod method)
+{
+    switch (method) {
+    case stalberg::rooms::RoomGenerationMethod::BranchingShapes:
+        return "branching shapes";
+    case stalberg::rooms::RoomGenerationMethod::OrganicGrowth:
+        return "organic growth";
+    }
+    return "unknown";
+}
+
 void fitCamera(Camera2D& camera, const stalberg::StalbergGrid& grid)
 {
     const stalberg::Bounds bounds = grid.getBounds();
@@ -96,12 +107,15 @@ int main()
     int radius = INITIAL_RADIUS;
     std::uint32_t seed = INITIAL_SEED;
     std::uint32_t roomSeed = INITIAL_SEED;
+    stalberg::rooms::RoomGenerationMethod roomMethod
+        = stalberg::rooms::RoomGenerationMethod::BranchingShapes;
     bool relaxing = true;
     bool drawCenters = true;
     grid.generate(radius, seed);
     stalberg::rooms::RoomGenerator roomGenerator;
     stalberg::rooms::RoomGrid roomInput = stalberg::makeRoomGrid(grid);
-    stalberg::rooms::RoomLayout rooms = roomGenerator.generate(roomInput, roomSeed);
+    stalberg::rooms::RoomLayout rooms
+        = roomGenerator.generate(roomInput, roomSeed, roomMethod);
 
     Camera2D camera {};
     camera.offset = Vector2 { 640.0F, 400.0F };
@@ -138,7 +152,7 @@ int main()
         if (regenerateRequested) {
             grid.generate(radius, seed);
             roomInput = stalberg::makeRoomGrid(grid);
-            rooms = roomGenerator.generate(roomInput, roomSeed);
+            rooms = roomGenerator.generate(roomInput, roomSeed, roomMethod);
             relaxing = true;
             if (refitRequested) {
                 fitCamera(camera, grid);
@@ -157,7 +171,14 @@ int main()
         }
         if (IsKeyPressed(KEY_G)) {
             ++roomSeed;
-            rooms = roomGenerator.generate(roomInput, roomSeed);
+            rooms = roomGenerator.generate(roomInput, roomSeed, roomMethod);
+        }
+        if (IsKeyPressed(KEY_M)) {
+            roomMethod = roomMethod
+                    == stalberg::rooms::RoomGenerationMethod::BranchingShapes
+                ? stalberg::rooms::RoomGenerationMethod::OrganicGrowth
+                : stalberg::rooms::RoomGenerationMethod::BranchingShapes;
+            rooms = roomGenerator.generate(roomInput, roomSeed, roomMethod);
         }
 
         handleCamera(camera, grid);
@@ -194,11 +215,13 @@ int main()
                      stalberg::MAX_RELAXATION_STEPS,
                      relaxing ? "  (running)" : "  (paused)", rooms.getRoomCount()),
             26, 74, 16, Color { 239, 180, 74, 255 });
-        DrawText(TextFormat("G/new rooms  seed %u  doors %zu",
+        DrawText(TextFormat("G/new rooms  M/method  seed %u  doors %zu",
                      rooms.getSeed(), rooms.getDoorways().size()),
             26, 98, 14, Color { 196, 225, 223, 255 });
         DrawText("R/new grid  arrows/seed+size  Space/pause  N/step", 26, 120, 14,
             Color { 150, 178, 181, 255 });
+        DrawText(TextFormat("method: %s", roomMethodName(rooms.getMethod())),
+            470, 20, 16, Color { 226, 240, 224, 230 });
         DrawText("P/centers  F/fit  wheel/zoom  middle or right drag/pan", 20,
             GetScreenHeight() - 27, 14, Color { 25, 75, 87, 255 });
 

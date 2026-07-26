@@ -31,7 +31,9 @@ center-out floor-plan growth
         ↓
 four or more outer-edge-center connections
         ↓
-branching, directly connected irregular rooms
+branching shapes or organic multi-source room growth
+        ↓
+directly connected irregular rooms
 ```
 
 The demo colors an automatically generated floor plan over the relaxed grid. A solid-line junction is one logical floor cell; the surrounding quad centers become that cell's dual-polygon corners. Rooms contain many connected cells, connect directly to neighboring rooms, and highlight as one contiguous region when hovered.
@@ -56,6 +58,7 @@ raylib requires a graphical desktop. On a headless Linux machine, `xvfb-run -a .
 |---|---|
 | `R` | Increment the seed and generate a new grid |
 | `G` | Increment the room seed and generate a new floor plan |
+| `M` | Switch between branching-shape and organic-growth room generation |
 | Left / Right | Select the previous or next grid seed |
 | Up / Down | Increase or decrease the hexagonal patch radius |
 | Space | Pause or resume automatic relaxation |
@@ -333,7 +336,9 @@ The final mesh is rendered inside a raylib `Camera2D`:
 - Hovering one cell highlights its complete connected room.
 - Marker size and line thickness are divided by camera zoom, keeping them approximately constant in screen pixels.
 
-Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the logical cell. Room generation is a separate pass over a neutral `RoomGrid` cell topology with explicit buildability and entrance candidates. The integration adapter owns the hex-specific policy that selects six boundary-side centers. The generator combines the room seed with a fingerprint of its neutral input, starts with a size-limited central room, and sometimes establishes several slim radial rooms near the middle before connecting the floor plan to at least four shuffled entrances. The early radial phase is optional, so an outer room may reach the center but is not forced to do so. This produces varied silhouettes even on compact grids and supports up to 64 uniquely colored rooms. It prefers multi-cell rooms at those edge centers and extends an existing room when a small grid cannot fit another room. Optional growth repeatedly chooses a boundary attachment, grows a short outward connector as part of the new room, and places the room at its end. Rooms are sampled from soft-rectangle, gallery, capsule, and L-shaped templates; breadth-first collection keeps every room connected and prevents single-cell rooms. Generation preserves substantial negative space where the grid size permits. Every pair of touching regions still receives a deterministic logical doorway for circulation data, while the renderer keeps all region boundaries visually continuous and rounds the resulting outlines.
+Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the logical cell. Room generation is a separate pass over a neutral `RoomGrid` cell topology with explicit buildability and entrance candidates. The integration adapter owns the hex-specific policy that selects six boundary-side centers. The generator combines the room seed with a fingerprint of its neutral input and supports two methods selectable with `M`.
+
+The default **branching shapes** method starts with a size-limited central room, may establish slim radial rooms, and connects the floor plan to at least four shuffled entrances. Optional growth uses short connectors and soft-rectangle, gallery, capsule, and L-shaped templates. The **organic growth** method first joins the center to four seed-varied entrances chosen by farthest-point sampling, expands that connected network through noisy frontier growth balanced across six angular sectors, chooses spatially separated room seeds, and balances multi-source growth across those seeds. Singleton regions are merged into adjacent rooms. Both methods keep every room and the complete floor plan connected, preserve substantial negative space, and support up to 64 uniquely colored rooms. Every pair of touching regions receives a deterministic logical doorway for circulation data, while the renderer keeps boundaries visually continuous and rounds the resulting outlines.
 
 The HUD shows:
 
@@ -378,8 +383,8 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/grid/stalberg_grid.hpp` | Public mesh types and read-only topology views |
 | `src/grid/stalberg_grid.cpp` | Grid generation, topology rebuilding, and relaxation |
 | `src/rooms/room_grid.hpp` | Grid-independent cells, adjacency, buildability, and entrance candidates |
-| `src/rooms/room_generator.cpp` | Center-out footprint, direct room connections, and connected room growth |
-| `src/rooms/room_layout.hpp` | Read-only result model for rooms, assignments, and doorways |
+| `src/rooms/room_generator.cpp` | Branching-shape and organic-growth methods, entrance connections, and doorway extraction |
+| `src/rooms/room_layout.hpp` | Generation method plus the read-only result model for rooms, assignments, and doorways |
 | `src/integration/room_grid_adapter.cpp` | Translate `StalbergGrid` and select its hex-boundary entrances |
 | `src/grid_renderer.cpp` / `drawGrid()` | Render room fills, connected rounded boundaries, and dual centers |
 | `src/main.cpp` | Compose generation modules, process controls, update, and render |

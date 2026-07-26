@@ -1,8 +1,10 @@
 #include "rooms/room_generator.hpp"
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <map>
@@ -485,13 +487,368 @@ bool growBranchRoom(
     return false;
 }
 
+std::vector<CellIndex> pathToFloor(
+    const std::vector<std::vector<CellIndex>>& adjacency,
+    const std::vector<bool>& buildable,
+    const std::vector<bool>& floor,
+    CellIndex start)
+{
+    const CellIndex noCell = adjacency.size();
+    if (start >= adjacency.size()) {
+        return {};
+    }
+    if (floor[start]) {
+        return { start };
+    }
+
+    std::vector<CellIndex> parent(adjacency.size(), noCell);
+    std::queue<CellIndex> queue;
+    parent[start] = start;
+    queue.push(start);
+
+    CellIndex destination = noCell;
+    while (!queue.empty() && destination == noCell) {
+        const CellIndex cell = queue.front();
+        queue.pop();
+        for (const CellIndex neighbor : adjacency[cell]) {
+            if (floor[neighbor]) {
+                parent[neighbor] = cell;
+                destination = neighbor;
+                break;
+            }
+            if (parent[neighbor] == noCell && buildable[neighbor]) {
+                parent[neighbor] = cell;
+                queue.push(neighbor);
+            }
+        }
+    }
+    if (destination == noCell) {
+        return {};
+    }
+
+    std::vector<CellIndex> path;
+    for (CellIndex cell = destination;; cell = parent[cell]) {
+        path.push_back(cell);
+        if (cell == start) {
+            break;
+        }
+    }
+    std::ranges::reverse(path);
+    return path;
+}
+
+void generateOrganicGrowth(
+    const RoomGrid& grid,
+    const std::vector<std::vector<CellIndex>>& adjacency,
+    const std::vector<bool>& buildable,
+    const std::vector<CellIndex>& buildableCells,
+    CellIndex center,
+    std::uint32_t generationSeed,
+    std::mt19937& random,
+    std::vector<int>& assignments,
+    std::vector<GeneratedRoom>& rooms,
+    std::vector<CellIndex>& connectedEntrances)
+{
+    const auto cells = grid.getCells();
+    std::vector<bool> floor(cells.size(), false);
+    floor[center] = true;
+    std::size_t floorCount = 1;
+
+    constexpr std::size_t sectorCount = 6;
+    const auto sectorFor = [&](CellIndex cell) {
+        const float x = cells[cell].position.x - cells[center].position.x;
+        const float y = cells[cell].position.y - cells[center].position.y;
+        float angle = std::atan2(y, x);
+        if (angle < 0.0F) {
+            angle += 2.0F * std::numbers::pi_v<float>;
+        }
+        return std::min(static_cast<std::size_t>(angle
+                            / (2.0F * std::numbers::pi_v<float>)
+                            * static_cast<float>(sectorCount)),
+            sectorCount - 1);
+    };
+    std::array<std::size_t, sectorCount> sectorFloorCounts {};
+    ++sectorFloorCounts[sectorFor(center)];
+
+    // Choose entrances by farthest-point sampling. Keeping the first candidate
+    // random preserves seed variation while subsequent choices spread around
+    // the hex instead of allowing four neighboring sides to dominate the plan.
+    std::vector<CellIndex> entrancePool(
+        grid.entranceCandidates.begin(), grid.entranceCandidates.end());
+    std::ranges::shuffle(entrancePool, random);
+    while (!entrancePool.empty()
+        && connectedEntrances.size() < REQUIRED_EDGE_CONNECTIONS) {
+        std::size_t selectedIndex = 0;
+        if (!connectedEntrances.empty()) {
+            float bestSeparation = -1.0F;
+            for (std::size_t candidate = 0;
+                 candidate < entrancePool.size(); ++candidate) {
+                float nearestSelected = std::numeric_limits<float>::infinity();
+                for (const CellIndex selected : connectedEntrances) {
+                    nearestSelected = std::min(nearestSelected,
+                        distance(cells[entrancePool[candidate]].position,
+                            cells[selected].position));
+                }
+                if (nearestSelected > bestSeparation) {
+                    selectedIndex = candidate;
+                    bestSeparation = nearestSelected;
+                }
+            }
+        }
+
+        const CellIndex entrance = entrancePool[selectedIndex];
+        entrancePool.erase(entrancePool.begin()
+            + static_cast<std::ptrdiff_t>(selectedIndex));
+        const std::vector<CellIndex> path
+            = pathToFloor(adjacency, buildable, floor, entrance);
+        if (path.empty()) {
+            continue;
+        }
+        for (const CellIndex cell : path) {
+            if (!floor[cell]) {
+                floor[cell] = true;
+                ++floorCount;
+                ++sectorFloorCounts[sectorFor(cell)];
+            }
+        }
+        connectedEntrances.push_back(entrance);
+    }
+
+    std::uniform_real_distribution<float> coverageDistribution(0.44F, 0.54F);
+    const std::size_t coverageTarget = std::max(floorCount,
+        static_cast<std::size_t>(static_cast<float>(buildableCells.size())
+            * coverageDistribution(random)));
+
+    while (floorCount < coverageTarget) {
+        CellIndex selected = cells.size();
+        float selectedScore = -std::numeric_limits<float>::infinity();
+        for (const CellIndex cell : buildableCells) {
+            if (floor[cell]) {
+                continue;
+            }
+            const std::size_t floorNeighbors = std::ranges::count_if(
+                adjacency[cell], [&](CellIndex neighbor) { return floor[neighbor]; });
+            if (floorNeighbors == 0) {
+                continue;
+            }
+            const float noise = unitNoise(generationSeed,
+                static_cast<std::uint64_t>(floorCount) * 65537U + cell);
+            const std::size_t sector = sectorFor(cell);
+            const float expectedPerSector = static_cast<float>(floorCount)
+                / static_cast<float>(sectorCount);
+            const float sectorBalance = std::clamp(
+                (expectedPerSector
+                    - static_cast<float>(sectorFloorCounts[sector]))
+                    / std::max(expectedPerSector, 1.0F),
+                -1.0F,
+                1.0F);
+            const float score = static_cast<float>(floorNeighbors) * 0.2F
+                + noise * 1.05F + sectorBalance * 1.5F;
+            if (score > selectedScore
+                || (score == selectedScore && cell < selected)) {
+                selected = cell;
+                selectedScore = score;
+            }
+        }
+        if (selected == cells.size()) {
+            break;
+        }
+        floor[selected] = true;
+        ++floorCount;
+        ++sectorFloorCounts[sectorFor(selected)];
+    }
+
+    if (floorCount < MINIMUM_ROOM_SIZE) {
+        return;
+    }
+
+    const std::size_t desiredRoomCount = std::clamp<std::size_t>(
+        floorCount / 15, 2, MAX_GENERATED_ROOMS);
+    const std::size_t roomCount = std::min(desiredRoomCount, floorCount / 2);
+    std::vector<CellIndex> seeds;
+    seeds.reserve(roomCount);
+    seeds.push_back(center);
+    while (seeds.size() < roomCount) {
+        CellIndex selected = cells.size();
+        float selectedScore = -1.0F;
+        for (CellIndex cell = 0; cell < floor.size(); ++cell) {
+            if (!floor[cell]
+                || std::ranges::find(seeds, cell) != seeds.end()) {
+                continue;
+            }
+            float nearestSquared = std::numeric_limits<float>::infinity();
+            for (const CellIndex seed : seeds) {
+                const float x = cells[cell].position.x - cells[seed].position.x;
+                const float y = cells[cell].position.y - cells[seed].position.y;
+                nearestSquared = std::min(nearestSquared, x * x + y * y);
+            }
+            const float noise = unitNoise(generationSeed,
+                seeds.size() * 104729U + cell);
+            const float score = nearestSquared * (0.8F + noise * 0.4F);
+            if (score > selectedScore
+                || (score == selectedScore && cell < selected)) {
+                selected = cell;
+                selectedScore = score;
+            }
+        }
+        if (selected == cells.size()) {
+            break;
+        }
+        seeds.push_back(selected);
+    }
+
+    std::vector<std::vector<CellIndex>> frontiers(seeds.size());
+    std::vector<std::size_t> roomSizes(seeds.size(), 1);
+    std::size_t assignedCount = 0;
+    for (std::size_t room = 0; room < seeds.size(); ++room) {
+        assignments[seeds[room]] = static_cast<int>(room);
+        ++assignedCount;
+        for (const CellIndex neighbor : adjacency[seeds[room]]) {
+            if (floor[neighbor] && assignments[neighbor] == EMPTY_CELL) {
+                frontiers[room].push_back(neighbor);
+            }
+        }
+    }
+
+    while (assignedCount < floorCount) {
+        std::vector<std::size_t> activeRooms;
+        for (std::size_t room = 0; room < frontiers.size(); ++room) {
+            std::erase_if(frontiers[room], [&](CellIndex cell) {
+                return assignments[cell] != EMPTY_CELL;
+            });
+            if (!frontiers[room].empty()) {
+                activeRooms.push_back(room);
+            }
+        }
+        if (activeRooms.empty()) {
+            break;
+        }
+
+        std::ranges::shuffle(activeRooms, random);
+        const std::size_t selectedRoom = *std::ranges::min_element(
+            activeRooms, [&](std::size_t lhs, std::size_t rhs) {
+                return roomSizes[lhs] < roomSizes[rhs];
+            });
+        auto& frontier = frontiers[selectedRoom];
+        std::uniform_int_distribution<std::size_t> cellDistribution(
+            0, frontier.size() - 1);
+        const std::size_t frontierIndex = cellDistribution(random);
+        const CellIndex cell = frontier[frontierIndex];
+        frontier[frontierIndex] = frontier.back();
+        frontier.pop_back();
+        if (assignments[cell] != EMPTY_CELL) {
+            continue;
+        }
+
+        assignments[cell] = static_cast<int>(selectedRoom);
+        ++roomSizes[selectedRoom];
+        ++assignedCount;
+        for (const CellIndex neighbor : adjacency[cell]) {
+            if (floor[neighbor] && assignments[neighbor] == EMPTY_CELL) {
+                frontier.push_back(neighbor);
+            }
+        }
+    }
+
+    for (std::size_t room = 0; room < roomSizes.size(); ++room) {
+        if (roomSizes[room] >= MINIMUM_ROOM_SIZE) {
+            continue;
+        }
+        const auto roomCell = std::ranges::find(assignments, static_cast<int>(room));
+        if (roomCell == assignments.end()) {
+            continue;
+        }
+        const CellIndex cell = static_cast<CellIndex>(roomCell - assignments.begin());
+        const auto neighbor = std::ranges::find_if(adjacency[cell], [&](CellIndex adjacent) {
+            return assignments[adjacent] >= 0
+                && assignments[adjacent] != static_cast<int>(room);
+        });
+        if (neighbor == adjacency[cell].end()) {
+            continue;
+        }
+        const std::size_t destination
+            = static_cast<std::size_t>(assignments[*neighbor]);
+        assignments[cell] = static_cast<int>(destination);
+        ++roomSizes[destination];
+        roomSizes[room] = 0;
+    }
+
+    std::vector<int> remappedRoomIds(roomSizes.size(), EMPTY_CELL);
+    for (std::size_t oldRoom = 0; oldRoom < roomSizes.size(); ++oldRoom) {
+        if (roomSizes[oldRoom] < MINIMUM_ROOM_SIZE) {
+            continue;
+        }
+        const int roomId = static_cast<int>(rooms.size());
+        remappedRoomIds[oldRoom] = roomId;
+        rooms.push_back(GeneratedRoom { roomId, roomSizes[oldRoom] });
+    }
+    for (int& assignment : assignments) {
+        if (assignment >= 0) {
+            assignment = remappedRoomIds[static_cast<std::size_t>(assignment)];
+        }
+    }
+}
+
+void generateDoorways(
+    const std::vector<std::vector<CellIndex>>& adjacency,
+    std::uint32_t generationSeed,
+    const std::vector<int>& assignments,
+    std::vector<Doorway>& doorways)
+{
+    using RegionPair = std::pair<int, int>;
+    using CellPair = std::pair<CellIndex, CellIndex>;
+    std::map<RegionPair, std::vector<CellPair>> sharedBoundaries;
+    for (CellIndex cell = 0; cell < assignments.size(); ++cell) {
+        const int firstRegion = assignments[cell];
+        if (firstRegion == EMPTY_CELL) {
+            continue;
+        }
+        for (const CellIndex neighbor : adjacency[cell]) {
+            if (neighbor <= cell) {
+                continue;
+            }
+            const int secondRegion = assignments[neighbor];
+            if (secondRegion == EMPTY_CELL || secondRegion == firstRegion) {
+                continue;
+            }
+            if (firstRegion < secondRegion) {
+                sharedBoundaries[{ firstRegion, secondRegion }].emplace_back(cell, neighbor);
+            } else {
+                sharedBoundaries[{ secondRegion, firstRegion }].emplace_back(neighbor, cell);
+            }
+        }
+    }
+
+    for (auto& [regions, candidates] : sharedBoundaries) {
+        std::ranges::sort(candidates, [&](const CellPair& lhs, const CellPair& rhs) {
+            const std::uint64_t left = mix(static_cast<std::uint64_t>(generationSeed)
+                ^ mix(lhs.first) ^ (mix(lhs.second) << 1U));
+            const std::uint64_t right = mix(static_cast<std::uint64_t>(generationSeed)
+                ^ mix(rhs.first) ^ (mix(rhs.second) << 1U));
+            if (left != right) {
+                return left < right;
+            }
+            return lhs < rhs;
+        });
+        const CellPair selected = candidates.front();
+        doorways.push_back(Doorway {
+            regions.first,
+            selected.first,
+            regions.second,
+            selected.second
+        });
+    }
+}
+
 } // namespace
 
-RoomLayout RoomGenerator::generate(
-    const RoomGrid& grid, std::uint32_t newSeed) const
+RoomLayout RoomGenerator::generate(const RoomGrid& grid,
+    std::uint32_t newSeed,
+    RoomGenerationMethod method) const
 {
     RoomLayout result;
     result.seed = newSeed;
+    result.method = method;
     auto& rooms = result.rooms;
     auto& doorways = result.doorways;
     auto& connectedEntrances = result.connectedEntrances;
@@ -524,6 +881,21 @@ RoomLayout RoomGenerator::generate(
             return distanceFromOrigin(cells[lhs].position)
                 < distanceFromOrigin(cells[rhs].position);
         });
+    if (method == RoomGenerationMethod::OrganicGrowth) {
+        generateOrganicGrowth(grid,
+            adjacency,
+            buildable,
+            buildableCells,
+            center,
+            generationSeed,
+            random,
+            cellAssignments,
+            rooms,
+            connectedEntrances);
+        generateDoorways(adjacency, generationSeed, cellAssignments, doorways);
+        return result;
+    }
+
     const float cellScale = estimateCellScale(grid, adjacency, buildable);
     const std::size_t desiredRooms = std::clamp<std::size_t>(
         buildableCells.size() / 34, 7, MAX_GENERATED_ROOMS);
@@ -697,49 +1069,7 @@ RoomLayout RoomGenerator::generate(
         }
     }
 
-    using RegionPair = std::pair<int, int>;
-    using CellPair = std::pair<CellIndex, CellIndex>;
-    std::map<RegionPair, std::vector<CellPair>> sharedBoundaries;
-    for (CellIndex cell = 0; cell < cellAssignments.size(); ++cell) {
-        const int firstRegion = cellAssignments[cell];
-        if (firstRegion == EMPTY_CELL) {
-            continue;
-        }
-        for (const CellIndex neighbor : adjacency[cell]) {
-            if (neighbor <= cell) {
-                continue;
-            }
-            const int secondRegion = cellAssignments[neighbor];
-            if (secondRegion == EMPTY_CELL || secondRegion == firstRegion) {
-                continue;
-            }
-            if (firstRegion < secondRegion) {
-                sharedBoundaries[{ firstRegion, secondRegion }].emplace_back(cell, neighbor);
-            } else {
-                sharedBoundaries[{ secondRegion, firstRegion }].emplace_back(neighbor, cell);
-            }
-        }
-    }
-
-    for (auto& [regions, candidates] : sharedBoundaries) {
-        std::ranges::sort(candidates, [&](const CellPair& lhs, const CellPair& rhs) {
-            const std::uint64_t left = mix(static_cast<std::uint64_t>(generationSeed)
-                ^ mix(lhs.first) ^ (mix(lhs.second) << 1U));
-            const std::uint64_t right = mix(static_cast<std::uint64_t>(generationSeed)
-                ^ mix(rhs.first) ^ (mix(rhs.second) << 1U));
-            if (left != right) {
-                return left < right;
-            }
-            return lhs < rhs;
-        });
-        const CellPair selected = candidates.front();
-        doorways.push_back(Doorway {
-            regions.first,
-            selected.first,
-            regions.second,
-            selected.second
-        });
-    }
+    generateDoorways(adjacency, generationSeed, cellAssignments, doorways);
     return result;
 }
 

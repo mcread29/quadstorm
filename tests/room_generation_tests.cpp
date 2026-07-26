@@ -23,11 +23,13 @@ bool check(bool condition, std::string_view message)
     return condition;
 }
 
-stalberg::rooms::RoomLayout generateRooms(
-    const stalberg::StalbergGrid& grid, std::uint32_t seed)
+stalberg::rooms::RoomLayout generateRooms(const stalberg::StalbergGrid& grid,
+    std::uint32_t seed,
+    stalberg::rooms::RoomGenerationMethod method
+        = stalberg::rooms::RoomGenerationMethod::BranchingShapes)
 {
     return stalberg::rooms::RoomGenerator {}.generate(
-        stalberg::makeRoomGrid(grid), seed);
+        stalberg::makeRoomGrid(grid), seed, method);
 }
 
 bool adapterProducesValidRoomInput(const stalberg::StalbergGrid& grid)
@@ -61,19 +63,22 @@ bool adapterProducesValidRoomInput(const stalberg::StalbergGrid& grid)
     return valid;
 }
 
-bool roomGenerationIsRepeatable(const stalberg::StalbergGrid& grid)
+bool roomGenerationIsRepeatable(const stalberg::StalbergGrid& grid,
+    stalberg::rooms::RoomGenerationMethod method)
 {
-    const auto first = generateRooms(grid, 17);
-    const auto second = generateRooms(grid, 17);
+    const auto first = generateRooms(grid, 17, method);
+    const auto second = generateRooms(grid, 17, method);
 
-    return check(first.getRoomCount() == second.getRoomCount(),
-               "same room seed produces the same room count")
+    return check(first.getMethod() == method,
+               "layout records its generation method")
+        && check(first.getRoomCount() == second.getRoomCount(),
+            "same room seed produces the same room count")
         && check(std::ranges::equal(
                      first.getCellAssignments(), second.getCellAssignments()),
-            "same room seed produces the same layout")
+            "same room seed and method produce the same layout")
         && check(std::ranges::equal(first.getConnectedEntrances(),
                      second.getConnectedEntrances()),
-            "same room seed connects the same entrances");
+            "same room seed and method connect the same entrances");
 }
 
 bool roomInputIsIndependentFromLaterRelaxation()
@@ -93,17 +98,22 @@ bool roomInputIsIndependentFromLaterRelaxation()
         "later grid relaxation cannot mutate an owned room input");
 }
 
-bool roomLayoutIsValid(
-    const stalberg::StalbergGrid& grid, std::uint32_t roomSeed)
+bool roomLayoutIsValid(const stalberg::StalbergGrid& grid,
+    std::uint32_t roomSeed,
+    stalberg::rooms::RoomGenerationMethod method
+        = stalberg::rooms::RoomGenerationMethod::BranchingShapes)
 {
     const auto roomGrid = stalberg::makeRoomGrid(grid);
-    const auto layout = stalberg::rooms::RoomGenerator {}.generate(roomGrid, roomSeed);
+    const auto layout
+        = stalberg::rooms::RoomGenerator {}.generate(roomGrid, roomSeed, method);
     const auto assignments = layout.getCellAssignments();
     const auto vertices = grid.getVertices();
     const auto neighbors = roomGrid.getNeighbors();
     const auto connectedEntrances = layout.getConnectedEntrances();
     bool valid = true;
 
+    valid &= check(layout.getMethod() == method,
+        "layout reports the selected generation method");
     valid &= check(assignments.size() == vertices.size(),
         "room layout has one assignment per grid vertex");
     valid &= check(layout.getRoomCount() >= 2,
@@ -291,6 +301,38 @@ std::vector<int> connectedSideSignature(
     return signature;
 }
 
+bool organicGrowthIsEvenlyDispersed(const stalberg::StalbergGrid& grid)
+{
+    const auto input = stalberg::makeRoomGrid(grid);
+    bool valid = true;
+    for (std::uint32_t seed = 1; seed <= 8; ++seed) {
+        const auto layout = stalberg::rooms::RoomGenerator {}.generate(input,
+            seed,
+            stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
+        std::array<std::size_t, 6> sectorCounts {};
+        for (std::size_t cell = 0; cell < input.cells.size(); ++cell) {
+            if (layout.getCellAssignment(cell) == stalberg::rooms::EMPTY_CELL) {
+                continue;
+            }
+            float angle = std::atan2(
+                input.cells[cell].position.y, input.cells[cell].position.x);
+            if (angle < 0.0F) {
+                angle += 2.0F * std::numbers::pi_v<float>;
+            }
+            const std::size_t sector = std::min(
+                static_cast<std::size_t>(angle
+                    / (2.0F * std::numbers::pi_v<float>) * 6.0F),
+                sectorCounts.size() - 1);
+            ++sectorCounts[sector];
+        }
+        const auto [minimum, maximum]
+            = std::ranges::minmax_element(sectorCounts);
+        valid &= check(*minimum * 3 >= *maximum * 2,
+            "organic growth remains dispersed across all six sectors");
+    }
+    return valid;
+}
+
 bool compactLayoutsVaryAcrossGridSeeds()
 {
     std::set<std::vector<int>> signatures;
@@ -356,18 +398,28 @@ int main()
     grid.generate(6, 1);
 
     bool valid = adapterProducesValidRoomInput(grid);
-    valid &= roomGenerationIsRepeatable(grid);
+    valid &= roomGenerationIsRepeatable(
+        grid, stalberg::rooms::RoomGenerationMethod::BranchingShapes);
+    valid &= roomGenerationIsRepeatable(
+        grid, stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
     valid &= roomInputIsIndependentFromLaterRelaxation();
     for (std::uint32_t roomSeed = 1; roomSeed <= 12; ++roomSeed) {
         valid &= roomLayoutIsValid(grid, roomSeed);
+        valid &= roomLayoutIsValid(grid,
+            roomSeed,
+            stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
     }
     for (const int radius : std::array { 2, 7, 14 }) {
         stalberg::StalbergGrid representativeGrid;
         representativeGrid.generate(radius, 3);
         for (const std::uint32_t roomSeed : std::array<std::uint32_t, 2> { 1, 7 }) {
             valid &= roomLayoutIsValid(representativeGrid, roomSeed);
+            valid &= roomLayoutIsValid(representativeGrid,
+                roomSeed,
+                stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
         }
     }
+    valid &= organicGrowthIsEvenlyDispersed(grid);
     valid &= compactLayoutsVaryAcrossGridSeeds();
     valid &= largeLayoutUsesExpandedRoomBudget();
     valid &= degenerateGridDoesNotCreateSingleCellRoom();
