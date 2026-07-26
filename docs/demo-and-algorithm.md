@@ -29,10 +29,12 @@ organic Stålberg-style grid
         ↓
 center-out floor-plan growth
         ↓
-branching corridors and irregular rooms
+three or more outer-edge-center connections
+        ↓
+branching, directly connected irregular rooms
 ```
 
-The demo colors an automatically generated floor plan over the relaxed grid. A solid-line junction is one logical floor cell; the surrounding quad centers become that cell's dual-polygon corners. Rooms contain many connected cells, corridors branch outward from the center, and hovering highlights the complete region under the pointer.
+The demo colors an automatically generated floor plan over the relaxed grid. A solid-line junction is one logical floor cell; the surrounding quad centers become that cell's dual-polygon corners. Rooms contain many connected cells, connect directly to neighboring rooms, and highlight as one contiguous region when hovered.
 
 ## Building and running
 
@@ -325,12 +327,13 @@ The final mesh is rendered inside a raylib `Camera2D`:
 - Every unique final edge is drawn once, with a small circle at each vertex to produce clean joins at every valence.
 - An oriented cross marks each quad centroid; its four arms point toward the quad's edge midpoints.
 - Every solid-line vertex acts as the center of a dual cell whose corners are the surrounding quad centers.
-- Every room receives a distinct translucent fill; corridors use a dark contrasting fill.
+- Every room receives a unique translucent fill; there is no separate corridor region.
 - Shared edges inside one room disappear, leaving a connected exterior outline with quadratic rounded corners.
-- Hovering one cell highlights its complete room or the complete corridor network.
+- Boundaries between regions remain continuous; logical doorways do not create visible wall gaps.
+- Hovering one cell highlights its complete connected room.
 - Marker size and line thickness are divided by camera zoom, keeping them approximately constant in screen pixels.
 
-Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the logical cell. Room generation starts with one central room and repeatedly chooses a boundary attachment, grows a short outward connector, and places another room at its end. Rooms are sampled from soft-rectangle, gallery, capsule, and L-shaped templates; the irregular graph naturally perturbs those architectural forms without reducing every region to a Voronoi blob. Generation targets only 42–55 percent of the buildable cells and may stop earlier when no valid placement remains, deliberately preserving substantial negative space. Every pair of touching regions receives a deterministic doorway. The renderer removes shared polygon edges within each room, omits wall segments at doorways, and rounds only the resulting exterior boundary.
+Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the logical cell. Room generation mixes the grid and room seeds, starts with a size-limited central room, then connects the floor plan to the centers of at least three shuffled outer edges. This produces varied silhouettes even on compact grids. It prefers multi-cell rooms at those edge centers and extends an existing room when a small grid cannot fit another room. Optional growth repeatedly chooses a boundary attachment, grows a short outward connector as part of the new room, and places the room at its end. Rooms are sampled from soft-rectangle, gallery, capsule, and L-shaped templates; breadth-first collection keeps every room connected and prevents single-cell rooms. Generation preserves substantial negative space where the grid size permits. Every pair of touching regions still receives a deterministic logical doorway for circulation data, while the renderer keeps all region boundaries visually continuous and rounds the resulting outlines.
 
 The HUD shows:
 
@@ -374,8 +377,8 @@ Rendering and application concerns are kept separate from the mesh core:
 |---|---|
 | `src/stalberg_grid.hpp` | Public mesh types and read-only topology views |
 | `src/stalberg_grid.cpp` | Grid generation, topology rebuilding, and relaxation |
-| `src/room_layout.cpp` | Center-out footprint, corridor routing, and connected room growth |
-| `src/grid_renderer.cpp` / `drawGrid()` | Render room fills, connected rounded boundaries, corridors, and dual centers |
+| `src/room_layout.cpp` | Center-out footprint, direct room connections, and connected room growth |
+| `src/grid_renderer.cpp` / `drawGrid()` | Render room fills, connected rounded boundaries, and dual centers |
 | `src/main.cpp` / `fitCamera()` | Center and scale the patch to the window |
 | `src/main.cpp` / `handleCamera()` | Process pan, zoom, and fit input |
 | `src/main.cpp` / `main()` | Initialize raylib, process controls, update, and render |

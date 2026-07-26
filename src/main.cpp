@@ -191,8 +191,8 @@ int main()
                      stalberg::MAX_RELAXATION_STEPS,
                      relaxing ? "  (running)" : "  (paused)", rooms.getRoomCount()),
             26, 74, 16, Color { 239, 180, 74, 255 });
-        DrawText(TextFormat("G/new rooms  seed %u  corridors %zu  doors %zu",
-                     rooms.getSeed(), rooms.getCorridorCellCount(), rooms.getDoorways().size()),
+        DrawText(TextFormat("G/new rooms  seed %u  doors %zu",
+                     rooms.getSeed(), rooms.getDoorways().size()),
             26, 98, 14, Color { 196, 225, 223, 255 });
         DrawText("R/new grid  arrows/seed+size  Space/pause  N/step", 26, 120, 14,
             Color { 150, 178, 181, 255 });

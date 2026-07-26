@@ -14,7 +14,8 @@
 namespace stalberg {
 namespace {
 
-constexpr std::size_t MINIMUM_ROOM_SIZE = 7;
+constexpr std::size_t MINIMUM_ROOM_SIZE = 2;
+constexpr std::size_t PREFERRED_ROOM_SIZE = 7;
 constexpr std::size_t MAXIMUM_ROOM_SIZE = 34;
 
 std::uint64_t mix(std::uint64_t value)
@@ -142,7 +143,8 @@ std::vector<VertexIndex> makeRoomShape(
     const std::vector<int>& assignments,
     const std::vector<bool>& temporarilyBlocked,
     VertexIndex seedCell,
-    const ShapeParameters& shape)
+    const ShapeParameters& shape,
+    std::size_t maximumSize)
 {
     if (seedCell >= assignments.size() || !buildable[seedCell]
         || assignments[seedCell] != EMPTY_CELL || temporarilyBlocked[seedCell]) {
@@ -165,7 +167,7 @@ std::vector<VertexIndex> makeRoomShape(
     std::queue<VertexIndex> queue;
     queue.push(seedCell);
     visited[seedCell] = true;
-    while (!queue.empty() && result.size() < MAXIMUM_ROOM_SIZE) {
+    while (!queue.empty() && result.size() < maximumSize) {
         const VertexIndex cell = queue.front();
         queue.pop();
         result.push_back(cell);
@@ -179,28 +181,120 @@ std::vector<VertexIndex> makeRoomShape(
     return result;
 }
 
-std::vector<VertexIndex> fallbackCentralRoom(
+std::vector<VertexIndex> fallbackConnectedRoom(
     const std::vector<std::vector<VertexIndex>>& adjacency,
     const std::vector<bool>& buildable,
-    VertexIndex center)
+    const std::vector<int>& assignments,
+    VertexIndex center,
+    std::size_t maximumSize)
 {
+    if (center >= buildable.size() || !buildable[center]
+        || assignments[center] != EMPTY_CELL) {
+        return {};
+    }
+
     std::vector<VertexIndex> result;
     std::vector<bool> visited(buildable.size(), false);
     std::queue<VertexIndex> queue;
     queue.push(center);
     visited[center] = true;
-    while (!queue.empty() && result.size() < 12) {
+    while (!queue.empty() && result.size() < maximumSize) {
         const VertexIndex cell = queue.front();
         queue.pop();
         result.push_back(cell);
         for (const VertexIndex neighbor : adjacency[cell]) {
-            if (buildable[neighbor] && !visited[neighbor]) {
+            if (buildable[neighbor] && assignments[neighbor] == EMPTY_CELL
+                && !visited[neighbor]) {
                 visited[neighbor] = true;
                 queue.push(neighbor);
             }
         }
     }
     return result;
+}
+
+std::vector<VertexIndex> boundarySideCenters(const StalbergGrid& grid)
+{
+    constexpr std::size_t sideCount = 6;
+    const auto vertices = grid.getVertices();
+    std::vector<VertexIndex> centers;
+    centers.reserve(sideCount);
+
+    for (std::size_t side = 0; side < sideCount; ++side) {
+        const float angle = -std::numbers::pi_v<float> * 0.5F
+            + static_cast<float>(side) * std::numbers::pi_v<float> / 3.0F;
+        const float directionX = std::cos(angle);
+        const float directionY = std::sin(angle);
+        VertexIndex selected = vertices.size();
+        float bestProjection = -std::numeric_limits<float>::infinity();
+        float bestTangentDistance = std::numeric_limits<float>::infinity();
+
+        for (VertexIndex cell = 0; cell < vertices.size(); ++cell) {
+            if (!vertices[cell].fixed) {
+                continue;
+            }
+            const Point point = vertices[cell].position;
+            const float projection = point.x * directionX + point.y * directionY;
+            const float tangentDistance = std::abs(
+                -point.x * directionY + point.y * directionX);
+            if (projection > bestProjection + 0.001F
+                || (std::abs(projection - bestProjection) <= 0.001F
+                    && (tangentDistance < bestTangentDistance - 0.001F
+                        || (std::abs(tangentDistance - bestTangentDistance) <= 0.001F
+                            && cell < selected)))) {
+                selected = cell;
+                bestProjection = projection;
+                bestTangentDistance = tangentDistance;
+            }
+        }
+
+        if (selected != vertices.size()
+            && std::ranges::find(centers, selected) == centers.end()) {
+            centers.push_back(selected);
+        }
+    }
+    return centers;
+}
+
+std::vector<VertexIndex> shortestConnector(
+    const std::vector<std::vector<VertexIndex>>& adjacency,
+    const std::vector<bool>& buildable,
+    const std::vector<int>& assignments,
+    const std::vector<VertexIndex>& roomCells)
+{
+    const VertexIndex noCell = assignments.size();
+    std::vector<bool> roomMask(assignments.size(), false);
+    std::vector<VertexIndex> parent(assignments.size(), noCell);
+    std::queue<VertexIndex> queue;
+    for (const VertexIndex cell : roomCells) {
+        roomMask[cell] = true;
+        parent[cell] = cell;
+        queue.push(cell);
+    }
+
+    while (!queue.empty()) {
+        const VertexIndex cell = queue.front();
+        queue.pop();
+        for (const VertexIndex neighbor : adjacency[cell]) {
+            if (assignments[neighbor] != EMPTY_CELL) {
+                std::vector<VertexIndex> connector;
+                VertexIndex pathCell = cell;
+                while (!roomMask[pathCell]) {
+                    connector.push_back(pathCell);
+                    pathCell = parent[pathCell];
+                }
+                std::ranges::reverse(connector);
+                return connector;
+            }
+            if (parent[neighbor] != noCell
+                || (!buildable[neighbor] && !roomMask[neighbor])) {
+                continue;
+            }
+            parent[neighbor] = cell;
+            queue.push(neighbor);
+        }
+    }
+    return {};
 }
 
 std::vector<VertexIndex> builtFrontier(
@@ -227,7 +321,7 @@ std::vector<VertexIndex> growConnector(
     const std::vector<bool>& buildable,
     const std::vector<int>& assignments,
     VertexIndex attachment,
-    int corridorLength,
+    int connectorLength,
     float directionX,
     float directionY,
     std::uint32_t seed,
@@ -237,8 +331,8 @@ std::vector<VertexIndex> growConnector(
     std::vector<VertexIndex> path;
     VertexIndex current = attachment;
 
-    // One extra step is the future room seed; preceding steps become corridor.
-    for (int step = 0; step <= corridorLength; ++step) {
+    // One extra step is the future room seed; preceding steps join that room.
+    for (int step = 0; step <= connectorLength; ++step) {
         VertexIndex selected = vertices.size();
         float selectedScore = -std::numeric_limits<float>::infinity();
         for (const VertexIndex neighbor : adjacency[current]) {
@@ -286,7 +380,7 @@ void RoomLayout::generate(const StalbergGrid& grid, std::uint32_t newSeed)
     seed = newSeed;
     rooms.clear();
     doorways.clear();
-    corridorCellCount = 0;
+    connectedEdgeCenters.clear();
     cellAssignments.assign(grid.getVertexCount(), EMPTY_CELL);
     if (grid.getVertexCount() == 0) {
         return;
@@ -306,7 +400,10 @@ void RoomLayout::generate(const StalbergGrid& grid, std::uint32_t newSeed)
         return;
     }
 
-    std::mt19937 random(seed);
+    const std::uint32_t generationSeed = static_cast<std::uint32_t>(mix(
+        (static_cast<std::uint64_t>(grid.getSeed()) << 32U)
+        ^ static_cast<std::uint64_t>(seed)));
+    std::mt19937 random(generationSeed);
     const VertexIndex center = *std::ranges::min_element(buildableCells,
         [&](VertexIndex lhs, VertexIndex rhs) {
             return distanceFromOrigin(vertices[lhs].position)
@@ -314,12 +411,16 @@ void RoomLayout::generate(const StalbergGrid& grid, std::uint32_t newSeed)
         });
     const float cellScale = estimateCellScale(grid, adjacency, buildable);
     const std::size_t desiredRooms = std::clamp<std::size_t>(
-        buildableCells.size() / 34, 7, 16);
+        buildableCells.size() / 34, 7, MAX_GENERATED_ROOMS);
     std::uniform_real_distribution<float> coverageDistribution(0.42F, 0.55F);
     const std::size_t coverageTarget = static_cast<std::size_t>(
         static_cast<float>(buildableCells.size()) * coverageDistribution(random));
 
     std::vector<bool> noTemporaryBlocks(vertices.size(), false);
+    const std::size_t centralRoomLimit = std::clamp<std::size_t>(
+        buildableCells.size() / 5,
+        PREFERRED_ROOM_SIZE,
+        MAXIMUM_ROOM_SIZE);
     std::vector<VertexIndex> centralCells = makeRoomShape(
         grid,
         adjacency,
@@ -327,9 +428,14 @@ void RoomLayout::generate(const StalbergGrid& grid, std::uint32_t newSeed)
         cellAssignments,
         noTemporaryBlocks,
         center,
-        randomShape(random, cellScale));
+        randomShape(random, cellScale),
+        centralRoomLimit);
+    if (centralCells.size() < PREFERRED_ROOM_SIZE) {
+        centralCells = fallbackConnectedRoom(
+            adjacency, buildable, cellAssignments, center, centralRoomLimit);
+    }
     if (centralCells.size() < MINIMUM_ROOM_SIZE) {
-        centralCells = fallbackCentralRoom(adjacency, buildable, center);
+        return;
     }
     for (const VertexIndex cell : centralCells) {
         cellAssignments[cell] = 0;
@@ -337,7 +443,105 @@ void RoomLayout::generate(const StalbergGrid& grid, std::uint32_t newSeed)
     rooms.push_back(GeneratedRoom { 0, centralCells.size() });
     std::size_t occupiedCount = centralCells.size();
 
-    std::uniform_int_distribution<int> corridorLengthDistribution(1, 3);
+    // Randomize all six outer sides so compact grids do not repeatedly produce
+    // the same three-way silhouette. Only an exact side-center cell is made
+    // buildable, preserving negative space along the rest of the fixed boundary.
+    const std::vector<VertexIndex> sideCenters = boundarySideCenters(grid);
+    std::vector<std::size_t> sideOrder;
+    sideOrder.reserve(sideCenters.size());
+    for (std::size_t side = 0; side < sideCenters.size(); ++side) {
+        sideOrder.push_back(side);
+    }
+    std::ranges::shuffle(sideOrder, random);
+
+    for (const std::size_t side : sideOrder) {
+        if (connectedEdgeCenters.size() >= 3) {
+            break;
+        }
+        const VertexIndex edgeCenter = sideCenters[side];
+        if (cellAssignments[edgeCenter] != EMPTY_CELL) {
+            continue;
+        }
+
+        std::vector<bool> edgeRoomBuildable = buildable;
+        edgeRoomBuildable[edgeCenter] = true;
+        std::vector<VertexIndex> roomCells = makeRoomShape(
+            grid,
+            adjacency,
+            edgeRoomBuildable,
+            cellAssignments,
+            noTemporaryBlocks,
+            edgeCenter,
+            randomShape(random, cellScale),
+            MAXIMUM_ROOM_SIZE);
+        if (roomCells.size() < MINIMUM_ROOM_SIZE) {
+            roomCells = fallbackConnectedRoom(adjacency,
+                edgeRoomBuildable,
+                cellAssignments,
+                edgeCenter,
+                MINIMUM_ROOM_SIZE);
+        }
+        const auto touchesExistingFloor = [&](const std::vector<VertexIndex>& cells) {
+            return std::ranges::any_of(cells, [&](VertexIndex cell) {
+                return std::ranges::any_of(adjacency[cell], [&](VertexIndex neighbor) {
+                    return cellAssignments[neighbor] != EMPTY_CELL;
+                });
+            });
+        };
+
+        if (roomCells.size() < MINIMUM_ROOM_SIZE) {
+            roomCells = { edgeCenter };
+            const std::vector<VertexIndex> connector = shortestConnector(
+                adjacency, buildable, cellAssignments, roomCells);
+            if (connector.empty() && !touchesExistingFloor(roomCells)) {
+                continue;
+            }
+
+            const VertexIndex connectionCell = connector.empty()
+                ? edgeCenter
+                : connector.back();
+            const auto touchingRoom = std::ranges::find_if(
+                adjacency[connectionCell], [&](VertexIndex neighbor) {
+                    return cellAssignments[neighbor] >= 0;
+                });
+            if (touchingRoom == adjacency[connectionCell].end()) {
+                continue;
+            }
+
+            const int roomId = cellAssignments[*touchingRoom];
+            for (const VertexIndex cell : connector) {
+                cellAssignments[cell] = roomId;
+            }
+            cellAssignments[edgeCenter] = roomId;
+            rooms[static_cast<std::size_t>(roomId)].cellCount
+                += connector.size() + 1;
+            connectedEdgeCenters.push_back(edgeCenter);
+            occupiedCount += connector.size() + 1;
+            continue;
+        }
+
+        const std::vector<VertexIndex> connector = shortestConnector(
+            adjacency, buildable, cellAssignments, roomCells);
+        if (connector.empty() && !touchesExistingFloor(roomCells)) {
+            continue;
+        }
+
+        const int roomId = static_cast<int>(rooms.size());
+        for (const VertexIndex cell : connector) {
+            cellAssignments[cell] = roomId;
+        }
+        for (const VertexIndex cell : roomCells) {
+            cellAssignments[cell] = roomId;
+        }
+        rooms.push_back(GeneratedRoom {
+            roomId,
+            roomCells.size() + connector.size()
+        });
+        connectedEdgeCenters.push_back(edgeCenter);
+        occupiedCount += connector.size() + roomCells.size();
+    }
+
+    std::uniform_int_distribution<int> connectorLengthDistribution(1, 3);
     std::uniform_real_distribution<float> turnDistribution(-0.8F, 0.8F);
     constexpr std::size_t attemptsPerRoom = 90;
 
@@ -368,19 +572,19 @@ void RoomLayout::generate(const StalbergGrid& grid, std::uint32_t newSeed)
             const float sine = std::sin(turn);
             const float directionX = direction.x * cosine - direction.y * sine;
             const float directionY = direction.x * sine + direction.y * cosine;
-            const int corridorLength = corridorLengthDistribution(random);
+            const int connectorLength = connectorLengthDistribution(random);
             const std::vector<VertexIndex> connector = growConnector(
                 grid,
                 adjacency,
                 buildable,
                 cellAssignments,
                 attachment,
-                corridorLength,
+                connectorLength,
                 directionX,
                 directionY,
-                seed,
+                generationSeed,
                 rooms.size() * 100000U + attempt * 1000U);
-            if (connector.size() != static_cast<std::size_t>(corridorLength + 1)) {
+            if (connector.size() != static_cast<std::size_t>(connectorLength + 1)) {
                 continue;
             }
 
@@ -396,20 +600,23 @@ void RoomLayout::generate(const StalbergGrid& grid, std::uint32_t newSeed)
                 cellAssignments,
                 blocked,
                 roomSeed,
-                randomShape(random, cellScale));
-            if (roomCells.size() < MINIMUM_ROOM_SIZE) {
+                randomShape(random, cellScale),
+                MAXIMUM_ROOM_SIZE);
+            if (roomCells.size() < PREFERRED_ROOM_SIZE) {
                 continue;
             }
 
             const int roomId = static_cast<int>(rooms.size());
             for (std::size_t i = 0; i + 1 < connector.size(); ++i) {
-                cellAssignments[connector[i]] = CORRIDOR_CELL;
-                ++corridorCellCount;
+                cellAssignments[connector[i]] = roomId;
             }
             for (const VertexIndex cell : roomCells) {
                 cellAssignments[cell] = roomId;
             }
-            rooms.push_back(GeneratedRoom { roomId, roomCells.size() });
+            rooms.push_back(GeneratedRoom {
+                roomId,
+                roomCells.size() + connector.size() - 1
+            });
             occupiedCount += roomCells.size() + connector.size() - 1;
             placed = true;
             break;
@@ -445,9 +652,9 @@ void RoomLayout::generate(const StalbergGrid& grid, std::uint32_t newSeed)
 
     for (auto& [regions, candidates] : sharedBoundaries) {
         std::ranges::sort(candidates, [&](const CellPair& lhs, const CellPair& rhs) {
-            const std::uint64_t left = mix(static_cast<std::uint64_t>(seed)
+            const std::uint64_t left = mix(static_cast<std::uint64_t>(generationSeed)
                 ^ mix(lhs.first) ^ (mix(lhs.second) << 1U));
-            const std::uint64_t right = mix(static_cast<std::uint64_t>(seed)
+            const std::uint64_t right = mix(static_cast<std::uint64_t>(generationSeed)
                 ^ mix(rhs.first) ^ (mix(rhs.second) << 1U));
             if (left != right) {
                 return left < right;

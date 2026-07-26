@@ -10,7 +10,6 @@
 #include <cmath>
 #include <functional>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace stalberg {
@@ -19,10 +18,8 @@ namespace {
 constexpr Color GRID_COLOR { 23, 69, 80, 125 };
 constexpr Color CENTER_COLOR { 24, 74, 84, 135 };
 constexpr Color ROOM_OUTLINE { 226, 240, 224, 225 };
-constexpr Color CORRIDOR_FILL { 72, 145, 151, 190 };
-constexpr Color CORRIDOR_OUTLINE { 116, 211, 220, 235 };
 constexpr Color HOVER_FILL { 244, 250, 236, 42 };
-constexpr std::array<Color, 12> ROOM_COLORS {
+constexpr std::array<Color, MAX_GENERATED_ROOMS> ROOM_COLORS {
     Color { 222, 112, 94, 190 },
     Color { 232, 166, 82, 190 },
     Color { 218, 199, 91, 190 },
@@ -34,8 +31,13 @@ constexpr std::array<Color, 12> ROOM_COLORS {
     Color { 190, 113, 188, 190 },
     Color { 210, 118, 149, 190 },
     Color { 159, 180, 103, 190 },
-    Color { 106, 187, 196, 190 }
+    Color { 106, 187, 196, 190 },
+    Color { 239, 135, 72, 190 },
+    Color { 183, 203, 78, 190 },
+    Color { 73, 190, 183, 190 },
+    Color { 129, 155, 225, 190 }
 };
+static_assert(ROOM_COLORS.size() == MAX_GENERATED_ROOMS);
 constexpr double OUTLINE_KEY_SCALE = 1000.0;
 
 struct EdgeHash {
@@ -247,35 +249,6 @@ PointKey pointKey(Vector2 point)
     };
 }
 
-void addDoorwayEdge(
-    const DualMesh& dual,
-    const Doorway& doorway,
-    std::unordered_set<OutlineEdge, OutlineEdgeHash>& doorwayEdges)
-{
-    if (doorway.firstCell >= dual.cells.size()
-        || doorway.secondCell >= dual.cells.size()) {
-        return;
-    }
-
-    const auto& firstPolygon = dual.cells[doorway.firstCell];
-    const auto& secondPolygon = dual.cells[doorway.secondCell];
-    for (std::size_t firstEdge = 0; firstEdge < firstPolygon.size(); ++firstEdge) {
-        const OutlineEdge candidate(
-            pointKey(firstPolygon[firstEdge]),
-            pointKey(firstPolygon[(firstEdge + 1) % firstPolygon.size()]));
-        for (std::size_t secondEdge = 0;
-             secondEdge < secondPolygon.size(); ++secondEdge) {
-            const OutlineEdge other(
-                pointKey(secondPolygon[secondEdge]),
-                pointKey(secondPolygon[(secondEdge + 1) % secondPolygon.size()]));
-            if (candidate == other) {
-                doorwayEdges.insert(candidate);
-                return;
-            }
-        }
-    }
-}
-
 Vector2 quadraticBezier(Vector2 start, Vector2 control, Vector2 end, float amount)
 {
     const float inverse = 1.0F - amount;
@@ -327,7 +300,6 @@ void drawConnectedCells(
     const StalbergGrid& grid,
     const DualMesh& dual,
     const std::vector<bool>& generatedCells,
-    const std::unordered_set<OutlineEdge, OutlineEdgeHash>& doorwayEdges,
     float cameraZoom,
     Color fillColor,
     Color outlineColor)
@@ -354,9 +326,6 @@ void drawConnectedCells(
             const Vector2 first = polygon[i];
             const Vector2 second = polygon[(i + 1) % polygon.size()];
             const OutlineEdge edge(pointKey(first), pointKey(second));
-            if (doorwayEdges.contains(edge)) {
-                continue;
-            }
             if (const auto found = outlines.find(edge); found != outlines.end()) {
                 ++found->second.useCount;
             } else {
@@ -511,24 +480,14 @@ void drawGrid(
     const auto assignments = rooms.getCellAssignments();
     const DualMesh dual = buildDualMesh(grid);
     std::vector<bool> regionMask(vertices.size(), false);
-    std::unordered_set<OutlineEdge, OutlineEdgeHash> doorwayEdges;
-    for (const Doorway& doorway : rooms.getDoorways()) {
-        addDoorwayEdge(dual, doorway, doorwayEdges);
-    }
-
-    for (std::size_t cell = 0; cell < assignments.size(); ++cell) {
-        regionMask[cell] = assignments[cell] == CORRIDOR_CELL;
-    }
-    drawConnectedCells(
-        grid, dual, regionMask, doorwayEdges, zoom, CORRIDOR_FILL, CORRIDOR_OUTLINE);
 
     for (const GeneratedRoom& room : rooms.getRooms()) {
         for (std::size_t cell = 0; cell < assignments.size(); ++cell) {
             regionMask[cell] = assignments[cell] == room.id;
         }
-        const Color fill = ROOM_COLORS[static_cast<std::size_t>(room.id) % ROOM_COLORS.size()];
+        const Color fill = ROOM_COLORS.at(static_cast<std::size_t>(room.id));
         drawConnectedCells(
-            grid, dual, regionMask, doorwayEdges, zoom, fill, ROOM_OUTLINE);
+            grid, dual, regionMask, zoom, fill, ROOM_OUTLINE);
     }
 
     if (hoveredCell && *hoveredCell < assignments.size()) {
