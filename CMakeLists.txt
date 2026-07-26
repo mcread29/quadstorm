@@ -25,25 +25,43 @@ function(enable_project_warnings target)
     endif()
 endfunction()
 
-add_library(stalberg_grid_core
-    src/room_layout.cpp
-    src/stalberg_grid.cpp
+add_library(stalberg_grid_generation src/grid/stalberg_grid.cpp)
+target_include_directories(stalberg_grid_generation PUBLIC src)
+target_compile_features(stalberg_grid_generation PUBLIC cxx_std_20)
+enable_project_warnings(stalberg_grid_generation)
+
+add_library(stalberg_room_generation
+    src/rooms/room_generator.cpp
+    src/rooms/room_layout.cpp
 )
-target_include_directories(stalberg_grid_core PUBLIC src)
-target_compile_features(stalberg_grid_core PUBLIC cxx_std_20)
-enable_project_warnings(stalberg_grid_core)
+target_include_directories(stalberg_room_generation PUBLIC src)
+target_compile_features(stalberg_room_generation PUBLIC cxx_std_20)
+enable_project_warnings(stalberg_room_generation)
+
+add_library(stalberg_room_grid_adapter src/integration/room_grid_adapter.cpp)
+target_include_directories(stalberg_room_grid_adapter PUBLIC src)
+target_compile_features(stalberg_room_grid_adapter PUBLIC cxx_std_20)
+target_link_libraries(stalberg_room_grid_adapter
+    PUBLIC stalberg_grid_generation stalberg_room_generation)
+enable_project_warnings(stalberg_room_grid_adapter)
 
 add_executable(stalberg_grid
     src/main.cpp
     src/grid_renderer.cpp
 )
-target_link_libraries(stalberg_grid PRIVATE stalberg_grid_core raylib)
+target_link_libraries(stalberg_grid PRIVATE stalberg_room_grid_adapter raylib)
 enable_project_warnings(stalberg_grid)
 
 include(CTest)
 if(BUILD_TESTING)
     add_executable(stalberg_grid_tests tests/grid_tests.cpp)
-    target_link_libraries(stalberg_grid_tests PRIVATE stalberg_grid_core)
+    target_link_libraries(stalberg_grid_tests PRIVATE stalberg_grid_generation)
     enable_project_warnings(stalberg_grid_tests)
     add_test(NAME stalberg_grid_tests COMMAND stalberg_grid_tests)
+
+    add_executable(stalberg_room_generation_tests tests/room_generation_tests.cpp)
+    target_link_libraries(stalberg_room_generation_tests
+        PRIVATE stalberg_room_grid_adapter)
+    enable_project_warnings(stalberg_room_generation_tests)
+    add_test(NAME stalberg_room_generation_tests COMMAND stalberg_room_generation_tests)
 endif()

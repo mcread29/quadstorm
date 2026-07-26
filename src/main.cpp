@@ -1,6 +1,7 @@
 #include "grid_renderer.hpp"
-#include "room_layout.hpp"
-#include "stalberg_grid.hpp"
+#include "grid/stalberg_grid.hpp"
+#include "integration/room_grid_adapter.hpp"
+#include "rooms/room_generator.hpp"
 
 #include "raylib.h"
 
@@ -98,8 +99,9 @@ int main()
     bool relaxing = true;
     bool drawCenters = true;
     grid.generate(radius, seed);
-    stalberg::RoomLayout rooms;
-    rooms.generate(grid, roomSeed);
+    stalberg::rooms::RoomGenerator roomGenerator;
+    stalberg::rooms::RoomGrid roomInput = stalberg::makeRoomGrid(grid);
+    stalberg::rooms::RoomLayout rooms = roomGenerator.generate(roomInput, roomSeed);
 
     Camera2D camera {};
     camera.offset = Vector2 { 640.0F, 400.0F };
@@ -135,7 +137,8 @@ int main()
 
         if (regenerateRequested) {
             grid.generate(radius, seed);
-            rooms.generate(grid, roomSeed);
+            roomInput = stalberg::makeRoomGrid(grid);
+            rooms = roomGenerator.generate(roomInput, roomSeed);
             relaxing = true;
             if (refitRequested) {
                 fitCamera(camera, grid);
@@ -154,7 +157,7 @@ int main()
         }
         if (IsKeyPressed(KEY_G)) {
             ++roomSeed;
-            rooms.generate(grid, roomSeed);
+            rooms = roomGenerator.generate(roomInput, roomSeed);
         }
 
         handleCamera(camera, grid);

@@ -1,4 +1,4 @@
-#include "stalberg_grid.hpp"
+#include "grid/stalberg_grid.hpp"
 
 #include <algorithm>
 #include <cmath>

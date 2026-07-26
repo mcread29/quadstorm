@@ -1,6 +1,6 @@
 # Stålberg-Style Quad Grid Demo
 
-This document explains the raylib demo in this repository and the grid-generation algorithm implemented in `src/stalberg_grid.cpp`.
+This document explains the raylib demo in this repository and the grid-generation algorithm implemented in `src/grid/stalberg_grid.cpp`.
 
 > **Name note:** The technique is associated with **Oskar Stålberg**, creator of *Townscaper*. It is sometimes incorrectly attributed to “Peter Stålberg.”
 
@@ -333,7 +333,7 @@ The final mesh is rendered inside a raylib `Camera2D`:
 - Hovering one cell highlights its complete connected room.
 - Marker size and line thickness are divided by camera zoom, keeping them approximately constant in screen pixels.
 
-Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the logical cell. Room generation mixes the grid and room seeds, starts with a size-limited central room, and sometimes establishes several slim radial rooms near the middle before connecting the floor plan to at least four shuffled outer edges. The early radial phase is optional, so an outer room may reach the center but is not forced to do so. This produces varied silhouettes even on compact grids and supports up to 64 uniquely colored rooms. It prefers multi-cell rooms at those edge centers and extends an existing room when a small grid cannot fit another room. Optional growth repeatedly chooses a boundary attachment, grows a short outward connector as part of the new room, and places the room at its end. Rooms are sampled from soft-rectangle, gallery, capsule, and L-shaped templates; breadth-first collection keeps every room connected and prevents single-cell rooms. Generation preserves substantial negative space where the grid size permits. Every pair of touching regions still receives a deterministic logical doorway for circulation data, while the renderer keeps all region boundaries visually continuous and rounds the resulting outlines.
+Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the logical cell. Room generation is a separate pass over a neutral `RoomGrid` cell topology with explicit buildability and entrance candidates. The integration adapter owns the hex-specific policy that selects six boundary-side centers. The generator combines the room seed with a fingerprint of its neutral input, starts with a size-limited central room, and sometimes establishes several slim radial rooms near the middle before connecting the floor plan to at least four shuffled entrances. The early radial phase is optional, so an outer room may reach the center but is not forced to do so. This produces varied silhouettes even on compact grids and supports up to 64 uniquely colored rooms. It prefers multi-cell rooms at those edge centers and extends an existing room when a small grid cannot fit another room. Optional growth repeatedly chooses a boundary attachment, grows a short outward connector as part of the new room, and places the room at its end. Rooms are sampled from soft-rectangle, gallery, capsule, and L-shaped templates; breadth-first collection keeps every room connected and prevents single-cell rooms. Generation preserves substantial negative space where the grid size permits. Every pair of touching regions still receives a deterministic logical doorway for circulation data, while the renderer keeps all region boundaries visually continuous and rounds the resulting outlines.
 
 The HUD shows:
 
@@ -371,18 +371,20 @@ The main generation methods in `StalbergGrid` correspond directly to the algorit
 | `rebuildTopology()` | Build unique edges, neighbors, and boundary flags |
 | `relaxOnce()` | Perform one synchronous smoothing iteration |
 
-Rendering and application concerns are kept separate from the mesh core:
+Grid generation, room generation, integration, and rendering are separate areas:
 
 | File / function | Responsibility |
 |---|---|
-| `src/stalberg_grid.hpp` | Public mesh types and read-only topology views |
-| `src/stalberg_grid.cpp` | Grid generation, topology rebuilding, and relaxation |
-| `src/room_layout.cpp` | Center-out footprint, direct room connections, and connected room growth |
+| `src/grid/stalberg_grid.hpp` | Public mesh types and read-only topology views |
+| `src/grid/stalberg_grid.cpp` | Grid generation, topology rebuilding, and relaxation |
+| `src/rooms/room_grid.hpp` | Grid-independent cells, adjacency, buildability, and entrance candidates |
+| `src/rooms/room_generator.cpp` | Center-out footprint, direct room connections, and connected room growth |
+| `src/rooms/room_layout.hpp` | Read-only result model for rooms, assignments, and doorways |
+| `src/integration/room_grid_adapter.cpp` | Translate `StalbergGrid` and select its hex-boundary entrances |
 | `src/grid_renderer.cpp` / `drawGrid()` | Render room fills, connected rounded boundaries, and dual centers |
-| `src/main.cpp` / `fitCamera()` | Center and scale the patch to the window |
-| `src/main.cpp` / `handleCamera()` | Process pan, zoom, and fit input |
-| `src/main.cpp` / `main()` | Initialize raylib, process controls, update, and render |
-| `tests/grid_tests.cpp` | Headless topology, relaxation, room-connectivity, doorway, and determinism tests |
+| `src/main.cpp` | Compose generation modules, process controls, update, and render |
+| `tests/grid_tests.cpp` | Headless grid topology and relaxation tests |
+| `tests/room_generation_tests.cpp` | Headless room connectivity, doorway, and determinism tests |
 
 ## Compact pseudocode
 

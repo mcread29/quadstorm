@@ -2,11 +2,14 @@
 
 A compact C++ implementation of the grid-generation technique associated with Oskar Stålberg's *Townscaper*:
 
-1. Generate a triangular lattice with a hexagonal boundary.
-2. Randomly pair adjacent triangles into four-sided faces.
-3. Subdivide every triangle and four-sided face using shared edge midpoints and a face center.
-4. Apply iterative Laplacian relaxation while pinning the hexagonal boundary.
-5. Grow one connected floor plan from the center to at least four outer-edge centers, then partition it into as many as 64 irregular multi-cell rooms.
+The grid generator:
+
+1. Generates a triangular lattice with a hexagonal boundary.
+2. Randomly pairs adjacent triangles into four-sided faces.
+3. Subdivides every triangle and four-sided face using shared edge midpoints and a face center.
+4. Applies iterative Laplacian relaxation while pinning the hexagonal boundary.
+
+As a separate pass, the room generator consumes a neutral cell-and-neighbor topology with explicit entrance candidates, grows one connected floor plan from the center to at least four entrances, and partitions it into as many as 64 irregular multi-cell rooms.
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
@@ -23,7 +26,7 @@ ctest --test-dir build --output-on-failure
 ./build/stalberg_grid
 ```
 
-The grid-generation core is a separate library, so its topology and relaxation tests run without opening a graphical window.
+Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the only translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including selecting centers from the six-sided boundary as entrance candidates, stays in that adapter. Visual relaxation cannot mutate the saved room-generation input. Each module has its own headless test executable.
 
 ## Controls
 
@@ -40,7 +43,7 @@ The grid-generation core is a separate library, so its topology and relaxation t
 | Mouse wheel | Zoom around cursor |
 | Middle/right drag | Pan |
 
-Each solid-line junction is one logical floor cell. Generation begins with a central room, may add a few slim radial branches near the middle, extends connected rooms to the centers of at least four randomly selected outer edges, then continues growing through short room connectors. Grid and room seeds are mixed together so compact grids do not repeatedly produce the same silhouette. New rooms use several structural templates—soft rectangles, galleries, capsules, and L-shapes—adapted to the irregular grid. Rooms always contain multiple connected cells, and every room receives a unique color. The generator preserves exterior negative space instead of filling the patch. Region boundaries remain continuous without doorway gaps, and hovering highlights the complete room under the pointer.
+Each solid-line junction is one logical floor cell. Generation begins with a central room, may add a few slim radial branches near the middle, extends connected rooms to the centers of at least four randomly selected outer edges, then continues growing through short room connectors. The room seed is combined with a fingerprint of the supplied neutral topology so compact inputs do not repeatedly produce the same silhouette. New rooms use several structural templates—soft rectangles, galleries, capsules, and L-shapes—adapted to the irregular grid. Rooms always contain multiple connected cells, and every room receives a unique color. The generator preserves exterior negative space instead of filling the patch. Region boundaries remain continuous without doorway gaps, and hovering highlights the complete room under the pointer.
 
 ## Linux: missing `DISPLAY`
 

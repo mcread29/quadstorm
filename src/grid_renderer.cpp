@@ -1,7 +1,7 @@
 #include "grid_renderer.hpp"
 
-#include "room_layout.hpp"
-#include "stalberg_grid.hpp"
+#include "grid/stalberg_grid.hpp"
+#include "rooms/room_layout.hpp"
 
 #include "raylib.h"
 
@@ -14,6 +14,10 @@
 
 namespace stalberg {
 namespace {
+
+using rooms::EMPTY_CELL;
+using rooms::GeneratedRoom;
+using rooms::MAX_GENERATED_ROOMS;
 
 constexpr Color GRID_COLOR { 23, 69, 80, 125 };
 constexpr Color CENTER_COLOR { 24, 74, 84, 135 };
@@ -532,7 +536,7 @@ std::optional<std::size_t> findDualCellAtPoint(const StalbergGrid& grid, Point p
 
 void drawGrid(
     const StalbergGrid& grid,
-    const RoomLayout& rooms,
+    const rooms::RoomLayout& rooms,
     bool drawCenters,
     float cameraZoom,
     std::optional<std::size_t> hoveredCell)
