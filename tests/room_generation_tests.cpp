@@ -130,6 +130,92 @@ bool roomGenerationIsRepeatable(const stalberg::StalbergGrid& grid,
             "same room seed and method connect the same entrances");
 }
 
+bool shooterLayoutHasExplicitCombatStructure(const stalberg::StalbergGrid& grid)
+{
+    const auto layout = generateRooms(
+        grid, 11, stalberg::rooms::RoomGenerationMethod::ShooterLayout);
+    if (layout.getRoomCount() == 0) {
+        return check(false, "shooter layout produces a playable mission graph");
+    }
+    std::size_t arenaCount = 0;
+    std::size_t connectorCount = 0;
+    float arenaArea = 0.0F;
+    float connectorArea = 0.0F;
+    std::vector<std::size_t> degrees(layout.getRoomCount(), 0);
+    std::vector<std::vector<int>> roomGraph(layout.getRoomCount());
+    int startRoom = -1;
+    int exitRoom = -1;
+    bool valid = true;
+    for (const auto& room : layout.getRooms()) {
+        if (room.role == stalberg::rooms::RoomRole::Start) {
+            startRoom = room.id;
+        } else if (room.role == stalberg::rooms::RoomRole::Exit) {
+            exitRoom = room.id;
+        }
+        if (room.role == stalberg::rooms::RoomRole::Connector) {
+            ++connectorCount;
+            connectorArea += room.area;
+        } else {
+            ++arenaCount;
+            arenaArea += room.area;
+        }
+    }
+    for (const auto& doorway : layout.getDoorways()) {
+        const bool firstConnector = layout.getRooms()[
+            static_cast<std::size_t>(doorway.firstRegion)].role
+            == stalberg::rooms::RoomRole::Connector;
+        const bool secondConnector = layout.getRooms()[
+            static_cast<std::size_t>(doorway.secondRegion)].role
+            == stalberg::rooms::RoomRole::Connector;
+        valid &= check(!(firstConnector && secondConnector),
+            "shooter corridors never connect directly to other corridors");
+        ++degrees[static_cast<std::size_t>(doorway.firstRegion)];
+        ++degrees[static_cast<std::size_t>(doorway.secondRegion)];
+        roomGraph[static_cast<std::size_t>(doorway.firstRegion)]
+            .push_back(doorway.secondRegion);
+        roomGraph[static_cast<std::size_t>(doorway.secondRegion)]
+            .push_back(doorway.firstRegion);
+    }
+    for (const auto& room : layout.getRooms()) {
+        if (room.role == stalberg::rooms::RoomRole::Connector) {
+            valid &= check(degrees[static_cast<std::size_t>(room.id)] >= 1
+                    && degrees[static_cast<std::size_t>(room.id)] <= 2,
+                "shooter corridors are explicit one- or two-ended passages");
+        }
+    }
+    valid &= check(arenaCount >= 3 && connectorCount >= 2,
+        "shooter layout creates multiple arenas and explicit corridors");
+    valid &= check(arenaArea / static_cast<float>(std::max<std::size_t>(arenaCount, 1))
+            > connectorArea
+                / static_cast<float>(std::max<std::size_t>(connectorCount, 1)),
+        "shooter arenas are physically larger than their connectors");
+    const std::size_t loopCount = layout.getDoorways().size()
+        - layout.getRoomCount() + 1;
+    valid &= check(loopCount <= 1,
+        "shooter mission graph has at most one deliberate route loop");
+    std::vector<int> distances(layout.getRoomCount(), -1);
+    std::queue<int> queue;
+    if (startRoom >= 0) {
+        distances[static_cast<std::size_t>(startRoom)] = 0;
+        queue.push(startRoom);
+    }
+    while (!queue.empty()) {
+        const int room = queue.front();
+        queue.pop();
+        for (const int neighbor : roomGraph[static_cast<std::size_t>(room)]) {
+            if (distances[static_cast<std::size_t>(neighbor)] < 0) {
+                distances[static_cast<std::size_t>(neighbor)]
+                    = distances[static_cast<std::size_t>(room)] + 1;
+                queue.push(neighbor);
+            }
+        }
+    }
+    valid &= check(exitRoom >= 0
+            && distances[static_cast<std::size_t>(exitRoom)] >= 3,
+        "shooter start and exit are separated by a meaningful main route");
+    return valid;
+}
+
 bool bestOfCandidatesDoesNotReduceQuality(const stalberg::StalbergGrid& grid)
 {
     const auto input = stalberg::makeRoomGrid(grid);
@@ -162,6 +248,7 @@ bool connectionOrderingDoesNotAffectGeneration(const stalberg::StalbergGrid& gri
         std::ranges::reverse(permuted.neighbors[cell]);
         std::ranges::reverse(permuted.connections[cell]);
     }
+    std::ranges::reverse(permuted.entranceCandidates);
     const auto canonical = stalberg::rooms::RoomGenerator {}.generate(input, 29);
     const auto reordered = stalberg::rooms::RoomGenerator {}.generate(permuted, 29);
     return check(std::ranges::equal(
@@ -210,6 +297,9 @@ bool roomLayoutIsValid(const stalberg::StalbergGrid& grid,
         "room generation creates multiple rooms");
     valid &= check(layout.getRoomCount() <= stalberg::rooms::MAX_GENERATED_ROOMS,
         "every generated room has a unique renderer color");
+    if (layout.getRoomCount() < 2) {
+        return false;
+    }
     valid &= check(connectedEntrances.size() >= 3,
         "rooms connect to the centers of at least three outer edges");
     valid &= check(connectedEntrances.size() <= 6,
@@ -612,9 +702,12 @@ int main()
 
     bool valid = adapterProducesValidRoomInput(grid);
     valid &= roomGenerationIsRepeatable(
+        grid, stalberg::rooms::RoomGenerationMethod::ShooterLayout);
+    valid &= roomGenerationIsRepeatable(
         grid, stalberg::rooms::RoomGenerationMethod::BranchingShapes);
     valid &= roomGenerationIsRepeatable(
         grid, stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
+    valid &= shooterLayoutHasExplicitCombatStructure(grid);
     valid &= bestOfCandidatesDoesNotReduceQuality(grid);
     valid &= connectionOrderingDoesNotAffectGeneration(grid);
     valid &= roomInputIsIndependentFromLaterRelaxation();
@@ -623,6 +716,11 @@ int main()
         valid &= roomLayoutIsValid(grid,
             roomSeed,
             stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
+        if (roomSeed <= 6) {
+            valid &= roomLayoutIsValid(grid,
+                roomSeed,
+                stalberg::rooms::RoomGenerationMethod::ShooterLayout);
+        }
     }
     for (const int radius : std::array { 2, 7, 14 }) {
         stalberg::StalbergGrid representativeGrid;
@@ -632,8 +730,39 @@ int main()
             valid &= roomLayoutIsValid(representativeGrid,
                 roomSeed,
                 stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
+            valid &= roomLayoutIsValid(representativeGrid,
+                roomSeed,
+                stalberg::rooms::RoomGenerationMethod::ShooterLayout);
         }
     }
+    stalberg::StalbergGrid compactShooterGrid;
+    compactShooterGrid.generate(2, 1);
+    compactShooterGrid.relaxToCompletion();
+    valid &= roomLayoutIsValid(compactShooterGrid,
+        4,
+        stalberg::rooms::RoomGenerationMethod::ShooterLayout);
+    valid &= roomLayoutIsValid(compactShooterGrid,
+        7,
+        stalberg::rooms::RoomGenerationMethod::ShooterLayout);
+    stalberg::StalbergGrid constrainedShooterGrid;
+    constrainedShooterGrid.generate(2, 6);
+    constrainedShooterGrid.relaxToCompletion();
+    valid &= roomLayoutIsValid(constrainedShooterGrid,
+        27,
+        stalberg::rooms::RoomGenerationMethod::ShooterLayout);
+    stalberg::StalbergGrid smallShooterGrid;
+    smallShooterGrid.generate(3, 1);
+    smallShooterGrid.relaxToCompletion();
+    valid &= roomLayoutIsValid(smallShooterGrid,
+        2,
+        stalberg::rooms::RoomGenerationMethod::ShooterLayout);
+    stalberg::StalbergGrid largeShooterGrid;
+    largeShooterGrid.generate(14, 1);
+    largeShooterGrid.relaxToCompletion();
+    valid &= roomLayoutIsValid(largeShooterGrid,
+        2,
+        stalberg::rooms::RoomGenerationMethod::ShooterLayout);
+
     valid &= organicGrowthIsEvenlyDispersed(grid);
     valid &= generationMethodsVaryRoomShapes(grid);
     valid &= organicGrowthVariesRoomSizes(grid);

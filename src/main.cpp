@@ -23,6 +23,8 @@ constexpr std::uint32_t INITIAL_SEED = 1;
 const char* roomMethodName(stalberg::rooms::RoomGenerationMethod method)
 {
     switch (method) {
+    case stalberg::rooms::RoomGenerationMethod::ShooterLayout:
+        return "shooter layout";
     case stalberg::rooms::RoomGenerationMethod::BranchingShapes:
         return "branching shapes";
     case stalberg::rooms::RoomGenerationMethod::OrganicGrowth:
@@ -115,7 +117,7 @@ int main()
     std::uint32_t seed = INITIAL_SEED;
     std::uint32_t roomSeed = INITIAL_SEED;
     stalberg::rooms::RoomGenerationMethod roomMethod
-        = stalberg::rooms::RoomGenerationMethod::BranchingShapes;
+        = stalberg::rooms::RoomGenerationMethod::ShooterLayout;
     bool drawCenters = true;
     generateRelaxedGrid(grid, radius, seed);
     stalberg::rooms::RoomGenerator roomGenerator;
@@ -172,10 +174,17 @@ int main()
             rooms = roomGenerator.generate(roomInput, roomSeed, roomMethod);
         }
         if (IsKeyPressed(KEY_M)) {
-            roomMethod = roomMethod
-                    == stalberg::rooms::RoomGenerationMethod::BranchingShapes
-                ? stalberg::rooms::RoomGenerationMethod::OrganicGrowth
-                : stalberg::rooms::RoomGenerationMethod::BranchingShapes;
+            switch (roomMethod) {
+            case stalberg::rooms::RoomGenerationMethod::ShooterLayout:
+                roomMethod = stalberg::rooms::RoomGenerationMethod::BranchingShapes;
+                break;
+            case stalberg::rooms::RoomGenerationMethod::BranchingShapes:
+                roomMethod = stalberg::rooms::RoomGenerationMethod::OrganicGrowth;
+                break;
+            case stalberg::rooms::RoomGenerationMethod::OrganicGrowth:
+                roomMethod = stalberg::rooms::RoomGenerationMethod::ShooterLayout;
+                break;
+            }
             rooms = roomGenerator.generate(roomInput, roomSeed, roomMethod);
         }
 

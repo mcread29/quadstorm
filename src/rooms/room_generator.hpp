@@ -10,7 +10,7 @@
 namespace stalberg::rooms {
 
 struct RoomGenerationOptions {
-    RoomGenerationMethod method = RoomGenerationMethod::BranchingShapes;
+    RoomGenerationMethod method = RoomGenerationMethod::ShooterLayout;
     std::size_t candidateCount = 6;
 };
 
@@ -19,7 +19,7 @@ public:
     RoomLayout generate(
         const RoomGrid& grid,
         std::uint32_t seed,
-        RoomGenerationMethod method = RoomGenerationMethod::BranchingShapes) const;
+        RoomGenerationMethod method = RoomGenerationMethod::ShooterLayout) const;
     RoomLayout generate(
         const RoomGrid& grid,
         std::uint32_t seed,
