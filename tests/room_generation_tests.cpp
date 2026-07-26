@@ -11,6 +11,7 @@
 #include <queue>
 #include <set>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -333,6 +334,26 @@ bool organicGrowthIsEvenlyDispersed(const stalberg::StalbergGrid& grid)
     return valid;
 }
 
+bool organicGrowthCanUseEveryEntranceSet()
+{
+    stalberg::StalbergGrid grid;
+    grid.generate(3, 1);
+    const auto input = stalberg::makeRoomGrid(grid);
+    std::set<std::vector<stalberg::rooms::CellIndex>> entranceSets;
+    for (std::uint32_t seed = 1; seed <= 180; ++seed) {
+        const auto layout = stalberg::rooms::RoomGenerator {}.generate(input,
+            seed,
+            stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
+        std::vector<stalberg::rooms::CellIndex> entrances(
+            layout.getConnectedEntrances().begin(),
+            layout.getConnectedEntrances().end());
+        std::ranges::sort(entrances);
+        entranceSets.insert(std::move(entrances));
+    }
+    return check(entranceSets.size() == 15,
+        "organic growth can select every four-of-six entrance set");
+}
+
 bool compactLayoutsVaryAcrossGridSeeds()
 {
     std::set<std::vector<int>> signatures;
@@ -420,6 +441,7 @@ int main()
         }
     }
     valid &= organicGrowthIsEvenlyDispersed(grid);
+    valid &= organicGrowthCanUseEveryEntranceSet();
     valid &= compactLayoutsVaryAcrossGridSeeds();
     valid &= largeLayoutUsesExpandedRoomBudget();
     valid &= degenerateGridDoesNotCreateSingleCellRoom();

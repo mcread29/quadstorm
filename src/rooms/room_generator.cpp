@@ -570,35 +570,54 @@ void generateOrganicGrowth(
     std::array<std::size_t, sectorCount> sectorFloorCounts {};
     ++sectorFloorCounts[sectorFor(center)];
 
-    // Choose entrances by farthest-point sampling. Keeping the first candidate
-    // random preserves seed variation while subsequent choices spread around
-    // the hex instead of allowing four neighboring sides to dominate the plan.
-    std::vector<CellIndex> entrancePool(
-        grid.entranceCandidates.begin(), grid.entranceCandidates.end());
-    std::ranges::shuffle(entrancePool, random);
-    while (!entrancePool.empty()
-        && connectedEntrances.size() < REQUIRED_EDGE_CONNECTIONS) {
-        std::size_t selectedIndex = 0;
-        if (!connectedEntrances.empty()) {
-            float bestSeparation = -1.0F;
-            for (std::size_t candidate = 0;
-                 candidate < entrancePool.size(); ++candidate) {
-                float nearestSelected = std::numeric_limits<float>::infinity();
-                for (const CellIndex selected : connectedEntrances) {
-                    nearestSelected = std::min(nearestSelected,
-                        distance(cells[entrancePool[candidate]].position,
-                            cells[selected].position));
-                }
-                if (nearestSelected > bestSeparation) {
-                    selectedIndex = candidate;
-                    bestSeparation = nearestSelected;
-                }
-            }
-        }
+    // Four entrances leave two of the six hex sides unused. Choose the cyclic
+    // distance between those omitted sides with 40/40/20 weights: adjacent,
+    // separated by one side, or opposite. A random rotation then gives every
+    // concrete four-of-six entrance set the same 1-in-15 probability.
+    std::vector<CellIndex> entranceOrder;
+    if (grid.entranceCandidates.size() == sectorCount) {
+        std::vector<CellIndex> cyclicEntrances(
+            grid.entranceCandidates.begin(), grid.entranceCandidates.end());
+        std::ranges::sort(cyclicEntrances, [&](CellIndex lhs, CellIndex rhs) {
+            const CellPoint origin = cells[center].position;
+            const CellPoint left = cells[lhs].position;
+            const CellPoint right = cells[rhs].position;
+            return std::atan2(left.y - origin.y, left.x - origin.x)
+                < std::atan2(right.y - origin.y, right.x - origin.x);
+        });
 
-        const CellIndex entrance = entrancePool[selectedIndex];
-        entrancePool.erase(entrancePool.begin()
-            + static_cast<std::ptrdiff_t>(selectedIndex));
+        std::uniform_int_distribution<int> patternDistribution(0, 4);
+        std::uniform_int_distribution<std::size_t> rotationDistribution(
+            0, sectorCount - 1);
+        const int pattern = patternDistribution(random);
+        const std::size_t omittedDistance
+            = pattern < 2 ? 1 : (pattern < 4 ? 2 : 3);
+        const std::size_t rotation = rotationDistribution(random);
+        const std::size_t secondOmission
+            = (rotation + omittedDistance) % sectorCount;
+
+        std::vector<CellIndex> selectedEntrances;
+        std::vector<CellIndex> fallbackEntrances;
+        for (std::size_t side = 0; side < sectorCount; ++side) {
+            auto& destination = side == rotation || side == secondOmission
+                ? fallbackEntrances
+                : selectedEntrances;
+            destination.push_back(cyclicEntrances[side]);
+        }
+        std::ranges::shuffle(selectedEntrances, random);
+        std::ranges::shuffle(fallbackEntrances, random);
+        entranceOrder = std::move(selectedEntrances);
+        entranceOrder.insert(entranceOrder.end(),
+            fallbackEntrances.begin(), fallbackEntrances.end());
+    } else {
+        entranceOrder.assign(
+            grid.entranceCandidates.begin(), grid.entranceCandidates.end());
+        std::ranges::shuffle(entranceOrder, random);
+    }
+    for (const CellIndex entrance : entranceOrder) {
+        if (connectedEntrances.size() >= REQUIRED_EDGE_CONNECTIONS) {
+            break;
+        }
         const std::vector<CellIndex> path
             = pathToFloor(adjacency, buildable, floor, entrance);
         if (path.empty()) {
