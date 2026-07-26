@@ -1,9 +1,11 @@
+#include "room_layout.hpp"
 #include "stalberg_grid.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <functional>
 #include <iostream>
+#include <queue>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -88,6 +90,182 @@ bool generationIsRepeatable()
             "same settings produce the same topology");
 }
 
+bool roomGenerationIsRepeatable(const stalberg::StalbergGrid& grid)
+{
+    stalberg::RoomLayout first;
+    stalberg::RoomLayout second;
+    first.generate(grid, 17);
+    second.generate(grid, 17);
+
+    return check(first.getRoomCount() == second.getRoomCount(),
+               "same room seed produces the same room count")
+        && check(std::ranges::equal(
+                     first.getCellAssignments(), second.getCellAssignments()),
+            "same room seed produces the same layout");
+}
+
+bool roomLayoutIsValid(
+    const stalberg::StalbergGrid& grid, std::uint32_t roomSeed)
+{
+    stalberg::RoomLayout layout;
+    layout.generate(grid, roomSeed);
+    const auto assignments = layout.getCellAssignments();
+    const auto vertices = grid.getVertices();
+    const auto neighbors = grid.getNeighbors();
+    bool valid = true;
+
+    valid &= check(assignments.size() == vertices.size(),
+        "room layout has one assignment per grid vertex");
+    valid &= check(layout.getRoomCount() >= 4,
+        "room generation creates multiple rooms");
+    valid &= check(layout.getCorridorCellCount() > 0,
+        "room generation creates corridors");
+
+    std::size_t corridorCount = 0;
+    std::size_t floorCellCount = 0;
+    std::size_t buildableCellCount = 0;
+    for (std::size_t cell = 0; cell < assignments.size(); ++cell) {
+        if (vertices[cell].fixed) {
+            valid &= check(assignments[cell] == stalberg::EMPTY_CELL,
+                "fixed boundary cells remain outside the floor plan");
+        } else {
+            ++buildableCellCount;
+        }
+        if (assignments[cell] != stalberg::EMPTY_CELL) {
+            ++floorCellCount;
+        }
+        if (assignments[cell] == stalberg::CORRIDOR_CELL) {
+            ++corridorCount;
+        }
+    }
+    valid &= check(floorCellCount * 100 <= buildableCellCount * 60,
+        "room generation leaves substantial intentional negative space");
+    valid &= check(corridorCount == layout.getCorridorCellCount(),
+        "reported corridor count matches assignments");
+
+    std::vector<bool> visited(assignments.size(), false);
+    const auto floorStart = std::ranges::find_if(assignments, [](int assignment) {
+        return assignment != stalberg::EMPTY_CELL;
+    });
+    if (floorStart != assignments.end()) {
+        std::queue<std::size_t> queue;
+        queue.push(static_cast<std::size_t>(floorStart - assignments.begin()));
+        visited[queue.front()] = true;
+        std::size_t reached = 0;
+        while (!queue.empty()) {
+            const std::size_t cell = queue.front();
+            queue.pop();
+            ++reached;
+            for (const std::size_t neighbor : neighbors[cell]) {
+                if (!visited[neighbor]
+                    && assignments[neighbor] != stalberg::EMPTY_CELL) {
+                    visited[neighbor] = true;
+                    queue.push(neighbor);
+                }
+            }
+        }
+        valid &= check(reached == floorCellCount,
+            "center-out floor plan remains connected");
+    }
+
+    const std::size_t corridorRegion = layout.getRoomCount();
+    std::vector<std::size_t> doorwayCounts(layout.getRoomCount(), 0);
+    std::vector<std::vector<std::size_t>> regionConnections(
+        layout.getRoomCount() + 1);
+    const auto regionIndex = [&](int region) {
+        return region == stalberg::CORRIDOR_CELL
+            ? corridorRegion
+            : static_cast<std::size_t>(region);
+    };
+    const auto validRegion = [&](int region) {
+        return region == stalberg::CORRIDOR_CELL
+            || (region >= 0
+                && static_cast<std::size_t>(region) < layout.getRoomCount());
+    };
+
+    for (const stalberg::Doorway& doorway : layout.getDoorways()) {
+        valid &= check(validRegion(doorway.firstRegion)
+                && validRegion(doorway.secondRegion),
+            "doorway references valid regions");
+        valid &= check(doorway.firstCell < assignments.size()
+                && assignments[doorway.firstCell] == doorway.firstRegion,
+            "doorway first cell matches its region");
+        valid &= check(doorway.secondCell < assignments.size()
+                && assignments[doorway.secondCell] == doorway.secondRegion,
+            "doorway second cell matches its region");
+        if (doorway.firstCell < neighbors.size()) {
+            valid &= check(std::ranges::find(
+                    neighbors[doorway.firstCell], doorway.secondCell)
+                    != neighbors[doorway.firstCell].end(),
+                "doorway cells share an edge");
+        }
+        if (!validRegion(doorway.firstRegion)
+            || !validRegion(doorway.secondRegion)) {
+            continue;
+        }
+
+        const std::size_t first = regionIndex(doorway.firstRegion);
+        const std::size_t second = regionIndex(doorway.secondRegion);
+        regionConnections[first].push_back(second);
+        regionConnections[second].push_back(first);
+        if (doorway.firstRegion >= 0) {
+            ++doorwayCounts[first];
+        }
+        if (doorway.secondRegion >= 0) {
+            ++doorwayCounts[second];
+        }
+    }
+
+    std::vector<bool> reachedRegions(regionConnections.size(), false);
+    std::queue<std::size_t> regionQueue;
+    regionQueue.push(corridorCount > 0 ? corridorRegion : 0);
+    reachedRegions[regionQueue.front()] = true;
+    while (!regionQueue.empty()) {
+        const std::size_t region = regionQueue.front();
+        regionQueue.pop();
+        for (const std::size_t connected : regionConnections[region]) {
+            if (!reachedRegions[connected]) {
+                reachedRegions[connected] = true;
+                regionQueue.push(connected);
+            }
+        }
+    }
+    for (std::size_t room = 0; room < layout.getRoomCount(); ++room) {
+        valid &= check(reachedRegions[room],
+            "doorways connect every room into one circulation graph");
+    }
+
+    for (const stalberg::GeneratedRoom& room : layout.getRooms()) {
+        valid &= check(doorwayCounts[static_cast<std::size_t>(room.id)] > 0,
+            "every room has at least one doorway");
+        const auto roomStart = std::ranges::find(assignments, room.id);
+        valid &= check(roomStart != assignments.end(), "reported room has cells");
+        if (roomStart == assignments.end()) {
+            continue;
+        }
+
+        std::fill(visited.begin(), visited.end(), false);
+        std::queue<std::size_t> queue;
+        queue.push(static_cast<std::size_t>(roomStart - assignments.begin()));
+        visited[queue.front()] = true;
+        std::size_t reached = 0;
+        while (!queue.empty()) {
+            const std::size_t cell = queue.front();
+            queue.pop();
+            ++reached;
+            for (const std::size_t neighbor : neighbors[cell]) {
+                if (!visited[neighbor] && assignments[neighbor] == room.id) {
+                    visited[neighbor] = true;
+                    queue.push(neighbor);
+                }
+            }
+        }
+        valid &= check(reached == room.cellCount, "every room is connected");
+    }
+
+    return valid;
+}
+
 bool relaxationPreservesBoundary()
 {
     stalberg::StalbergGrid grid;
@@ -127,6 +305,10 @@ int main()
     valid &= check(grid.getQuadCount() == 460, "radius 6, seed 1 produces 460 quads");
     valid &= topologyIsValid(grid);
     valid &= generationIsRepeatable();
+    valid &= roomGenerationIsRepeatable(grid);
+    for (std::uint32_t roomSeed = 1; roomSeed <= 12; ++roomSeed) {
+        valid &= roomLayoutIsValid(grid, roomSeed);
+    }
     valid &= relaxationPreservesBoundary();
 
     if (!valid) {

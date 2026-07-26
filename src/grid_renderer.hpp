@@ -2,10 +2,10 @@
 
 #include <cstddef>
 #include <optional>
-#include <vector>
 
 namespace stalberg {
 
+class RoomLayout;
 class StalbergGrid;
 struct Point;
 
@@ -13,9 +13,9 @@ std::optional<std::size_t> findDualCellAtPoint(const StalbergGrid& grid, Point p
 
 void drawGrid(
     const StalbergGrid& grid,
+    const RoomLayout& rooms,
     bool drawCenters,
     float cameraZoom,
-    const std::vector<bool>& generatedCells,
     std::optional<std::size_t> hoveredCell);
 
 } // namespace stalberg

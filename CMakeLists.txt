@@ -25,7 +25,10 @@ function(enable_project_warnings target)
     endif()
 endfunction()
 
-add_library(stalberg_grid_core src/stalberg_grid.cpp)
+add_library(stalberg_grid_core
+    src/room_layout.cpp
+    src/stalberg_grid.cpp
+)
 target_include_directories(stalberg_grid_core PUBLIC src)
 target_compile_features(stalberg_grid_core PUBLIC cxx_std_20)
 enable_project_warnings(stalberg_grid_core)

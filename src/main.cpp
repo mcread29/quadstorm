@@ -1,4 +1,5 @@
 #include "grid_renderer.hpp"
+#include "room_layout.hpp"
 #include "stalberg_grid.hpp"
 
 #include "raylib.h"
@@ -10,7 +11,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <optional>
-#include <vector>
 
 namespace {
 
@@ -94,10 +94,12 @@ int main()
     stalberg::StalbergGrid grid;
     int radius = INITIAL_RADIUS;
     std::uint32_t seed = INITIAL_SEED;
+    std::uint32_t roomSeed = INITIAL_SEED;
     bool relaxing = true;
     bool drawCenters = true;
     grid.generate(radius, seed);
-    std::vector<bool> generatedCells(grid.getVertexCount(), false);
+    stalberg::RoomLayout rooms;
+    rooms.generate(grid, roomSeed);
 
     Camera2D camera {};
     camera.offset = Vector2 { 640.0F, 400.0F };
@@ -133,7 +135,7 @@ int main()
 
         if (regenerateRequested) {
             grid.generate(radius, seed);
-            generatedCells.assign(grid.getVertexCount(), false);
+            rooms.generate(grid, roomSeed);
             relaxing = true;
             if (refitRequested) {
                 fitCamera(camera, grid);
@@ -150,8 +152,9 @@ int main()
         if (IsKeyPressed(KEY_P)) {
             drawCenters = !drawCenters;
         }
-        if (IsKeyPressed(KEY_C)) {
-            std::fill(generatedCells.begin(), generatedCells.end(), false);
+        if (IsKeyPressed(KEY_G)) {
+            ++roomSeed;
+            rooms.generate(grid, roomSeed);
         }
 
         handleCamera(camera, grid);
@@ -163,7 +166,7 @@ int main()
         }
 
         const Vector2 mouseScreen = GetMousePosition();
-        const bool mouseOverHud = mouseScreen.x >= 14.0F && mouseScreen.x <= 430.0F
+        const bool mouseOverHud = mouseScreen.x >= 14.0F && mouseScreen.x <= 454.0F
             && mouseScreen.y >= 14.0F && mouseScreen.y <= 145.0F;
         std::optional<std::size_t> hoveredCell;
         if (!mouseOverHud) {
@@ -172,32 +175,26 @@ int main()
                 grid, stalberg::Point { mouseWorld.x, mouseWorld.y });
         }
 
-        if (hoveredCell && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            generatedCells[*hoveredCell] = !generatedCells[*hoveredCell];
-        }
-
-        const std::size_t generatedCount = static_cast<std::size_t>(
-            std::count(generatedCells.begin(), generatedCells.end(), true));
-
         BeginDrawing();
         ClearBackground(Color { 47, 121, 137, 255 });
 
         BeginMode2D(camera);
-        stalberg::drawGrid(grid, drawCenters, camera.zoom, generatedCells, hoveredCell);
+        stalberg::drawGrid(grid, rooms, drawCenters, camera.zoom, hoveredCell);
         EndMode2D();
 
-        DrawRectangle(14, 14, 416, 131, Color { 8, 31, 38, 220 });
+        DrawRectangle(14, 14, 440, 131, Color { 8, 31, 38, 220 });
         DrawText("OSKAR STALBERG-STYLE QUAD GRID", 26, 24, 20, Color { 222, 235, 232, 255 });
         DrawText(TextFormat("radius %d   seed %u   vertices %zu   quads %zu",
                      grid.getRadius(), grid.getSeed(), grid.getVertexCount(), grid.getQuadCount()),
             26, 52, 16, Color { 150, 178, 181, 255 });
-        DrawText(TextFormat("relaxation %d/%d%s   generated %zu", grid.getRelaxationSteps(),
+        DrawText(TextFormat("relaxation %d/%d%s   rooms %zu", grid.getRelaxationSteps(),
                      stalberg::MAX_RELAXATION_STEPS,
-                     relaxing ? "  (running)" : "  (paused)", generatedCount),
+                     relaxing ? "  (running)" : "  (paused)", rooms.getRoomCount()),
             26, 74, 16, Color { 239, 180, 74, 255 });
-        DrawText("Hover/preview  left click/generate  C/clear", 26, 98, 14,
-            Color { 196, 225, 223, 255 });
-        DrawText("R/new seed  arrows/seed+size  Space/pause  N/step", 26, 120, 14,
+        DrawText(TextFormat("G/new rooms  seed %u  corridors %zu  doors %zu",
+                     rooms.getSeed(), rooms.getCorridorCellCount(), rooms.getDoorways().size()),
+            26, 98, 14, Color { 196, 225, 223, 255 });
+        DrawText("R/new grid  arrows/seed+size  Space/pause  N/step", 26, 120, 14,
             Color { 150, 178, 181, 255 });
         DrawText("P/centers  F/fit  wheel/zoom  middle or right drag/pan", 20,
             GetScreenHeight() - 27, 14, Color { 25, 75, 87, 255 });

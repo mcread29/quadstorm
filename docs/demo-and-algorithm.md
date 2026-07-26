@@ -26,9 +26,13 @@ all-quad mesh
 iterative vertex relaxation
         ↓
 organic Stålberg-style grid
+        ↓
+center-out floor-plan growth
+        ↓
+branching corridors and irregular rooms
 ```
 
-The demo draws the final mesh as rounded linework with an oriented cross at each quad center. A solid-line junction is the center of each selectable dual cell; the surrounding quad centers become that cell's corners. Hovering previews a rounded dual cell and clicking commits or removes it.
+The demo colors an automatically generated floor plan over the relaxed grid. A solid-line junction is one logical floor cell; the surrounding quad centers become that cell's dual-polygon corners. Rooms contain many connected cells, corridors branch outward from the center, and hovering highlights the complete region under the pointer.
 
 ## Building and running
 
@@ -49,12 +53,11 @@ raylib requires a graphical desktop. On a headless Linux machine, `xvfb-run -a .
 | Input | Action |
 |---|---|
 | `R` | Increment the seed and generate a new grid |
-| Left / Right | Select the previous or next seed |
+| `G` | Increment the room seed and generate a new floor plan |
+| Left / Right | Select the previous or next grid seed |
 | Up / Down | Increase or decrease the hexagonal patch radius |
 | Space | Pause or resume automatic relaxation |
 | `N` | Perform one relaxation step and pause |
-| Left click | Generate or remove the hovered rounded cell |
-| `C` | Clear generated cells |
 | `P` | Toggle quad-center markers |
 | `F` | Fit the grid to the window |
 | Mouse wheel | Zoom around the mouse cursor |
@@ -322,11 +325,12 @@ The final mesh is rendered inside a raylib `Camera2D`:
 - Every unique final edge is drawn once, with a small circle at each vertex to produce clean joins at every valence.
 - An oriented cross marks each quad centroid; its four arms point toward the quad's edge midpoints.
 - Every solid-line vertex acts as the center of a dual cell whose corners are the surrounding quad centers.
-- The dual cell under the pointer receives a translucent rounded ghost preview.
-- Clicking toggles a persistent generated-cell overlay; `C` clears all generated cells.
+- Every room receives a distinct translucent fill; corridors use a dark contrasting fill.
+- Shared edges inside one room disappear, leaving a connected exterior outline with quadratic rounded corners.
+- Hovering one cell highlights its complete room or the complete corridor network.
 - Marker size and line thickness are divided by camera zoom, keeping them approximately constant in screen pixels.
 
-Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the selected mesh vertex. Boundary polygons also use centers reflected across boundary edges as ghost points; a one-quad corner receives an additional diagonal ghost. Generated cells are filled to their shared boundaries. The renderer counts their polygon edges, removes every edge used by two generated neighbors, and draws only the connected exterior outline with rounded joins. The hovered cell participates in the same union temporarily, so its ghost preview connects to existing generated cells. The underlying topology remains unchanged.
+Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the logical cell. Room generation starts with one central room and repeatedly chooses a boundary attachment, grows a short outward connector, and places another room at its end. Rooms are sampled from soft-rectangle, gallery, capsule, and L-shaped templates; the irregular graph naturally perturbs those architectural forms without reducing every region to a Voronoi blob. Generation targets only 42–55 percent of the buildable cells and may stop earlier when no valid placement remains, deliberately preserving substantial negative space. Every pair of touching regions receives a deterministic doorway. The renderer removes shared polygon edges within each room, omits wall segments at doorways, and rounds only the resulting exterior boundary.
 
 The HUD shows:
 
@@ -370,11 +374,12 @@ Rendering and application concerns are kept separate from the mesh core:
 |---|---|
 | `src/stalberg_grid.hpp` | Public mesh types and read-only topology views |
 | `src/stalberg_grid.cpp` | Grid generation, topology rebuilding, and relaxation |
-| `src/grid_renderer.cpp` / `drawGrid()` | Render unique edges, dual centers, generated cells, and the hover ghost |
+| `src/room_layout.cpp` | Center-out footprint, corridor routing, and connected room growth |
+| `src/grid_renderer.cpp` / `drawGrid()` | Render room fills, connected rounded boundaries, corridors, and dual centers |
 | `src/main.cpp` / `fitCamera()` | Center and scale the patch to the window |
 | `src/main.cpp` / `handleCamera()` | Process pan, zoom, and fit input |
 | `src/main.cpp` / `main()` | Initialize raylib, process controls, update, and render |
-| `tests/grid_tests.cpp` | Headless topology and relaxation characterization tests |
+| `tests/grid_tests.cpp` | Headless topology, relaxation, room-connectivity, doorway, and determinism tests |
 
 ## Compact pseudocode
 
