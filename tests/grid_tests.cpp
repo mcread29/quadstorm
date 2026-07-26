@@ -326,7 +326,7 @@ bool largeLayoutUsesExpandedRoomBudget()
     stalberg::RoomLayout layout;
     layout.generate(grid, 1);
     return check(layout.getRoomCount() == stalberg::MAX_GENERATED_ROOMS,
-        "large layouts can generate all 32 rooms");
+        "large layouts can generate all 64 rooms");
 }
 
 bool degenerateGridDoesNotCreateSingleCellRoom()

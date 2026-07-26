@@ -6,7 +6,7 @@ A compact C++ implementation of the grid-generation technique associated with Os
 2. Randomly pair adjacent triangles into four-sided faces.
 3. Subdivide every triangle and four-sided face using shared edge midpoints and a face center.
 4. Apply iterative Laplacian relaxation while pinning the hexagonal boundary.
-5. Grow one connected floor plan from the center to at least four outer-edge centers, then partition it into as many as 32 irregular multi-cell rooms.
+5. Grow one connected floor plan from the center to at least four outer-edge centers, then partition it into as many as 64 irregular multi-cell rooms.
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 

@@ -10,7 +10,7 @@
 namespace stalberg {
 
 inline constexpr int EMPTY_CELL = -1;
-inline constexpr std::size_t MAX_GENERATED_ROOMS = 32;
+inline constexpr std::size_t MAX_GENERATED_ROOMS = 64;
 
 struct GeneratedRoom {
     int id;
