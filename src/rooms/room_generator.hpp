@@ -3,9 +3,16 @@
 #include "rooms/room_grid.hpp"
 #include "rooms/room_layout.hpp"
 
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 
 namespace stalberg::rooms {
+
+struct RoomGenerationOptions {
+    RoomGenerationMethod method = RoomGenerationMethod::BranchingShapes;
+    std::size_t candidateCount = 6;
+};
 
 class RoomGenerator {
 public:
@@ -13,6 +20,19 @@ public:
         const RoomGrid& grid,
         std::uint32_t seed,
         RoomGenerationMethod method = RoomGenerationMethod::BranchingShapes) const;
+    RoomLayout generate(
+        const RoomGrid& grid,
+        std::uint32_t seed,
+        const RoomGenerationOptions& options) const;
+
+private:
+    RoomLayout generateCandidate(
+        const RoomGrid& grid,
+        std::uint32_t requestedSeed,
+        std::uint32_t variantSeed,
+        RoomGenerationMethod method,
+        const std::vector<CellIndex>& entranceOrder,
+        std::size_t entranceTargetCount) const;
 };
 
 } // namespace stalberg::rooms

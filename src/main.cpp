@@ -31,6 +31,13 @@ const char* roomMethodName(stalberg::rooms::RoomGenerationMethod method)
     return "unknown";
 }
 
+void generateRelaxedGrid(
+    stalberg::StalbergGrid& grid, int radius, std::uint32_t seed)
+{
+    grid.generate(radius, seed);
+    grid.relaxToCompletion();
+}
+
 void fitCamera(Camera2D& camera, const stalberg::StalbergGrid& grid)
 {
     const stalberg::Bounds bounds = grid.getBounds();
@@ -109,9 +116,8 @@ int main()
     std::uint32_t roomSeed = INITIAL_SEED;
     stalberg::rooms::RoomGenerationMethod roomMethod
         = stalberg::rooms::RoomGenerationMethod::BranchingShapes;
-    bool relaxing = true;
     bool drawCenters = true;
-    grid.generate(radius, seed);
+    generateRelaxedGrid(grid, radius, seed);
     stalberg::rooms::RoomGenerator roomGenerator;
     stalberg::rooms::RoomGrid roomInput = stalberg::makeRoomGrid(grid);
     stalberg::rooms::RoomLayout rooms
@@ -150,22 +156,14 @@ int main()
         }
 
         if (regenerateRequested) {
-            grid.generate(radius, seed);
+            generateRelaxedGrid(grid, radius, seed);
             roomInput = stalberg::makeRoomGrid(grid);
             rooms = roomGenerator.generate(roomInput, roomSeed, roomMethod);
-            relaxing = true;
             if (refitRequested) {
                 fitCamera(camera, grid);
             }
         }
 
-        if (IsKeyPressed(KEY_SPACE)) {
-            relaxing = !relaxing;
-        }
-        if (IsKeyPressed(KEY_N)) {
-            relaxing = false;
-            grid.relaxOnce();
-        }
         if (IsKeyPressed(KEY_P)) {
             drawCenters = !drawCenters;
         }
@@ -182,12 +180,6 @@ int main()
         }
 
         handleCamera(camera, grid);
-        if (relaxing) {
-            grid.relaxOnce();
-            if (grid.getRelaxationSteps() >= stalberg::MAX_RELAXATION_STEPS) {
-                relaxing = false;
-            }
-        }
 
         const Vector2 mouseScreen = GetMousePosition();
         const bool mouseOverHud = mouseScreen.x >= 14.0F && mouseScreen.x <= 454.0F
@@ -211,14 +203,14 @@ int main()
         DrawText(TextFormat("radius %d   seed %u   vertices %zu   quads %zu",
                      grid.getRadius(), grid.getSeed(), grid.getVertexCount(), grid.getQuadCount()),
             26, 52, 16, Color { 150, 178, 181, 255 });
-        DrawText(TextFormat("relaxation %d/%d%s   rooms %zu", grid.getRelaxationSteps(),
-                     stalberg::MAX_RELAXATION_STEPS,
-                     relaxing ? "  (running)" : "  (paused)", rooms.getRoomCount()),
+        DrawText(TextFormat("relaxation %d/%d   rooms %zu", grid.getRelaxationSteps(),
+                     stalberg::MAX_RELAXATION_STEPS, rooms.getRoomCount()),
             26, 74, 16, Color { 239, 180, 74, 255 });
-        DrawText(TextFormat("G/new rooms  M/method  seed %u  doors %zu",
-                     rooms.getSeed(), rooms.getDoorways().size()),
+        DrawText(TextFormat("G/new rooms  seed %u  doors %zu  quality %.1f  pick %zu",
+                     rooms.getSeed(), rooms.getDoorways().size(),
+                     rooms.getQualityScore(), rooms.getSelectedCandidate()),
             26, 98, 14, Color { 196, 225, 223, 255 });
-        DrawText("R/new grid  arrows/seed+size  Space/pause  N/step", 26, 120, 14,
+        DrawText("R/new grid  arrows/seed+size  G/new layout  M/method", 26, 120, 14,
             Color { 150, 178, 181, 255 });
         DrawText(TextFormat("method: %s", roomMethodName(rooms.getMethod())),
             470, 20, 16, Color { 226, 240, 224, 230 });

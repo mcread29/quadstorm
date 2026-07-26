@@ -1,5 +1,6 @@
 #include "integration/room_grid_adapter.hpp"
 
+#include "grid/dual_grid.hpp"
 #include "grid/stalberg_grid.hpp"
 
 #include <algorithm>
@@ -58,18 +59,41 @@ std::vector<rooms::CellIndex> boundarySideCenters(const StalbergGrid& grid)
 
 rooms::RoomGrid makeRoomGrid(const StalbergGrid& grid)
 {
+    const DualGrid dual = buildDualGrid(grid);
     rooms::RoomGrid result;
     result.cells.reserve(grid.getVertexCount());
-    for (const Vertex& vertex : grid.getVertices()) {
+    for (rooms::CellIndex cell = 0; cell < grid.getVertexCount(); ++cell) {
+        const Vertex& vertex = grid.getVertices()[cell];
+        const DualCell& dualCell = dual.cells[cell];
         result.cells.push_back(rooms::Cell {
             rooms::CellPoint { vertex.position.x, vertex.position.y },
+            dualCell.area,
+            dualCell.clearance,
             !vertex.fixed
         });
     }
 
-    result.neighbors.reserve(grid.getNeighbors().size());
-    for (const auto& neighbors : grid.getNeighbors()) {
-        result.neighbors.emplace_back(neighbors.begin(), neighbors.end());
+    result.connections.resize(grid.getVertexCount());
+    const auto vertices = grid.getVertices();
+    for (const DualConnection& connection : dual.connections) {
+        const rooms::CellIndex first = connection.cells.a;
+        const rooms::CellIndex second = connection.cells.b;
+        const float x = vertices[second].position.x - vertices[first].position.x;
+        const float y = vertices[second].position.y - vertices[first].position.y;
+        const float centerDistance = std::sqrt(x * x + y * y);
+        result.connections[first].push_back(
+            rooms::CellConnection { second, centerDistance, connection.length });
+        result.connections[second].push_back(
+            rooms::CellConnection { first, centerDistance, connection.length });
+    }
+    result.neighbors.resize(result.connections.size());
+    for (std::size_t cell = 0; cell < result.connections.size(); ++cell) {
+        auto& connections = result.connections[cell];
+        std::ranges::sort(connections, {}, &rooms::CellConnection::cell);
+        result.neighbors[cell].reserve(connections.size());
+        for (const rooms::CellConnection& connection : connections) {
+            result.neighbors[cell].push_back(connection.cell);
+        }
     }
     result.entranceCandidates = boundarySideCenters(grid);
     return result;

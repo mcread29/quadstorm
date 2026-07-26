@@ -1,5 +1,6 @@
 #include "grid_renderer.hpp"
 
+#include "grid/dual_grid.hpp"
 #include "grid/stalberg_grid.hpp"
 #include "rooms/room_layout.hpp"
 
@@ -108,14 +109,6 @@ static_assert(ROOM_COLORS.size() == MAX_GENERATED_ROOMS);
 static_assert(roomColorsAreUnique());
 constexpr double OUTLINE_KEY_SCALE = 1000.0;
 
-struct EdgeHash {
-    std::size_t operator()(const Edge& edge) const
-    {
-        return std::hash<std::size_t> {}(edge.a)
-            ^ (std::hash<std::size_t> {}(edge.b) << 1U);
-    }
-};
-
 struct DualMesh {
     std::vector<Point> quadCenters;
     std::vector<std::vector<Vector2>> cells;
@@ -182,131 +175,19 @@ Vector2 toVector2(Point point)
     return Vector2 { point.x, point.y };
 }
 
-Point quadCenter(const StalbergGrid& grid, const Quad& quad)
+DualMesh buildRenderDualMesh(const StalbergGrid& grid)
 {
-    Point center { 0.0F, 0.0F };
-    const auto vertices = grid.getVertices();
-    for (const VertexIndex index : quad) {
-        center.x += vertices[index].position.x;
-        center.y += vertices[index].position.y;
-    }
-    center.x *= 0.25F;
-    center.y *= 0.25F;
-    return center;
-}
-
-Vector2 reflectAcrossEdge(Vector2 point, Vector2 first, Vector2 second)
-{
-    const Vector2 edge { second.x - first.x, second.y - first.y };
-    const float lengthSquared = edge.x * edge.x + edge.y * edge.y;
-    if (lengthSquared <= 0.0001F) {
-        return point;
-    }
-
-    const float projectionAmount = ((point.x - first.x) * edge.x
-        + (point.y - first.y) * edge.y) / lengthSquared;
-    const Vector2 projection {
-        first.x + edge.x * projectionAmount,
-        first.y + edge.y * projectionAmount
-    };
-    return Vector2 {
-        2.0F * projection.x - point.x,
-        2.0F * projection.y - point.y
-    };
-}
-
-DualMesh buildDualMesh(const StalbergGrid& grid)
-{
-    const auto vertices = grid.getVertices();
-    const auto quads = grid.getQuads();
-    DualMesh dual;
-    dual.quadCenters.reserve(quads.size());
-    dual.cells.resize(vertices.size());
-
-    std::vector<std::size_t> incidentQuadCounts(vertices.size(), 0);
-    std::vector<std::size_t> boundaryEdgeCounts(vertices.size(), 0);
-    std::unordered_map<Edge, std::vector<std::size_t>, EdgeHash> edgeQuads;
-
-    for (std::size_t quadIndex = 0; quadIndex < quads.size(); ++quadIndex) {
-        const Quad& quad = quads[quadIndex];
-        const Point center = quadCenter(grid, quad);
-        dual.quadCenters.push_back(center);
-
-        for (const VertexIndex vertex : quad) {
-            dual.cells[vertex].push_back(toVector2(center));
-            ++incidentQuadCounts[vertex];
-        }
-        for (std::size_t edge = 0; edge < quad.size(); ++edge) {
-            edgeQuads[Edge(quad[edge], quad[(edge + 1) % quad.size()])]
-                .push_back(quadIndex);
+    const DualGrid source = buildDualGrid(grid);
+    DualMesh result;
+    result.quadCenters = source.quadCenters;
+    result.cells.resize(source.cells.size());
+    for (std::size_t cell = 0; cell < source.cells.size(); ++cell) {
+        result.cells[cell].reserve(source.cells[cell].polygon.size());
+        for (const Point point : source.cells[cell].polygon) {
+            result.cells[cell].push_back(toVector2(point));
         }
     }
-
-    for (const auto& [edge, incidentQuads] : edgeQuads) {
-        if (incidentQuads.size() != 1) {
-            continue;
-        }
-
-        const Vector2 first = toVector2(vertices[edge.a].position);
-        const Vector2 second = toVector2(vertices[edge.b].position);
-        const Vector2 center = toVector2(dual.quadCenters[incidentQuads.front()]);
-        const Vector2 ghost = reflectAcrossEdge(center, first, second);
-        dual.cells[edge.a].push_back(ghost);
-        dual.cells[edge.b].push_back(ghost);
-        ++boundaryEdgeCounts[edge.a];
-        ++boundaryEdgeCounts[edge.b];
-    }
-
-    for (std::size_t vertexIndex = 0; vertexIndex < vertices.size(); ++vertexIndex) {
-        const Vector2 center = toVector2(vertices[vertexIndex].position);
-        auto& polygon = dual.cells[vertexIndex];
-
-        // A corner with only one real quad needs the diagonal ghost point as well as
-        // the two edge reflections, otherwise the dual cell ends at the corner.
-        if (incidentQuadCounts[vertexIndex] == 1 && boundaryEdgeCounts[vertexIndex] >= 2) {
-            const Vector2 realCenter = polygon.front();
-            polygon.push_back(Vector2 {
-                2.0F * center.x - realCenter.x,
-                2.0F * center.y - realCenter.y
-            });
-        }
-
-        std::ranges::sort(polygon, [center](Vector2 lhs, Vector2 rhs) {
-            return std::atan2(lhs.y - center.y, lhs.x - center.x)
-                < std::atan2(rhs.y - center.y, rhs.x - center.x);
-        });
-        polygon.erase(std::unique(polygon.begin(), polygon.end(), [](Vector2 lhs, Vector2 rhs) {
-            const float x = lhs.x - rhs.x;
-            const float y = lhs.y - rhs.y;
-            return x * x + y * y < 0.0001F;
-        }), polygon.end());
-    }
-
-    return dual;
-}
-
-bool pointInPolygon(const std::vector<Vector2>& polygon, Point point)
-{
-    if (polygon.size() < 3) {
-        return false;
-    }
-
-    bool inside = false;
-    for (std::size_t i = 0, previous = polygon.size() - 1;
-         i < polygon.size(); previous = i++) {
-        const Vector2 a = polygon[i];
-        const Vector2 b = polygon[previous];
-        const bool crossesScanline = (a.y > point.y) != (b.y > point.y);
-        if (!crossesScanline) {
-            continue;
-        }
-
-        const float crossingX = (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x;
-        if (point.x < crossingX) {
-            inside = !inside;
-        }
-    }
-    return inside;
+    return result;
 }
 
 PointKey pointKey(Vector2 point)
@@ -525,13 +406,7 @@ void drawOrientedCross(
 
 std::optional<std::size_t> findDualCellAtPoint(const StalbergGrid& grid, Point point)
 {
-    const DualMesh dual = buildDualMesh(grid);
-    for (std::size_t i = 0; i < dual.cells.size(); ++i) {
-        if (pointInPolygon(dual.cells[i], point)) {
-            return i;
-        }
-    }
-    return std::nullopt;
+    return findDualCellAtPoint(buildDualGrid(grid), point);
 }
 
 void drawGrid(
@@ -546,7 +421,7 @@ void drawGrid(
     const auto vertices = grid.getVertices();
     const auto quads = grid.getQuads();
     const auto assignments = rooms.getCellAssignments();
-    const DualMesh dual = buildDualMesh(grid);
+    const DualMesh dual = buildRenderDualMesh(grid);
     std::vector<bool> regionMask(vertices.size(), false);
 
     for (const GeneratedRoom& room : rooms.getRooms()) {

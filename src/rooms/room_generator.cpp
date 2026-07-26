@@ -11,6 +11,7 @@
 #include <numbers>
 #include <queue>
 #include <random>
+#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -40,17 +41,60 @@ float unitNoise(std::uint32_t seed, std::uint64_t salt)
 
 bool topologyIsValid(const RoomGrid& grid)
 {
-    if (grid.neighbors.size() != grid.cells.size()) {
+    if (grid.neighbors.size() != grid.cells.size()
+        || grid.connections.size() != grid.cells.size()) {
         return false;
     }
-    return std::ranges::all_of(grid.neighbors, [&](const auto& neighbors) {
-               return std::ranges::all_of(neighbors, [&](CellIndex neighbor) {
-                   return neighbor < grid.cells.size();
-               });
-           })
-        && std::ranges::all_of(grid.entranceCandidates, [&](CellIndex entrance) {
+    for (CellIndex cell = 0; cell < grid.cells.size(); ++cell) {
+        const Cell& geometry = grid.cells[cell];
+        if (!std::isfinite(geometry.position.x) || !std::isfinite(geometry.position.y)
+            || !std::isfinite(geometry.area) || geometry.area <= 0.0F
+            || !std::isfinite(geometry.clearance) || geometry.clearance < 0.0F
+            || grid.neighbors[cell].size() != grid.connections[cell].size()) {
+            return false;
+        }
+        std::vector<CellIndex> neighbors = grid.neighbors[cell];
+        std::vector<CellIndex> connectedCells;
+        connectedCells.reserve(grid.connections[cell].size());
+        for (const CellConnection& connection : grid.connections[cell]) {
+            connectedCells.push_back(connection.cell);
+        }
+        std::ranges::sort(neighbors);
+        std::ranges::sort(connectedCells);
+        if (!std::ranges::equal(neighbors, connectedCells)
+            || std::ranges::adjacent_find(neighbors) != neighbors.end()) {
+            return false;
+        }
+        for (const CellConnection& connection : grid.connections[cell]) {
+            if (connection.cell >= grid.cells.size() || connection.cell == cell
+                || !std::isfinite(connection.distance) || connection.distance <= 0.0F
+                || !std::isfinite(connection.sharedBoundaryLength)
+                || connection.sharedBoundaryLength <= 0.0F) {
+                return false;
+            }
+            const auto reverse = std::ranges::find(grid.connections[connection.cell],
+                cell,
+                &CellConnection::cell);
+            if (reverse == grid.connections[connection.cell].end()) {
+                return false;
+            }
+            const float distanceTolerance = std::max(connection.distance, 1.0F) * 0.0001F;
+            const float widthTolerance
+                = std::max(connection.sharedBoundaryLength, 1.0F) * 0.0001F;
+            if (std::abs(reverse->distance - connection.distance) > distanceTolerance
+                || std::abs(reverse->sharedBoundaryLength
+                       - connection.sharedBoundaryLength)
+                    > widthTolerance) {
+                return false;
+            }
+        }
+    }
+    std::vector<CellIndex> entrances = grid.entranceCandidates;
+    std::ranges::sort(entrances);
+    return std::ranges::all_of(entrances, [&](CellIndex entrance) {
                return entrance < grid.cells.size();
-           });
+           })
+        && std::ranges::adjacent_find(entrances) == entrances.end();
 }
 
 std::uint64_t gridFingerprint(const RoomGrid& grid)
@@ -65,9 +109,26 @@ std::uint64_t gridFingerprint(const RoomGrid& grid)
                 << 32U)
             ^ std::bit_cast<std::uint32_t>(value.position.y)
             ^ static_cast<std::uint64_t>(blocked));
-        for (const CellIndex neighbor : grid.neighbors[cell]) {
-            fingerprint = mix(fingerprint ^ mix(cell) ^ (mix(neighbor) << 1U));
+        fingerprint = mix(fingerprint
+            ^ std::bit_cast<std::uint32_t>(value.area)
+            ^ (static_cast<std::uint64_t>(
+                   std::bit_cast<std::uint32_t>(value.clearance))
+                << 32U));
+        std::vector<CellConnection> connections = grid.connections[cell];
+        std::ranges::sort(connections, {}, &CellConnection::cell);
+        for (const CellConnection& connection : connections) {
+            fingerprint = mix(fingerprint ^ mix(cell)
+                ^ (mix(connection.cell) << 1U)
+                ^ std::bit_cast<std::uint32_t>(connection.sharedBoundaryLength)
+                ^ (static_cast<std::uint64_t>(
+                       std::bit_cast<std::uint32_t>(connection.distance))
+                    << 32U));
         }
+    }
+    std::vector<CellIndex> entrances = grid.entranceCandidates;
+    std::ranges::sort(entrances);
+    for (const CellIndex entrance : entrances) {
+        fingerprint = mix(fingerprint ^ mix(entrance));
     }
     return fingerprint;
 }
@@ -87,10 +148,15 @@ float distanceFromOrigin(CellPoint point)
 std::vector<std::vector<CellIndex>> sortedAdjacency(const RoomGrid& grid)
 {
     std::vector<std::vector<CellIndex>> adjacency;
-    adjacency.reserve(grid.getNeighbors().size());
-    for (const auto& neighbors : grid.getNeighbors()) {
-        adjacency.push_back(neighbors);
-        std::ranges::sort(adjacency.back());
+    adjacency.reserve(grid.getConnections().size());
+    for (const auto& connections : grid.getConnections()) {
+        std::vector<CellIndex> neighbors;
+        neighbors.reserve(connections.size());
+        for (const CellConnection& connection : connections) {
+            neighbors.push_back(connection.cell);
+        }
+        std::ranges::sort(neighbors);
+        adjacency.push_back(std::move(neighbors));
     }
     return adjacency;
 }
@@ -383,42 +449,69 @@ std::vector<CellIndex> fallbackConnectedRoom(
     return result;
 }
 
+float connectionCost(const RoomGrid& grid, CellIndex first, CellIndex second)
+{
+    const auto connection = std::ranges::find(
+        grid.connections[first], second, &CellConnection::cell);
+    const Cell& destination = grid.cells[second];
+    const float directDistance = distance(grid.cells[first].position, destination.position);
+    const float edgeDistance = connection == grid.connections[first].end()
+        ? directDistance
+        : std::max(connection->distance, 0.001F);
+    const float preferredClearance = edgeDistance * 0.32F;
+    const float clearancePenalty = preferredClearance <= 0.0F
+        ? 0.0F
+        : std::max(0.0F, preferredClearance - destination.clearance)
+            / preferredClearance;
+    return edgeDistance * (1.0F + clearancePenalty * 2.5F);
+}
+
 std::vector<CellIndex> shortestConnector(
+    const RoomGrid& grid,
     const std::vector<std::vector<CellIndex>>& adjacency,
     const std::vector<bool>& buildable,
     const std::vector<int>& assignments,
     const std::vector<CellIndex>& roomCells)
 {
+    using QueueEntry = std::pair<float, CellIndex>;
     const CellIndex noCell = assignments.size();
     std::vector<bool> roomMask(assignments.size(), false);
     std::vector<CellIndex> parent(assignments.size(), noCell);
-    std::queue<CellIndex> queue;
+    std::vector<float> costs(assignments.size(), std::numeric_limits<float>::infinity());
+    std::priority_queue<QueueEntry, std::vector<QueueEntry>, std::greater<>> queue;
     for (const CellIndex cell : roomCells) {
         roomMask[cell] = true;
         parent[cell] = cell;
-        queue.push(cell);
+        costs[cell] = 0.0F;
+        queue.emplace(0.0F, cell);
     }
 
     while (!queue.empty()) {
-        const CellIndex cell = queue.front();
+        const auto [cost, cell] = queue.top();
         queue.pop();
+        if (cost > costs[cell]) {
+            continue;
+        }
         for (const CellIndex neighbor : adjacency[cell]) {
             if (assignments[neighbor] != EMPTY_CELL) {
                 std::vector<CellIndex> connector;
-                CellIndex pathCell = cell;
-                while (!roomMask[pathCell]) {
+                for (CellIndex pathCell = cell; !roomMask[pathCell];
+                     pathCell = parent[pathCell]) {
                     connector.push_back(pathCell);
-                    pathCell = parent[pathCell];
                 }
                 std::ranges::reverse(connector);
                 return connector;
             }
-            if (parent[neighbor] != noCell
-                || (!buildable[neighbor] && !roomMask[neighbor])) {
+            if (!buildable[neighbor] && !roomMask[neighbor]) {
                 continue;
             }
+            const float nextCost = cost + connectionCost(grid, cell, neighbor);
+            if (nextCost >= costs[neighbor]) {
+                continue;
+            }
+            costs[neighbor] = nextCost;
             parent[neighbor] = cell;
-            queue.push(neighbor);
+            queue.emplace(nextCost, neighbor);
         }
     }
     return {};
@@ -476,10 +569,17 @@ std::vector<CellIndex> growConnector(
             const float alignment = x / edgeLength * directionX
                 + y / edgeLength * directionY;
             const float outward = distanceFromOrigin(to) - distanceFromOrigin(from);
+            const auto connection = std::ranges::find(
+                grid.connections[current], neighbor, &CellConnection::cell);
+            const float width = connection == grid.connections[current].end()
+                ? 0.0F
+                : connection->sharedBoundaryLength;
+            const float widthScore = std::clamp(width / edgeLength, 0.0F, 1.5F);
             const float noise = unitNoise(seed,
                 salt + static_cast<std::uint64_t>(step) * 4099U + neighbor);
             const float score = alignment * 2.0F
-                + outward / edgeLength * 0.65F + noise * 0.8F;
+                + outward / edgeLength * 0.65F
+                + widthScore * 0.5F + noise * 0.8F;
             if (score > selectedScore
                 || (score == selectedScore && neighbor < selected)) {
                 selected = neighbor;
@@ -601,11 +701,13 @@ bool growBranchRoom(
 }
 
 std::vector<CellIndex> pathToFloor(
+    const RoomGrid& grid,
     const std::vector<std::vector<CellIndex>>& adjacency,
     const std::vector<bool>& buildable,
     const std::vector<bool>& floor,
     CellIndex start)
 {
+    using QueueEntry = std::pair<float, CellIndex>;
     const CellIndex noCell = adjacency.size();
     if (start >= adjacency.size()) {
         return {};
@@ -615,24 +717,34 @@ std::vector<CellIndex> pathToFloor(
     }
 
     std::vector<CellIndex> parent(adjacency.size(), noCell);
-    std::queue<CellIndex> queue;
+    std::vector<float> costs(adjacency.size(), std::numeric_limits<float>::infinity());
+    std::priority_queue<QueueEntry, std::vector<QueueEntry>, std::greater<>> queue;
     parent[start] = start;
-    queue.push(start);
+    costs[start] = 0.0F;
+    queue.emplace(0.0F, start);
 
     CellIndex destination = noCell;
-    while (!queue.empty() && destination == noCell) {
-        const CellIndex cell = queue.front();
+    while (!queue.empty()) {
+        const auto [cost, cell] = queue.top();
         queue.pop();
+        if (cost > costs[cell]) {
+            continue;
+        }
+        if (floor[cell]) {
+            destination = cell;
+            break;
+        }
         for (const CellIndex neighbor : adjacency[cell]) {
-            if (floor[neighbor]) {
-                parent[neighbor] = cell;
-                destination = neighbor;
-                break;
+            if (!floor[neighbor] && !buildable[neighbor]) {
+                continue;
             }
-            if (parent[neighbor] == noCell && buildable[neighbor]) {
-                parent[neighbor] = cell;
-                queue.push(neighbor);
+            const float nextCost = cost + connectionCost(grid, cell, neighbor);
+            if (nextCost >= costs[neighbor]) {
+                continue;
             }
+            costs[neighbor] = nextCost;
+            parent[neighbor] = cell;
+            queue.emplace(nextCost, neighbor);
         }
     }
     if (destination == noCell) {
@@ -685,12 +797,13 @@ void generateOrganicGrowth(
     std::array<std::size_t, sectorCount> sectorFloorCounts {};
     ++sectorFloorCounts[sectorFor(center)];
 
-    for (const CellIndex entrance : entranceSelection.order) {
-        if (connectedEntrances.size() >= entranceSelection.targetCount) {
-            break;
-        }
+    const std::size_t entranceCount = std::min(
+        entranceSelection.targetCount, entranceSelection.order.size());
+    for (std::size_t entranceIndex = 0;
+         entranceIndex < entranceCount; ++entranceIndex) {
+        const CellIndex entrance = entranceSelection.order[entranceIndex];
         const std::vector<CellIndex> path
-            = pathToFloor(adjacency, buildable, floor, entrance);
+            = pathToFloor(grid, adjacency, buildable, floor, entrance);
         if (path.empty()) {
             continue;
         }
@@ -952,14 +1065,33 @@ void generateOrganicGrowth(
     }
 }
 
+float sharedBoundaryLength(
+    const RoomGrid& grid, CellIndex first, CellIndex second)
+{
+    const auto connection = std::ranges::find(
+        grid.connections[first], second, &CellConnection::cell);
+    return connection == grid.connections[first].end()
+        ? 0.0F
+        : connection->sharedBoundaryLength;
+}
+
 void generateDoorways(
+    const RoomGrid& grid,
     const std::vector<std::vector<CellIndex>>& adjacency,
     std::uint32_t generationSeed,
     const std::vector<int>& assignments,
+    std::size_t roomCount,
     std::vector<Doorway>& doorways)
 {
     using RegionPair = std::pair<int, int>;
     using CellPair = std::pair<CellIndex, CellIndex>;
+    struct Contact {
+        RegionPair regions;
+        std::vector<CellPair> candidates;
+        float quality = 0.0F;
+        bool selected = false;
+    };
+
     std::map<RegionPair, std::vector<CellPair>> sharedBoundaries;
     for (CellIndex cell = 0; cell < assignments.size(); ++cell) {
         const int firstRegion = assignments[cell];
@@ -982,35 +1114,504 @@ void generateDoorways(
         }
     }
 
+    std::vector<Contact> contacts;
+    contacts.reserve(sharedBoundaries.size());
     for (auto& [regions, candidates] : sharedBoundaries) {
-        std::ranges::sort(candidates, [&](const CellPair& lhs, const CellPair& rhs) {
-            const std::uint64_t left = mix(static_cast<std::uint64_t>(generationSeed)
-                ^ mix(lhs.first) ^ (mix(lhs.second) << 1U));
-            const std::uint64_t right = mix(static_cast<std::uint64_t>(generationSeed)
-                ^ mix(rhs.first) ^ (mix(rhs.second) << 1U));
-            if (left != right) {
-                return left < right;
+        float bestQuality = 0.0F;
+        for (const CellPair& candidate : candidates) {
+            const float width = sharedBoundaryLength(grid, candidate.first, candidate.second);
+            const float clearance = std::min(
+                grid.cells[candidate.first].clearance,
+                grid.cells[candidate.second].clearance);
+            bestQuality = std::max(bestQuality, width + clearance * 0.35F);
+        }
+        contacts.push_back(Contact { regions, std::move(candidates), bestQuality });
+    }
+
+    std::ranges::sort(contacts, [&](const Contact& lhs, const Contact& rhs) {
+        if (lhs.quality != rhs.quality) {
+            return lhs.quality > rhs.quality;
+        }
+        const auto tieBreak = [&](const Contact& contact) {
+            return mix(static_cast<std::uint64_t>(generationSeed)
+                ^ mix(static_cast<std::uint64_t>(contact.regions.first))
+                ^ (mix(static_cast<std::uint64_t>(contact.regions.second)) << 1U));
+        };
+        return tieBreak(lhs) < tieBreak(rhs);
+    });
+
+    std::vector<std::size_t> parent(roomCount);
+    for (std::size_t room = 0; room < roomCount; ++room) {
+        parent[room] = room;
+    }
+    const auto findRoot = [&](std::size_t room) {
+        while (parent[room] != room) {
+            parent[room] = parent[parent[room]];
+            room = parent[room];
+        }
+        return room;
+    };
+    std::vector<std::vector<int>> roomGraph(roomCount);
+    const auto selectContact = [&](Contact& contact) {
+        contact.selected = true;
+        roomGraph[static_cast<std::size_t>(contact.regions.first)]
+            .push_back(contact.regions.second);
+        roomGraph[static_cast<std::size_t>(contact.regions.second)]
+            .push_back(contact.regions.first);
+    };
+
+    std::size_t treeEdges = 0;
+    for (Contact& contact : contacts) {
+        const std::size_t first = static_cast<std::size_t>(contact.regions.first);
+        const std::size_t second = static_cast<std::size_t>(contact.regions.second);
+        const std::size_t firstRoot = findRoot(first);
+        const std::size_t secondRoot = findRoot(second);
+        if (firstRoot == secondRoot) {
+            continue;
+        }
+        parent[secondRoot] = firstRoot;
+        selectContact(contact);
+        ++treeEdges;
+        if (treeEdges + 1 >= roomCount) {
+            break;
+        }
+    }
+
+    const auto graphDistance = [&](int start, int destination) {
+        std::vector<int> distances(roomCount, -1);
+        std::queue<int> queue;
+        distances[static_cast<std::size_t>(start)] = 0;
+        queue.push(start);
+        while (!queue.empty()) {
+            const int room = queue.front();
+            queue.pop();
+            if (room == destination) {
+                return distances[static_cast<std::size_t>(room)];
             }
-            return lhs < rhs;
-        });
-        const CellPair selected = candidates.front();
+            for (const int neighbor : roomGraph[static_cast<std::size_t>(room)]) {
+                if (distances[static_cast<std::size_t>(neighbor)] >= 0) {
+                    continue;
+                }
+                distances[static_cast<std::size_t>(neighbor)]
+                    = distances[static_cast<std::size_t>(room)] + 1;
+                queue.push(neighbor);
+            }
+        }
+        return -1;
+    };
+
+    const std::size_t desiredLoops = roomCount < 4
+        ? 0
+        : std::min<std::size_t>(4, std::max<std::size_t>(1, roomCount / 6));
+    for (std::size_t loop = 0; loop < desiredLoops; ++loop) {
+        Contact* selected = nullptr;
+        float bestScore = -std::numeric_limits<float>::infinity();
+        for (Contact& contact : contacts) {
+            if (contact.selected) {
+                continue;
+            }
+            const int cycleLength = graphDistance(
+                contact.regions.first, contact.regions.second);
+            if (cycleLength < 2) {
+                continue;
+            }
+            const float noise = unitNoise(generationSeed,
+                static_cast<std::uint64_t>(contact.regions.first) * 8191U
+                    + static_cast<std::uint64_t>(contact.regions.second));
+            const float score = static_cast<float>(cycleLength) * 100.0F
+                + contact.quality + noise * 4.0F;
+            if (score > bestScore) {
+                selected = &contact;
+                bestScore = score;
+            }
+        }
+        if (selected == nullptr) {
+            break;
+        }
+        selectContact(*selected);
+    }
+
+    for (Contact& contact : contacts) {
+        if (!contact.selected || contact.candidates.empty()) {
+            continue;
+        }
+        const auto best = std::ranges::max_element(
+            contact.candidates, {}, [&](const CellPair& candidate) {
+                const float width
+                    = sharedBoundaryLength(grid, candidate.first, candidate.second);
+                const float clearance = std::min(
+                    grid.cells[candidate.first].clearance,
+                    grid.cells[candidate.second].clearance);
+                const float noise = unitNoise(generationSeed,
+                    mix(candidate.first) ^ (mix(candidate.second) << 1U));
+                return width + clearance * 0.35F + noise * 0.05F;
+            });
+        const float width = sharedBoundaryLength(grid, best->first, best->second);
+        const float clearance = std::min(
+            grid.cells[best->first].clearance,
+            grid.cells[best->second].clearance);
+        const float quality = contact.quality <= 0.0F
+            ? 0.0F
+            : std::clamp((width + clearance * 0.35F) / contact.quality,
+                0.0F,
+                1.0F);
         doorways.push_back(Doorway {
-            regions.first,
-            selected.first,
-            regions.second,
-            selected.second
+            contact.regions.first,
+            best->first,
+            contact.regions.second,
+            best->second,
+            width,
+            quality
         });
     }
 }
 
+void annotateRooms(
+    const RoomGrid& grid,
+    const std::vector<int>& assignments,
+    const std::vector<Doorway>& doorways,
+    const std::vector<CellIndex>& connectedEntrances,
+    CellIndex center,
+    std::uint32_t generationSeed,
+    std::vector<GeneratedRoom>& rooms)
+{
+    if (rooms.empty()) {
+        return;
+    }
+
+    for (GeneratedRoom& room : rooms) {
+        room.area = 0.0F;
+        room.role = RoomRole::Combat;
+        room.coverCandidates.clear();
+        room.enemySpawnCandidates.clear();
+    }
+    for (CellIndex cell = 0; cell < assignments.size(); ++cell) {
+        const int room = assignments[cell];
+        if (room >= 0 && static_cast<std::size_t>(room) < rooms.size()) {
+            rooms[static_cast<std::size_t>(room)].area += grid.cells[cell].area;
+        }
+    }
+
+    std::vector<std::vector<int>> roomGraph(rooms.size());
+    for (const Doorway& doorway : doorways) {
+        roomGraph[static_cast<std::size_t>(doorway.firstRegion)]
+            .push_back(doorway.secondRegion);
+        roomGraph[static_cast<std::size_t>(doorway.secondRegion)]
+            .push_back(doorway.firstRegion);
+    }
+
+    float totalArea = 0.0F;
+    for (const GeneratedRoom& room : rooms) {
+        totalArea += room.area;
+    }
+    const float averageArea = totalArea / static_cast<float>(rooms.size());
+    for (GeneratedRoom& room : rooms) {
+        const std::size_t degree = roomGraph[static_cast<std::size_t>(room.id)].size();
+        if (degree >= 3) {
+            room.role = RoomRole::Hub;
+        } else if (degree == 2 && room.area < averageArea * 0.72F) {
+            room.role = RoomRole::Connector;
+        } else if (degree == 1
+            && unitNoise(generationSeed, static_cast<std::uint64_t>(room.id) + 991U)
+                < 0.55F) {
+            room.role = RoomRole::Reward;
+        }
+    }
+
+    const int startRoom = center < assignments.size() ? assignments[center] : EMPTY_CELL;
+    if (startRoom < 0 || static_cast<std::size_t>(startRoom) >= rooms.size()) {
+        return;
+    }
+    std::vector<int> distances(rooms.size(), -1);
+    std::queue<int> queue;
+    distances[static_cast<std::size_t>(startRoom)] = 0;
+    queue.push(startRoom);
+    while (!queue.empty()) {
+        const int room = queue.front();
+        queue.pop();
+        for (const int neighbor : roomGraph[static_cast<std::size_t>(room)]) {
+            if (distances[static_cast<std::size_t>(neighbor)] >= 0) {
+                continue;
+            }
+            distances[static_cast<std::size_t>(neighbor)]
+                = distances[static_cast<std::size_t>(room)] + 1;
+            queue.push(neighbor);
+        }
+    }
+
+    int exitRoom = startRoom;
+    for (const CellIndex entrance : connectedEntrances) {
+        if (entrance >= assignments.size()) {
+            continue;
+        }
+        const int room = assignments[entrance];
+        if (room >= 0 && distances[static_cast<std::size_t>(room)]
+                > distances[static_cast<std::size_t>(exitRoom)]) {
+            exitRoom = room;
+        }
+    }
+    if (exitRoom == startRoom && rooms.size() > 1) {
+        exitRoom = static_cast<int>(std::ranges::max_element(distances) - distances.begin());
+    }
+
+    rooms[static_cast<std::size_t>(startRoom)].role = RoomRole::Start;
+    if (exitRoom != startRoom) {
+        rooms[static_cast<std::size_t>(exitRoom)].role = RoomRole::Exit;
+    }
+
+    std::vector<int> distanceFromDoor(assignments.size(), -1);
+    std::queue<CellIndex> cellQueue;
+    const auto seedDoorCell = [&](CellIndex cell) {
+        if (cell < assignments.size() && distanceFromDoor[cell] < 0) {
+            distanceFromDoor[cell] = 0;
+            cellQueue.push(cell);
+        }
+    };
+    for (const Doorway& doorway : doorways) {
+        seedDoorCell(doorway.firstCell);
+        seedDoorCell(doorway.secondCell);
+    }
+    while (!cellQueue.empty()) {
+        const CellIndex cell = cellQueue.front();
+        cellQueue.pop();
+        for (const CellIndex neighbor : grid.neighbors[cell]) {
+            if (assignments[neighbor] == assignments[cell]
+                && distanceFromDoor[neighbor] < 0) {
+                distanceFromDoor[neighbor] = distanceFromDoor[cell] + 1;
+                cellQueue.push(neighbor);
+            }
+        }
+    }
+
+    for (CellIndex cell = 0; cell < assignments.size(); ++cell) {
+        const int roomId = assignments[cell];
+        if (roomId < 0 || distanceFromDoor[cell] < 1) {
+            continue;
+        }
+        GeneratedRoom& room = rooms[static_cast<std::size_t>(roomId)];
+        const bool touchesBoundary = std::ranges::any_of(
+            grid.neighbors[cell], [&](CellIndex neighbor) {
+                return assignments[neighbor] != roomId;
+            });
+        if (touchesBoundary) {
+            room.coverCandidates.push_back(cell);
+        }
+        if (distanceFromDoor[cell] >= 2 && grid.cells[cell].clearance > 0.0F) {
+            room.enemySpawnCandidates.push_back(cell);
+        }
+    }
+}
+
+bool candidateIsValid(const RoomGrid& grid, const RoomLayout& layout)
+{
+    const auto assignments = layout.getCellAssignments();
+    const auto rooms = layout.getRooms();
+    if (assignments.size() != grid.cells.size() || rooms.size() < 2) {
+        return false;
+    }
+    for (CellIndex cell = 0; cell < assignments.size(); ++cell) {
+        const int room = assignments[cell];
+        if (room != EMPTY_CELL
+            && (room < 0 || static_cast<std::size_t>(room) >= rooms.size())) {
+            return false;
+        }
+    }
+    if (rooms.size() > 1 && layout.getDoorways().size() < rooms.size() - 1) {
+        return false;
+    }
+
+    std::vector<std::vector<int>> graph(rooms.size());
+    for (const Doorway& doorway : layout.getDoorways()) {
+        if (doorway.firstRegion < 0 || doorway.secondRegion < 0
+            || static_cast<std::size_t>(doorway.firstRegion) >= rooms.size()
+            || static_cast<std::size_t>(doorway.secondRegion) >= rooms.size()
+            || doorway.firstCell >= assignments.size()
+            || doorway.secondCell >= assignments.size()
+            || assignments[doorway.firstCell] != doorway.firstRegion
+            || assignments[doorway.secondCell] != doorway.secondRegion
+            || std::ranges::find(grid.neighbors[doorway.firstCell], doorway.secondCell)
+                == grid.neighbors[doorway.firstCell].end()) {
+            return false;
+        }
+        graph[static_cast<std::size_t>(doorway.firstRegion)]
+            .push_back(doorway.secondRegion);
+        graph[static_cast<std::size_t>(doorway.secondRegion)]
+            .push_back(doorway.firstRegion);
+    }
+
+    const std::size_t startRooms = std::ranges::count(
+        rooms, RoomRole::Start, &GeneratedRoom::role);
+    const std::size_t exitRooms = std::ranges::count(
+        rooms, RoomRole::Exit, &GeneratedRoom::role);
+    if (startRooms != 1 || exitRooms != 1) {
+        return false;
+    }
+
+    std::vector<bool> reached(rooms.size(), false);
+    std::queue<int> queue;
+    reached[0] = true;
+    queue.push(0);
+    while (!queue.empty()) {
+        const int room = queue.front();
+        queue.pop();
+        for (const int neighbor : graph[static_cast<std::size_t>(room)]) {
+            if (!reached[static_cast<std::size_t>(neighbor)]) {
+                reached[static_cast<std::size_t>(neighbor)] = true;
+                queue.push(neighbor);
+            }
+        }
+    }
+    return std::ranges::all_of(reached, [](bool value) { return value; });
+}
+
+float candidateScore(const RoomGrid& grid, const RoomLayout& layout)
+{
+    const auto rooms = layout.getRooms();
+    const auto assignments = layout.getCellAssignments();
+    float buildableArea = 0.0F;
+    float floorArea = 0.0F;
+    for (CellIndex cell = 0; cell < grid.cells.size(); ++cell) {
+        if (grid.cells[cell].buildable) {
+            buildableArea += grid.cells[cell].area;
+        }
+        if (assignments[cell] != EMPTY_CELL) {
+            floorArea += grid.cells[cell].area;
+        }
+    }
+    const float coverage = buildableArea <= 0.0F ? 0.0F : floorArea / buildableArea;
+    const float coverageScore = std::clamp(
+        1.0F - std::abs(coverage - 0.48F) / 0.16F, 0.0F, 1.0F);
+
+    float averagePortalWidth = 0.0F;
+    std::size_t portalCount = 0;
+    for (CellIndex cell = 0; cell < grid.connections.size(); ++cell) {
+        for (const CellConnection& connection : grid.connections[cell]) {
+            if (connection.cell > cell && grid.cells[cell].buildable
+                && grid.cells[connection.cell].buildable) {
+                averagePortalWidth += connection.sharedBoundaryLength;
+                ++portalCount;
+            }
+        }
+    }
+    averagePortalWidth = portalCount == 0
+        ? 1.0F
+        : averagePortalWidth / static_cast<float>(portalCount);
+
+    float doorwayQuality = 0.0F;
+    float minimumWidthRatio = 1.0F;
+    for (const Doorway& doorway : layout.getDoorways()) {
+        const float width
+            = sharedBoundaryLength(grid, doorway.firstCell, doorway.secondCell);
+        const float ratio = std::clamp(width / std::max(averagePortalWidth, 0.001F),
+            0.0F,
+            1.5F);
+        doorwayQuality += ratio / 1.5F;
+        minimumWidthRatio = std::min(minimumWidthRatio, std::min(ratio, 1.0F));
+    }
+    if (!layout.getDoorways().empty()) {
+        doorwayQuality /= static_cast<float>(layout.getDoorways().size());
+    }
+
+    float meanArea = 0.0F;
+    for (const GeneratedRoom& room : rooms) {
+        meanArea += room.area;
+    }
+    meanArea /= static_cast<float>(rooms.size());
+    float areaVariance = 0.0F;
+    for (const GeneratedRoom& room : rooms) {
+        const float difference = room.area - meanArea;
+        areaVariance += difference * difference;
+    }
+    areaVariance /= static_cast<float>(rooms.size());
+    const float variation = meanArea <= 0.0F
+        ? 0.0F
+        : std::sqrt(areaVariance) / meanArea;
+    const float variationScore = std::clamp(
+        1.0F - std::abs(variation - 0.55F) / 0.55F, 0.0F, 1.0F);
+
+    const std::size_t loopCount = layout.getDoorways().size() >= rooms.size() - 1
+        ? layout.getDoorways().size() - (rooms.size() - 1)
+        : 0;
+    const std::size_t desiredLoops = rooms.size() < 4
+        ? 0
+        : std::min<std::size_t>(4, std::max<std::size_t>(1, rooms.size() / 6));
+    const float loopScore = desiredLoops == 0
+        ? 1.0F
+        : std::min(1.0F,
+              static_cast<float>(loopCount) / static_cast<float>(desiredLoops));
+
+    const float entranceScore = std::clamp(
+        static_cast<float>(layout.getConnectedEntrances().size()) / 6.0F,
+        0.0F,
+        1.0F);
+
+    std::vector<std::vector<int>> roomGraph(rooms.size());
+    for (const Doorway& doorway : layout.getDoorways()) {
+        roomGraph[static_cast<std::size_t>(doorway.firstRegion)]
+            .push_back(doorway.secondRegion);
+        roomGraph[static_cast<std::size_t>(doorway.secondRegion)]
+            .push_back(doorway.firstRegion);
+    }
+    const auto start = std::ranges::find(
+        rooms, RoomRole::Start, &GeneratedRoom::role);
+    const auto exit = std::ranges::find(
+        rooms, RoomRole::Exit, &GeneratedRoom::role);
+    std::vector<int> distances(rooms.size(), -1);
+    std::queue<int> queue;
+    distances[static_cast<std::size_t>(start->id)] = 0;
+    queue.push(start->id);
+    while (!queue.empty()) {
+        const int room = queue.front();
+        queue.pop();
+        for (const int neighbor : roomGraph[static_cast<std::size_t>(room)]) {
+            if (distances[static_cast<std::size_t>(neighbor)] < 0) {
+                distances[static_cast<std::size_t>(neighbor)]
+                    = distances[static_cast<std::size_t>(room)] + 1;
+                queue.push(neighbor);
+            }
+        }
+    }
+    const float normalizedPath = static_cast<float>(
+        distances[static_cast<std::size_t>(exit->id)])
+        / static_cast<float>(std::max<std::size_t>(rooms.size() - 1, 1));
+    const float pathScore = std::clamp(
+        1.0F - std::abs(normalizedPath - 0.65F) / 0.65F, 0.0F, 1.0F);
+    const std::size_t deadEnds = std::ranges::count_if(roomGraph,
+        [](const auto& connections) { return connections.size() == 1; });
+    const float deadEndRatio
+        = static_cast<float>(deadEnds) / static_cast<float>(rooms.size());
+    const float branchScore = std::clamp(
+        1.0F - std::abs(deadEndRatio - 0.25F) / 0.35F, 0.0F, 1.0F);
+    const std::size_t maximumDegree = std::ranges::max(
+        roomGraph | std::views::transform([](const auto& connections) {
+            return connections.size();
+        }));
+    const float degreeScore = maximumDegree <= 4
+        ? 1.0F
+        : 1.0F / static_cast<float>(maximumDegree - 3);
+    const float circulationScore
+        = pathScore * 0.5F + branchScore * 0.3F + degreeScore * 0.2F;
+
+    return coverageScore * 20.0F
+        + doorwayQuality * 20.0F
+        + minimumWidthRatio * 16.0F
+        + variationScore * 12.0F
+        + loopScore * 10.0F
+        + circulationScore * 16.0F
+        + entranceScore * 6.0F;
+}
+
 } // namespace
 
-RoomLayout RoomGenerator::generate(const RoomGrid& grid,
-    std::uint32_t newSeed,
-    RoomGenerationMethod method) const
+RoomLayout RoomGenerator::generateCandidate(const RoomGrid& grid,
+    std::uint32_t requestedSeed,
+    std::uint32_t variantSeed,
+    RoomGenerationMethod method,
+    const std::vector<CellIndex>& entranceOrder,
+    std::size_t entranceTargetCount) const
 {
     RoomLayout result;
-    result.seed = newSeed;
+    result.seed = requestedSeed;
     result.method = method;
     auto& rooms = result.rooms;
     auto& doorways = result.doorways;
@@ -1037,15 +1638,20 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
     }
 
     const std::uint32_t generationSeed = static_cast<std::uint32_t>(mix(
-        gridFingerprint(grid) ^ static_cast<std::uint64_t>(newSeed)));
+        gridFingerprint(grid) ^ static_cast<std::uint64_t>(variantSeed)));
     std::mt19937 random(generationSeed);
     const CellIndex center = *std::ranges::min_element(buildableCells,
         [&](CellIndex lhs, CellIndex rhs) {
             return distanceFromOrigin(cells[lhs].position)
                 < distanceFromOrigin(cells[rhs].position);
         });
-    const EntranceSelection entranceSelection
-        = selectEntrances(grid.entranceCandidates, random);
+    // Consume the same random choices in every candidate, but keep the requested
+    // entrance brief fixed so best-of-N selection cannot bias entrance counts.
+    static_cast<void>(selectEntrances(grid.entranceCandidates, random));
+    const EntranceSelection entranceSelection {
+        entranceOrder,
+        entranceTargetCount
+    };
     if (method == RoomGenerationMethod::OrganicGrowth) {
         generateOrganicGrowth(grid,
             adjacency,
@@ -1058,7 +1664,15 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
             cellAssignments,
             rooms,
             connectedEntrances);
-        generateDoorways(adjacency, generationSeed, cellAssignments, doorways);
+        generateDoorways(
+            grid, adjacency, generationSeed, cellAssignments, rooms.size(), doorways);
+        annotateRooms(grid,
+            cellAssignments,
+            doorways,
+            connectedEntrances,
+            center,
+            generationSeed,
+            rooms);
         return result;
     }
 
@@ -1123,10 +1737,11 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
 
     // Make only the selected candidates buildable, preserving negative space
     // around the rest of the footprint.
-    for (const CellIndex edgeCenter : entranceSelection.order) {
-        if (connectedEntrances.size() >= entranceSelection.targetCount) {
-            break;
-        }
+    const std::size_t entranceCount = std::min(
+        entranceSelection.targetCount, entranceSelection.order.size());
+    for (std::size_t entranceIndex = 0;
+         entranceIndex < entranceCount; ++entranceIndex) {
+        const CellIndex edgeCenter = entranceSelection.order[entranceIndex];
         if (cellAssignments[edgeCenter] != EMPTY_CELL) {
             continue;
         }
@@ -1160,7 +1775,7 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
         if (roomCells.size() < MINIMUM_ROOM_SIZE) {
             roomCells = { edgeCenter };
             const std::vector<CellIndex> connector = shortestConnector(
-                adjacency, buildable, cellAssignments, roomCells);
+                grid, adjacency, buildable, cellAssignments, roomCells);
             if (connector.empty() && !touchesExistingFloor(roomCells)) {
                 continue;
             }
@@ -1189,7 +1804,7 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
         }
 
         const std::vector<CellIndex> connector = shortestConnector(
-            adjacency, buildable, cellAssignments, roomCells);
+            grid, adjacency, buildable, cellAssignments, roomCells);
         if (connector.empty() && !touchesExistingFloor(roomCells)) {
             continue;
         }
@@ -1226,8 +1841,86 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
         }
     }
 
-    generateDoorways(adjacency, generationSeed, cellAssignments, doorways);
+    generateDoorways(
+        grid, adjacency, generationSeed, cellAssignments, rooms.size(), doorways);
+    annotateRooms(grid,
+        cellAssignments,
+        doorways,
+        connectedEntrances,
+        center,
+        generationSeed,
+        rooms);
     return result;
+}
+
+RoomLayout RoomGenerator::generate(const RoomGrid& grid,
+    std::uint32_t seed,
+    RoomGenerationMethod method) const
+{
+    return generate(grid, seed, RoomGenerationOptions { method });
+}
+
+RoomLayout RoomGenerator::generate(const RoomGrid& grid,
+    std::uint32_t seed,
+    const RoomGenerationOptions& options) const
+{
+    const std::size_t candidateCount
+        = std::clamp<std::size_t>(options.candidateCount, 1, 32);
+    RoomLayout best;
+    bool haveBest = false;
+    float bestScore = -std::numeric_limits<float>::infinity();
+    EntranceSelection entranceBrief { grid.entranceCandidates, 0 };
+    if (topologyIsValid(grid)) {
+        const std::uint32_t briefSeed = static_cast<std::uint32_t>(mix(
+            gridFingerprint(grid) ^ static_cast<std::uint64_t>(seed)));
+        std::mt19937 briefRandom(briefSeed);
+        entranceBrief = selectEntrances(grid.entranceCandidates, briefRandom);
+    }
+
+    for (std::size_t candidateIndex = 0;
+         candidateIndex < candidateCount; ++candidateIndex) {
+        const std::uint32_t variantSeed = candidateIndex == 0
+            ? seed
+            : static_cast<std::uint32_t>(mix(
+                (static_cast<std::uint64_t>(seed) << 32U)
+                ^ mix(0x53484f4f544552ULL + candidateIndex)));
+        RoomLayout candidate = generateCandidate(grid,
+            seed,
+            variantSeed,
+            options.method,
+            entranceBrief.order,
+            entranceBrief.targetCount);
+        candidate.selectedCandidate = candidateIndex;
+        std::vector<CellIndex> expectedEntrances(entranceBrief.order.begin(),
+            entranceBrief.order.begin()
+                + static_cast<std::ptrdiff_t>(std::min(
+                    entranceBrief.targetCount, entranceBrief.order.size())));
+        std::vector<CellIndex> actualEntrances(
+            candidate.getConnectedEntrances().begin(),
+            candidate.getConnectedEntrances().end());
+        std::ranges::sort(expectedEntrances);
+        std::ranges::sort(actualEntrances);
+        if (!std::ranges::equal(expectedEntrances, actualEntrances)
+            || !candidateIsValid(grid, candidate)) {
+            continue;
+        }
+
+        candidate.qualityScore = candidateScore(grid, candidate);
+        if (!haveBest || candidate.qualityScore > bestScore) {
+            bestScore = candidate.qualityScore;
+            best = std::move(candidate);
+            haveBest = true;
+        }
+    }
+    if (haveBest) {
+        return best;
+    }
+
+    RoomLayout empty;
+    empty.seed = seed;
+    empty.method = options.method;
+    empty.cellAssignments.assign(grid.getCellCount(), EMPTY_CELL);
+    return empty;
 }
 
 } // namespace stalberg::rooms

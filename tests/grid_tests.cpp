@@ -1,7 +1,9 @@
+#include "grid/dual_grid.hpp"
 #include "grid/stalberg_grid.hpp"
 
 #include <algorithm>
 #include <cstddef>
+#include <cmath>
 #include <functional>
 #include <iostream>
 #include <string_view>
@@ -84,6 +86,28 @@ bool generationIsRepeatable()
             "same settings produce the same topology");
 }
 
+bool dualGeometryIsUsable(const stalberg::StalbergGrid& grid)
+{
+    const stalberg::DualGrid dual = stalberg::buildDualGrid(grid);
+    bool valid = check(dual.cells.size() == grid.getVertexCount(),
+        "dual geometry contains one polygon per logical cell");
+    valid &= check(dual.connections.size() == grid.getEdges().size(),
+        "dual geometry contains one physical portal per grid edge");
+    for (const stalberg::DualCell& cell : dual.cells) {
+        valid &= check(cell.polygon.size() >= 3 && std::isfinite(cell.area)
+                && cell.area > 0.0F && std::isfinite(cell.clearance)
+                && cell.clearance >= 0.0F,
+            "dual cells publish finite physical measurements");
+    }
+    for (const stalberg::DualConnection& connection : dual.connections) {
+        valid &= check(connection.cells.a < dual.cells.size()
+                && connection.cells.b < dual.cells.size()
+                && std::isfinite(connection.length) && connection.length > 0.0F,
+            "dual portals connect valid cells with positive width");
+    }
+    return valid;
+}
+
 bool relaxationPreservesBoundary()
 {
     stalberg::StalbergGrid grid;
@@ -96,12 +120,12 @@ bool relaxationPreservesBoundary()
         }
     }
 
-    for (int step = 0; step <= stalberg::MAX_RELAXATION_STEPS; ++step) {
-        grid.relaxOnce();
-    }
+    grid.relaxToCompletion();
+    grid.relaxOnce();
 
-    bool valid = check(grid.getRelaxationSteps() == stalberg::MAX_RELAXATION_STEPS,
-        "relaxation stops at the configured step limit");
+    bool valid = check(grid.isFullyRelaxed()
+            && grid.getRelaxationSteps() == stalberg::MAX_RELAXATION_STEPS,
+        "relaxation-to-completion stops at the configured step limit");
     for (std::size_t index = 0; index < grid.getVertices().size(); ++index) {
         if (grid.getVertices()[index].fixed) {
             valid &= check(grid.getVertices()[index].position == boundaryPositions[index],
@@ -122,6 +146,7 @@ int main()
     valid &= check(grid.getVertexCount() > 0, "generation creates vertices");
     valid &= check(grid.getQuadCount() == 460, "radius 6, seed 1 produces 460 quads");
     valid &= topologyIsValid(grid);
+    valid &= dualGeometryIsUsable(grid);
     valid &= generationIsRepeatable();
     valid &= relaxationPreservesBoundary();
 

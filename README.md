@@ -9,7 +9,7 @@ The grid generator:
 3. Subdivides every triangle and four-sided face using shared edge midpoints and a face center.
 4. Applies iterative Laplacian relaxation while pinning the hexagonal boundary.
 
-As a separate pass, the room generator consumes a neutral cell-and-neighbor topology with explicit entrance candidates and offers two deterministic methods: branching geometric room shapes and organic multi-source growth. Both create one connected floor plan from the center to between three and six entrances and partition it into as many as 64 irregular multi-cell rooms.
+As a separate pass, the room generator consumes a neutral cell graph with physical cell area, clearance, traversal distance, shared-boundary width, and explicit entrance candidates. It offers two deterministic methods: branching geometric room shapes and organic multi-source growth. Both create one connected floor plan from the center to between three and six entrances and partition it into as many as 64 irregular multi-cell rooms. Several deterministic candidates are generated and scored, narrow connectors are penalized, and the best layout receives a controlled circulation graph made from a quality-weighted spanning tree plus a small loop budget.
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
@@ -26,7 +26,7 @@ ctest --test-dir build --output-on-failure
 ./build/stalberg_grid
 ```
 
-Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the only translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including selecting centers from the six-sided boundary as entrance candidates, stays in that adapter. Visual relaxation cannot mutate the saved room-generation input. Each module has its own headless test executable.
+Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Each module has its own headless test executable.
 
 ## Controls
 
@@ -37,14 +37,12 @@ Grid generation and room generation are independent libraries. The room library 
 | `M` | Switch between branching-shape and organic-growth room generation |
 | Left / Right | Change grid seed |
 | Up / Down | Change hex radius |
-| Space | Pause or resume relaxation |
-| `N` | Run one relaxation step |
 | `P` | Toggle quad-center markers |
 | `F` | Fit grid to the window |
 | Mouse wheel | Zoom around cursor |
 | Middle/right drag | Pan |
 
-Each solid-line junction is one logical floor cell. The default method begins with a central room, may add slim radial branches, extends rooms to three to six randomly selected outer-edge centers, and continues through short room connectors. Both methods assign rooms one of five growth profiles: compact, elongated, branching, irregular, or L-shaped. The default method turns those profiles into geometric room masks, while organic generation uses them to score each room's frontier expansion. The organic method first joins the center to the same kind of entrance selection, then grows a noisy connected footprint while balancing expansion across six angular sectors. Every concrete subset of three to six sides is equally likely, so the connected-side counts occur proportionally to their number of combinations: 20:15:6:1. It partitions that footprint from spatially separated seeds with weighted multi-source frontier growth, deliberately mixing compact rooms with rooms several times larger. Both methods preserve exterior negative space, produce only connected multi-cell rooms, and combine the room seed with a fingerprint of the neutral topology. Region boundaries remain continuous without doorway gaps, and hovering highlights the complete room under the pointer.
+Each solid-line junction is one logical floor cell. The default method begins with a central room, may add slim radial branches, extends rooms to three to six randomly selected outer-edge centers, and continues through short room connectors. Both methods assign rooms one of five growth profiles: compact, elongated, branching, irregular, or L-shaped. The default method turns those profiles into geometric room masks, while organic generation uses them to score each room's frontier expansion. The organic method first joins the center to the same kind of entrance selection, then grows a noisy connected footprint while balancing expansion across six angular sectors. Every concrete subset of three to six sides is equally likely, so the connected-side counts occur proportionally to their number of combinations: 20:15:6:1. It partitions that footprint from spatially separated seeds with weighted multi-source frontier growth, deliberately mixing compact rooms with rooms several times larger. Both methods preserve exterior negative space, produce only connected multi-cell rooms, and combine the room seed with a fingerprint of the neutral topology and physical metrics. Doorways favor wide, clear shared boundaries. They connect every room with a spanning tree and add only a few useful loops rather than opening every touching room pair. Layout metadata identifies start, exit, hub, connector, reward, and combat rooms, plus cover and enemy-spawn candidate cells kept away from door thresholds. Region boundaries remain continuous in this 2D diagnostic renderer, and hovering highlights the complete room under the pointer.
 
 ## Linux: missing `DISPLAY`
 

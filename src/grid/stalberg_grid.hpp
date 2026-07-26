@@ -46,6 +46,8 @@ class StalbergGrid {
 public:
     void generate(int newRadius, std::uint32_t newSeed);
     void relaxOnce();
+    void relaxToCompletion();
+    bool isFullyRelaxed() const { return relaxationSteps >= MAX_RELAXATION_STEPS; }
 
     int getRadius() const { return radius; }
     std::uint32_t getSeed() const { return seed; }

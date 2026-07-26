@@ -61,8 +61,6 @@ raylib requires a graphical desktop. On a headless Linux machine, `xvfb-run -a .
 | `M` | Switch between branching-shape and organic-growth room generation |
 | Left / Right | Select the previous or next grid seed |
 | Up / Down | Increase or decrease the hexagonal patch radius |
-| Space | Pause or resume automatic relaxation |
-| `N` | Perform one relaxation step and pause |
 | `P` | Toggle quad-center markers |
 | `F` | Fit the grid to the window |
 | Mouse wheel | Zoom around the mouse cursor |
@@ -336,9 +334,11 @@ The final mesh is rendered inside a raylib `Camera2D`:
 - Hovering one cell highlights its complete connected room.
 - Marker size and line thickness are divided by camera zoom, keeping them approximately constant in screen pixels.
 
-Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the logical cell. Room generation is a separate pass over a neutral `RoomGrid` cell topology with explicit buildability and entrance candidates. The integration adapter owns the hex-specific policy that selects six boundary-side centers. The generator combines the room seed with a fingerprint of its neutral input and supports two methods selectable with `M`.
+Interior dual-cell polygons are formed by angularly ordering the centers of all quads incident on the logical cell. Shared `DualGrid` geometry now supplies polygon area, center clearance, traversal distance, and shared-boundary width to both the renderer and a neutral `RoomGrid`. The integration adapter owns the hex-specific policy that selects six boundary-side centers. The demo completes relaxation before taking this snapshot. The generator combines the room seed with a fingerprint of its neutral topology and physical metrics and supports two methods selectable with `M`.
 
-The default **branching shapes** method starts with a size-limited central room, may establish slim radial rooms, and connects the floor plan to three to six shuffled entrances. Optional growth uses short connectors and geometric room masks. Both methods share compact, elongated, branching, irregular, and L-shaped growth profiles. Branching-shape generation maps those profiles to geometric masks; organic generation uses profile-specific compactness, directional, branching, and noise scores while choosing frontier cells. Both methods select uniformly from every concrete subset containing three to six of the candidate entrances. There are 20 three-side, 15 four-side, 6 five-side, and 1 six-side subsets, so those counts occur in a proportional 20:15:6:1 ratio. The **organic growth** method joins the selected entrances to the center, expands that connected network through noisy frontier growth balanced across six angular sectors, chooses spatially separated room seeds, and assigns randomized growth weights so compact rooms coexist with rooms several times larger. Singleton regions are merged into adjacent rooms. Both methods keep every room and the complete floor plan connected, preserve substantial negative space, and support up to 64 uniquely colored rooms. Every pair of touching regions receives a deterministic logical doorway for circulation data, while the renderer keeps boundaries visually continuous and rounds the resulting outlines.
+The default **branching shapes** method starts with a size-limited central room, may establish radial rooms, and connects the floor plan to three to six shuffled entrances. Optional growth uses short connectors and geometric room masks. Physical path costs penalize narrow cells, and local connector growth favors wider shared boundaries. Both methods share compact, elongated, branching, irregular, and L-shaped growth profiles. Branching-shape generation maps those profiles to geometric masks; organic generation uses profile-specific compactness, directional, branching, and noise scores while choosing frontier cells. Both methods select uniformly from every concrete subset containing three to six candidate entrances. There are 20 three-side, 15 four-side, 6 five-side, and 1 six-side subsets, so those counts occur in a proportional 20:15:6:1 ratio. The selected entrance brief remains fixed while several deterministic candidates are generated and scored, preventing best-of-N selection from biasing that distribution.
+
+The **organic growth** method joins the selected entrances to the center, expands that connected network through noisy frontier growth balanced across six angular sectors, chooses spatially separated room seeds, and assigns randomized growth weights so compact rooms coexist with rooms several times larger. Singleton regions are merged into adjacent rooms. Both methods keep every room and the complete floor plan connected, preserve substantial negative space, and support up to 64 uniquely colored rooms. Circulation is intentionally sparser than physical contact: a quality-weighted spanning tree guarantees reachability, then a bounded loop budget adds useful alternate routes. Each selected doorway favors a wide, clear shared boundary and publishes its physical width and quality. Rooms also publish physical area and a gameplay role: start, exit, combat, connector, hub, or reward. A tactical annotation pass marks wall-adjacent cover candidates and enemy-spawn candidates at least two cell steps from door thresholds. The diagnostic renderer still keeps boundaries visually continuous and rounds the resulting outlines.
 
 The HUD shows:
 
@@ -346,7 +346,7 @@ The HUD shows:
 - Random seed.
 - Final vertex count.
 - Final quad count.
-- Relaxation progress and pause state.
+- Completed relaxation progress, candidate quality, and selected candidate index.
 
 ## Camera behavior
 
@@ -382,9 +382,10 @@ Grid generation, room generation, integration, and rendering are separate areas:
 |---|---|
 | `src/grid/stalberg_grid.hpp` | Public mesh types and read-only topology views |
 | `src/grid/stalberg_grid.cpp` | Grid generation, topology rebuilding, and relaxation |
-| `src/rooms/room_grid.hpp` | Grid-independent cells, adjacency, buildability, and entrance candidates |
-| `src/rooms/room_generator.cpp` | Branching-shape and organic-growth methods, entrance connections, and doorway extraction |
-| `src/rooms/room_layout.hpp` | Generation method plus the read-only result model for rooms, assignments, and doorways |
+| `src/grid/dual_grid.hpp` | Renderer-independent dual polygons, cell measurements, and shared portal widths |
+| `src/rooms/room_grid.hpp` | Grid-independent cells, physical connections, buildability, and entrance candidates |
+| `src/rooms/room_generator.cpp` | Growth methods, weighted routing, controlled circulation, candidate scoring, and role assignment |
+| `src/rooms/room_layout.hpp` | Read-only rooms, physical statistics, roles, tactical candidates, assignments, doorways, and quality metadata |
 | `src/integration/room_grid_adapter.cpp` | Translate `StalbergGrid` and select its hex-boundary entrances |
 | `src/grid_renderer.cpp` / `drawGrid()` | Render room fills, connected rounded boundaries, and dual centers |
 | `src/main.cpp` | Compose generation modules, process controls, update, and render |
@@ -449,7 +450,7 @@ The demo intentionally focuses on a single understandable patch. It does not cur
 - Cross-chunk relaxation.
 - Explicit square-fitting forces.
 - Face-quality optimization after relaxation.
-- Filled-cell selection or gameplay.
+- Shooter combat, collision, cover placement, or encounter spawning.
 - Mesh export.
 - Three-dimensional extrusion.
 

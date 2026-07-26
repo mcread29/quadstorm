@@ -40,12 +40,31 @@ bool adapterProducesValidRoomInput(const stalberg::StalbergGrid& grid)
         "adapter preserves the grid cell count");
     valid &= check(input.neighbors.size() == grid.getNeighbors().size(),
         "adapter preserves one adjacency list per cell");
+    valid &= check(input.connections.size() == input.neighbors.size(),
+        "adapter provides physical metadata for every adjacency list");
     for (std::size_t cell = 0; cell < input.cells.size(); ++cell) {
         valid &= check(input.cells[cell].buildable == !grid.getVertices()[cell].fixed,
             "adapter maps relaxation boundaries to room buildability");
-        valid &= check(std::ranges::equal(
-                input.neighbors[cell], grid.getNeighbors()[cell]),
-            "adapter preserves cell adjacency");
+        std::vector<std::size_t> expected(
+            grid.getNeighbors()[cell].begin(), grid.getNeighbors()[cell].end());
+        std::ranges::sort(expected);
+        valid &= check(std::ranges::equal(input.neighbors[cell], expected),
+            "adapter preserves cell adjacency in canonical order");
+        valid &= check(input.cells[cell].area > 0.0F
+                && input.cells[cell].clearance >= 0.0F
+                && (!input.cells[cell].buildable
+                    || input.cells[cell].clearance > 0.0F),
+            "adapter measures usable dual-cell geometry");
+        valid &= check(input.connections[cell].size() == input.neighbors[cell].size(),
+            "every neighbor has matching physical connection metadata");
+        for (std::size_t connection = 0;
+             connection < input.connections[cell].size(); ++connection) {
+            const auto& physical = input.connections[cell][connection];
+            valid &= check(physical.cell == input.neighbors[cell][connection]
+                    && physical.distance > 0.0F
+                    && physical.sharedBoundaryLength > 0.0F,
+                "physical connections are positive and aligned with topology");
+        }
     }
     valid &= check(input.entranceCandidates.size() == 6,
         "adapter supplies one candidate for each hex side");
@@ -69,17 +88,87 @@ bool roomGenerationIsRepeatable(const stalberg::StalbergGrid& grid,
 {
     const auto first = generateRooms(grid, 17, method);
     const auto second = generateRooms(grid, 17, method);
+    bool sameDoorways = first.getDoorways().size() == second.getDoorways().size();
+    for (std::size_t index = 0;
+         sameDoorways && index < first.getDoorways().size(); ++index) {
+        const auto& lhs = first.getDoorways()[index];
+        const auto& rhs = second.getDoorways()[index];
+        sameDoorways = lhs.firstRegion == rhs.firstRegion
+            && lhs.firstCell == rhs.firstCell
+            && lhs.secondRegion == rhs.secondRegion
+            && lhs.secondCell == rhs.secondCell
+            && lhs.width == rhs.width
+            && lhs.quality == rhs.quality;
+    }
+    bool sameRoomMetadata = first.getRooms().size() == second.getRooms().size();
+    for (std::size_t index = 0;
+         sameRoomMetadata && index < first.getRooms().size(); ++index) {
+        const auto& lhs = first.getRooms()[index];
+        const auto& rhs = second.getRooms()[index];
+        sameRoomMetadata = lhs.id == rhs.id
+            && lhs.cellCount == rhs.cellCount
+            && lhs.area == rhs.area
+            && lhs.role == rhs.role
+            && lhs.coverCandidates == rhs.coverCandidates
+            && lhs.enemySpawnCandidates == rhs.enemySpawnCandidates;
+    }
 
     return check(first.getMethod() == method,
                "layout records its generation method")
         && check(first.getRoomCount() == second.getRoomCount(),
             "same room seed produces the same room count")
+        && check(first.getSelectedCandidate() == second.getSelectedCandidate()
+                && first.getQualityScore() == second.getQualityScore(),
+            "best-of-N selection is deterministic")
         && check(std::ranges::equal(
                      first.getCellAssignments(), second.getCellAssignments()),
             "same room seed and method produce the same layout")
+        && check(sameDoorways, "same room seed produces the same circulation graph")
+        && check(sameRoomMetadata, "same room seed produces the same room metadata")
         && check(std::ranges::equal(first.getConnectedEntrances(),
                      second.getConnectedEntrances()),
             "same room seed and method connect the same entrances");
+}
+
+bool bestOfCandidatesDoesNotReduceQuality(const stalberg::StalbergGrid& grid)
+{
+    const auto input = stalberg::makeRoomGrid(grid);
+    const auto single = stalberg::rooms::RoomGenerator {}.generate(input,
+        23,
+        stalberg::rooms::RoomGenerationOptions {
+            .method = stalberg::rooms::RoomGenerationMethod::OrganicGrowth,
+            .candidateCount = 1
+        });
+    const auto selected = stalberg::rooms::RoomGenerator {}.generate(input,
+        23,
+        stalberg::rooms::RoomGenerationOptions {
+            .method = stalberg::rooms::RoomGenerationMethod::OrganicGrowth,
+            .candidateCount = 8
+        });
+    return check(selected.getQualityScore() >= single.getQualityScore(),
+               "best-of-N selection never reduces candidate quality")
+        && check(selected.getSelectedCandidate() < 8,
+            "selected candidate index stays within the requested budget")
+        && check(std::ranges::equal(single.getConnectedEntrances(),
+                     selected.getConnectedEntrances()),
+            "candidate scoring preserves the seed's entrance brief");
+}
+
+bool connectionOrderingDoesNotAffectGeneration(const stalberg::StalbergGrid& grid)
+{
+    const auto input = stalberg::makeRoomGrid(grid);
+    auto permuted = input;
+    for (std::size_t cell = 0; cell < permuted.neighbors.size(); ++cell) {
+        std::ranges::reverse(permuted.neighbors[cell]);
+        std::ranges::reverse(permuted.connections[cell]);
+    }
+    const auto canonical = stalberg::rooms::RoomGenerator {}.generate(input, 29);
+    const auto reordered = stalberg::rooms::RoomGenerator {}.generate(permuted, 29);
+    return check(std::ranges::equal(
+                     canonical.getCellAssignments(), reordered.getCellAssignments()),
+               "neutral connection ordering does not affect generation")
+        && check(canonical.getQualityScore() == reordered.getQualityScore(),
+            "neutral connection ordering does not affect quality scoring");
 }
 
 bool roomInputIsIndependentFromLaterRelaxation()
@@ -192,9 +281,13 @@ bool roomLayoutIsValid(const stalberg::StalbergGrid& grid,
             "center-out floor plan remains connected");
     }
 
+    valid &= check(layout.getDoorways().size() >= layout.getRoomCount() - 1
+            && layout.getDoorways().size() <= layout.getRoomCount() - 1 + 4,
+        "doorway planner creates a connected graph with a bounded loop budget");
     std::vector<std::size_t> doorwayCounts(layout.getRoomCount(), 0);
     std::vector<std::vector<std::size_t>> regionConnections(
         layout.getRoomCount());
+    std::set<std::pair<int, int>> doorwayRegionPairs;
     const auto validRegion = [&](int region) {
         return region >= 0
             && static_cast<std::size_t>(region) < layout.getRoomCount();
@@ -211,11 +304,24 @@ bool roomLayoutIsValid(const stalberg::StalbergGrid& grid,
                 && assignments[doorway.secondCell] == doorway.secondRegion,
             "doorway second cell matches its region");
         if (doorway.firstCell < neighbors.size()) {
-            valid &= check(std::ranges::find(
-                    neighbors[doorway.firstCell], doorway.secondCell)
-                    != neighbors[doorway.firstCell].end(),
-                "doorway cells share an edge");
+            const auto physical = std::ranges::find(roomGrid.connections[doorway.firstCell],
+                doorway.secondCell,
+                &stalberg::rooms::CellConnection::cell);
+            valid &= check(physical != roomGrid.connections[doorway.firstCell].end(),
+                "doorway cells share a physical edge");
+            if (physical != roomGrid.connections[doorway.firstCell].end()) {
+                valid &= check(doorway.width == physical->sharedBoundaryLength
+                        && doorway.width > 0.0F
+                        && doorway.quality > 0.0F
+                        && doorway.quality <= 1.0F,
+                    "doorway publishes positive physical width and quality");
+            }
         }
+        valid &= check(doorwayRegionPairs.emplace(
+                           std::min(doorway.firstRegion, doorway.secondRegion),
+                           std::max(doorway.firstRegion, doorway.secondRegion))
+                           .second,
+            "each selected room pair has only one doorway");
         if (!validRegion(doorway.firstRegion)
             || !validRegion(doorway.secondRegion)) {
             continue;
@@ -248,8 +354,32 @@ bool roomLayoutIsValid(const stalberg::StalbergGrid& grid,
             "doorways connect every room into one circulation graph");
     }
 
+    std::size_t startRoomCount = 0;
+    std::size_t exitRoomCount = 0;
     for (const stalberg::rooms::GeneratedRoom& room : layout.getRooms()) {
         valid &= check(room.cellCount > 1, "single-cell rooms are never generated");
+        float measuredArea = 0.0F;
+        for (std::size_t cell = 0; cell < assignments.size(); ++cell) {
+            if (assignments[cell] == room.id) {
+                measuredArea += roomGrid.cells[cell].area;
+            }
+        }
+        valid &= check(std::abs(room.area - measuredArea) <= measuredArea * 0.0001F,
+            "room metadata reports physical floor area");
+        valid &= check(std::ranges::all_of(room.coverCandidates,
+                           [&](std::size_t cell) {
+                               return cell < assignments.size()
+                                   && assignments[cell] == room.id;
+                           }),
+            "cover candidates belong to their reported room");
+        valid &= check(std::ranges::all_of(room.enemySpawnCandidates,
+                           [&](std::size_t cell) {
+                               return cell < assignments.size()
+                                   && assignments[cell] == room.id;
+                           }),
+            "enemy spawn candidates belong to their reported room");
+        startRoomCount += room.role == stalberg::rooms::RoomRole::Start ? 1 : 0;
+        exitRoomCount += room.role == stalberg::rooms::RoomRole::Exit ? 1 : 0;
         valid &= check(doorwayCounts[static_cast<std::size_t>(room.id)] > 0,
             "every room has at least one doorway");
         const auto roomStart = std::ranges::find(assignments, room.id);
@@ -276,6 +406,11 @@ bool roomLayoutIsValid(const stalberg::StalbergGrid& grid,
         }
         valid &= check(reached == room.cellCount, "every room is connected");
     }
+    valid &= check(startRoomCount == 1, "layout identifies one start room");
+    valid &= check(exitRoomCount == 1, "layout identifies one distinct exit room");
+    valid &= check(std::isfinite(layout.getQualityScore())
+            && layout.getQualityScore() > 0.0F,
+        "selected candidate publishes a finite quality score");
 
     return valid;
 }
@@ -473,12 +608,15 @@ int main()
 {
     stalberg::StalbergGrid grid;
     grid.generate(6, 1);
+    grid.relaxToCompletion();
 
     bool valid = adapterProducesValidRoomInput(grid);
     valid &= roomGenerationIsRepeatable(
         grid, stalberg::rooms::RoomGenerationMethod::BranchingShapes);
     valid &= roomGenerationIsRepeatable(
         grid, stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
+    valid &= bestOfCandidatesDoesNotReduceQuality(grid);
+    valid &= connectionOrderingDoesNotAffectGeneration(grid);
     valid &= roomInputIsIndependentFromLaterRelaxation();
     for (std::uint32_t roomSeed = 1; roomSeed <= 12; ++roomSeed) {
         valid &= roomLayoutIsValid(grid, roomSeed);

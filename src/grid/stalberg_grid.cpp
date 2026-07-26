@@ -115,6 +115,13 @@ void StalbergGrid::relaxOnce()
     ++relaxationSteps;
 }
 
+void StalbergGrid::relaxToCompletion()
+{
+    while (!isFullyRelaxed()) {
+        relaxOnce();
+    }
+}
+
 void StalbergGrid::generateHexagonalLattice()
 {
     vertices.clear();

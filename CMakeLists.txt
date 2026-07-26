@@ -25,7 +25,10 @@ function(enable_project_warnings target)
     endif()
 endfunction()
 
-add_library(stalberg_grid_generation src/grid/stalberg_grid.cpp)
+add_library(stalberg_grid_generation
+    src/grid/dual_grid.cpp
+    src/grid/stalberg_grid.cpp
+)
 target_include_directories(stalberg_grid_generation PUBLIC src)
 target_compile_features(stalberg_grid_generation PUBLIC cxx_std_20)
 enable_project_warnings(stalberg_grid_generation)
