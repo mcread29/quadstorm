@@ -20,7 +20,8 @@ namespace {
 constexpr std::size_t MINIMUM_ROOM_SIZE = 2;
 constexpr std::size_t PREFERRED_ROOM_SIZE = 7;
 constexpr std::size_t MAXIMUM_ROOM_SIZE = 34;
-constexpr std::size_t REQUIRED_EDGE_CONNECTIONS = 4;
+constexpr std::size_t MINIMUM_EDGE_CONNECTIONS = 3;
+constexpr std::size_t MAXIMUM_EDGE_CONNECTIONS = 6;
 
 std::uint64_t mix(std::uint64_t value)
 {
@@ -94,6 +95,47 @@ std::vector<std::vector<CellIndex>> sortedAdjacency(const RoomGrid& grid)
     return adjacency;
 }
 
+struct EntranceSelection {
+    std::vector<CellIndex> order;
+    std::size_t targetCount;
+};
+
+double combinationCount(std::size_t population, std::size_t selection)
+{
+    selection = std::min(selection, population - selection);
+    double result = 1.0;
+    for (std::size_t item = 1; item <= selection; ++item) {
+        result *= static_cast<double>(population - selection + item)
+            / static_cast<double>(item);
+    }
+    return result;
+}
+
+EntranceSelection selectEntrances(
+    const std::vector<CellIndex>& candidates, std::mt19937& random)
+{
+    EntranceSelection result { candidates, 0 };
+    if (candidates.empty()) {
+        return result;
+    }
+
+    const std::size_t minimumCount
+        = std::min(MINIMUM_EDGE_CONNECTIONS, candidates.size());
+    const std::size_t maximumCount
+        = std::min(MAXIMUM_EDGE_CONNECTIONS, candidates.size());
+    // Weight each count by its number of combinations, then shuffle uniformly.
+    // This gives every concrete subset the same probability.
+    std::vector<double> countWeights;
+    for (std::size_t count = minimumCount; count <= maximumCount; ++count) {
+        countWeights.push_back(combinationCount(candidates.size(), count));
+    }
+    std::discrete_distribution<std::size_t> countDistribution(
+        countWeights.begin(), countWeights.end());
+    result.targetCount = minimumCount + countDistribution(random);
+    std::ranges::shuffle(result.order, random);
+    return result;
+}
+
 float estimateCellScale(
     const RoomGrid& grid,
     const std::vector<std::vector<CellIndex>>& adjacency,
@@ -116,81 +158,152 @@ float estimateCellScale(
     return count == 0 ? 24.0F : total / static_cast<float>(count);
 }
 
-struct ShapeParameters {
-    int type;
+enum class GrowthStyle {
+    Compact,
+    Elongated,
+    Branching,
+    Irregular,
+    LShaped
+};
+
+struct GrowthProfile {
+    GrowthStyle style;
     float axisX;
     float axisY;
+    float phase;
+};
+
+GrowthProfile randomGrowthProfile(std::mt19937& random)
+{
+    std::discrete_distribution<int> styleDistribution { 30, 25, 15, 20, 10 };
+    std::uniform_real_distribution<float> angleDistribution(
+        0.0F, 2.0F * std::numbers::pi_v<float>);
+    const float angle = angleDistribution(random);
+    return GrowthProfile {
+        static_cast<GrowthStyle>(styleDistribution(random)),
+        std::cos(angle),
+        std::sin(angle),
+        angleDistribution(random)
+    };
+}
+
+GrowthProfile randomRadialGrowthProfile(
+    std::mt19937& random, float directionX, float directionY)
+{
+    GrowthProfile profile = randomGrowthProfile(random);
+    std::uniform_real_distribution<float> turnDistribution(-0.35F, 0.35F);
+    const float turn = turnDistribution(random);
+    const float cosine = std::cos(turn);
+    const float sine = std::sin(turn);
+    profile.axisX = directionX * cosine - directionY * sine;
+    profile.axisY = directionX * sine + directionY * cosine;
+    return profile;
+}
+
+struct ShapeParameters {
+    GrowthProfile growth;
     float halfLength;
     float halfWidth;
     float secondLength;
 };
 
+ShapeParameters shapeForProfile(
+    const GrowthProfile& growth, std::mt19937& random, float scale)
+{
+    std::uniform_real_distribution<float> lengthDistribution(2.0F, 3.8F);
+    std::uniform_real_distribution<float> widthDistribution(1.25F, 2.25F);
+    float halfLength = lengthDistribution(random);
+    float halfWidth = widthDistribution(random);
+    float secondLength = lengthDistribution(random);
+
+    switch (growth.style) {
+    case GrowthStyle::Compact:
+        halfLength *= 0.82F;
+        halfWidth *= 1.15F;
+        break;
+    case GrowthStyle::Elongated:
+        halfLength *= 1.45F;
+        halfWidth *= 0.62F;
+        break;
+    case GrowthStyle::Branching:
+        halfLength *= 1.25F;
+        halfWidth *= 0.7F;
+        secondLength *= 1.2F;
+        break;
+    case GrowthStyle::Irregular:
+        halfLength *= 1.05F;
+        halfWidth *= 1.05F;
+        break;
+    case GrowthStyle::LShaped:
+        halfLength *= 1.15F;
+        halfWidth *= 0.72F;
+        secondLength *= 1.25F;
+        break;
+    }
+
+    return ShapeParameters {
+        growth,
+        halfLength * scale,
+        halfWidth * scale,
+        secondLength * scale
+    };
+}
+
 ShapeParameters randomShape(std::mt19937& random, float scale)
 {
-    std::uniform_int_distribution<int> type(0, 3);
-    std::uniform_real_distribution<float> angle(0.0F, 2.0F * std::numbers::pi_v<float>);
-    std::uniform_real_distribution<float> length(2.0F, 3.8F);
-    std::uniform_real_distribution<float> width(1.25F, 2.25F);
-    const float direction = angle(random);
-    return ShapeParameters {
-        type(random),
-        std::cos(direction),
-        std::sin(direction),
-        length(random) * scale,
-        width(random) * scale,
-        length(random) * scale
-    };
+    return shapeForProfile(randomGrowthProfile(random), random, scale);
 }
 
 ShapeParameters randomRadialShape(
     std::mt19937& random, float scale, float directionX, float directionY)
 {
-    std::uniform_real_distribution<float> turn(-0.3F, 0.3F);
-    std::uniform_real_distribution<float> length(3.0F, 5.4F);
-    std::uniform_real_distribution<float> width(1.2F, 1.75F);
-    const float angle = turn(random);
-    const float cosine = std::cos(angle);
-    const float sine = std::sin(angle);
-    return ShapeParameters {
-        1,
-        directionX * cosine - directionY * sine,
-        directionX * sine + directionY * cosine,
-        length(random) * scale,
-        width(random) * scale,
-        length(random) * scale
-    };
+    return shapeForProfile(
+        randomRadialGrowthProfile(random, directionX, directionY), random, scale);
 }
 
 bool shapeContains(const ShapeParameters& shape, CellPoint center, CellPoint point)
 {
     const float x = point.x - center.x;
     const float y = point.y - center.y;
-    const float along = x * shape.axisX + y * shape.axisY;
-    const float across = -x * shape.axisY + y * shape.axisX;
+    const float along = x * shape.growth.axisX + y * shape.growth.axisY;
+    const float across = -x * shape.growth.axisY + y * shape.growth.axisX;
     const float absoluteAlong = std::abs(along);
     const float absoluteAcross = std::abs(across);
 
-    switch (shape.type) {
-    case 0: // Soft rectangle.
+    switch (shape.growth.style) {
+    case GrowthStyle::Compact:
         return absoluteAlong <= shape.halfLength
             && absoluteAcross <= shape.halfWidth
             && absoluteAlong / shape.halfLength
                     + absoluteAcross / shape.halfWidth
-                <= 1.65F;
-    case 1: // Long gallery.
-        return absoluteAlong <= shape.halfLength * 1.25F
-            && absoluteAcross <= shape.halfWidth * 0.72F;
-    case 2: { // Capsule.
-        const float endDistance = std::max(absoluteAlong - shape.halfLength, 0.0F);
-        return endDistance * endDistance + across * across
-            <= shape.halfWidth * shape.halfWidth;
+                <= 1.7F;
+    case GrowthStyle::Elongated:
+        return absoluteAlong <= shape.halfLength
+            && absoluteAcross <= shape.halfWidth;
+    case GrowthStyle::Branching:
+        return (absoluteAlong <= shape.halfLength
+                   && absoluteAcross <= shape.halfWidth * 0.6F)
+            || (along >= shape.halfLength * 0.1F
+                && along <= shape.halfLength * 0.65F
+                && absoluteAcross <= shape.secondLength);
+    case GrowthStyle::Irregular: {
+        const float normalizedAlong = along / shape.halfLength;
+        const float normalizedAcross = across / shape.halfWidth;
+        const float angle = std::atan2(normalizedAcross, normalizedAlong);
+        const float boundary = 0.9F
+            + std::sin(angle * 3.0F + shape.growth.phase) * 0.16F
+            + std::sin(angle * 5.0F - shape.growth.phase) * 0.1F;
+        return std::sqrt(normalizedAlong * normalizedAlong
+                   + normalizedAcross * normalizedAcross)
+            <= boundary;
     }
-    default: // L-shaped room made from two perpendicular wings.
+    case GrowthStyle::LShaped:
         return (along >= -shape.halfWidth && along <= shape.halfLength
                    && absoluteAcross <= shape.halfWidth)
             || (absoluteAlong <= shape.halfWidth
                 && across >= -shape.halfWidth && across <= shape.secondLength);
     }
+    return false;
 }
 
 std::vector<CellIndex> makeRoomShape(
@@ -543,6 +656,7 @@ void generateOrganicGrowth(
     const std::vector<bool>& buildable,
     const std::vector<CellIndex>& buildableCells,
     CellIndex center,
+    const EntranceSelection& entranceSelection,
     std::uint32_t generationSeed,
     std::mt19937& random,
     std::vector<int>& assignments,
@@ -550,6 +664,7 @@ void generateOrganicGrowth(
     std::vector<CellIndex>& connectedEntrances)
 {
     const auto cells = grid.getCells();
+    const float cellScale = estimateCellScale(grid, adjacency, buildable);
     std::vector<bool> floor(cells.size(), false);
     floor[center] = true;
     std::size_t floorCount = 1;
@@ -570,52 +685,8 @@ void generateOrganicGrowth(
     std::array<std::size_t, sectorCount> sectorFloorCounts {};
     ++sectorFloorCounts[sectorFor(center)];
 
-    // Four entrances leave two of the six hex sides unused. Choose the cyclic
-    // distance between those omitted sides with 40/40/20 weights: adjacent,
-    // separated by one side, or opposite. A random rotation then gives every
-    // concrete four-of-six entrance set the same 1-in-15 probability.
-    std::vector<CellIndex> entranceOrder;
-    if (grid.entranceCandidates.size() == sectorCount) {
-        std::vector<CellIndex> cyclicEntrances(
-            grid.entranceCandidates.begin(), grid.entranceCandidates.end());
-        std::ranges::sort(cyclicEntrances, [&](CellIndex lhs, CellIndex rhs) {
-            const CellPoint origin = cells[center].position;
-            const CellPoint left = cells[lhs].position;
-            const CellPoint right = cells[rhs].position;
-            return std::atan2(left.y - origin.y, left.x - origin.x)
-                < std::atan2(right.y - origin.y, right.x - origin.x);
-        });
-
-        std::uniform_int_distribution<int> patternDistribution(0, 4);
-        std::uniform_int_distribution<std::size_t> rotationDistribution(
-            0, sectorCount - 1);
-        const int pattern = patternDistribution(random);
-        const std::size_t omittedDistance
-            = pattern < 2 ? 1 : (pattern < 4 ? 2 : 3);
-        const std::size_t rotation = rotationDistribution(random);
-        const std::size_t secondOmission
-            = (rotation + omittedDistance) % sectorCount;
-
-        std::vector<CellIndex> selectedEntrances;
-        std::vector<CellIndex> fallbackEntrances;
-        for (std::size_t side = 0; side < sectorCount; ++side) {
-            auto& destination = side == rotation || side == secondOmission
-                ? fallbackEntrances
-                : selectedEntrances;
-            destination.push_back(cyclicEntrances[side]);
-        }
-        std::ranges::shuffle(selectedEntrances, random);
-        std::ranges::shuffle(fallbackEntrances, random);
-        entranceOrder = std::move(selectedEntrances);
-        entranceOrder.insert(entranceOrder.end(),
-            fallbackEntrances.begin(), fallbackEntrances.end());
-    } else {
-        entranceOrder.assign(
-            grid.entranceCandidates.begin(), grid.entranceCandidates.end());
-        std::ranges::shuffle(entranceOrder, random);
-    }
-    for (const CellIndex entrance : entranceOrder) {
-        if (connectedEntrances.size() >= REQUIRED_EDGE_CONNECTIONS) {
+    for (const CellIndex entrance : entranceSelection.order) {
+        if (connectedEntrances.size() >= entranceSelection.targetCount) {
             break;
         }
         const std::vector<CellIndex> path
@@ -718,6 +789,17 @@ void generateOrganicGrowth(
 
     std::vector<std::vector<CellIndex>> frontiers(seeds.size());
     std::vector<std::size_t> roomSizes(seeds.size(), 1);
+    std::vector<float> roomSizeWeights;
+    std::vector<GrowthProfile> growthProfiles;
+    roomSizeWeights.reserve(seeds.size());
+    growthProfiles.reserve(seeds.size());
+    std::uniform_real_distribution<float> roomSizeDistribution(-0.8F, 0.8F);
+    for (std::size_t room = 0; room < seeds.size(); ++room) {
+        roomSizeWeights.push_back(seeds.size() < 3
+                ? 1.0F
+                : std::exp(roomSizeDistribution(random)));
+        growthProfiles.push_back(randomGrowthProfile(random));
+    }
     std::size_t assignedCount = 0;
     for (std::size_t room = 0; room < seeds.size(); ++room) {
         assignments[seeds[room]] = static_cast<int>(room);
@@ -746,12 +828,74 @@ void generateOrganicGrowth(
         std::ranges::shuffle(activeRooms, random);
         const std::size_t selectedRoom = *std::ranges::min_element(
             activeRooms, [&](std::size_t lhs, std::size_t rhs) {
-                return roomSizes[lhs] < roomSizes[rhs];
+                const float leftFill = static_cast<float>(roomSizes[lhs])
+                    / roomSizeWeights[lhs];
+                const float rightFill = static_cast<float>(roomSizes[rhs])
+                    / roomSizeWeights[rhs];
+                return leftFill < rightFill;
             });
         auto& frontier = frontiers[selectedRoom];
-        std::uniform_int_distribution<std::size_t> cellDistribution(
-            0, frontier.size() - 1);
-        const std::size_t frontierIndex = cellDistribution(random);
+        const GrowthProfile& profile = growthProfiles[selectedRoom];
+        const CellPoint seedPosition = cells[seeds[selectedRoom]].position;
+        std::size_t frontierIndex = 0;
+        float bestGrowthScore = -std::numeric_limits<float>::infinity();
+        for (std::size_t candidateIndex = 0;
+             candidateIndex < frontier.size(); ++candidateIndex) {
+            const CellIndex candidate = frontier[candidateIndex];
+            const float x = cells[candidate].position.x - seedPosition.x;
+            const float y = cells[candidate].position.y - seedPosition.y;
+            const float along = x * profile.axisX + y * profile.axisY;
+            const float across = -x * profile.axisY + y * profile.axisX;
+            const float radius = std::max(std::sqrt(x * x + y * y), cellScale);
+            const float axisAlignment = std::abs(along) / radius;
+            const float perpendicularAlignment = std::abs(across) / radius;
+            const std::size_t sameRoomNeighbors = std::ranges::count_if(
+                adjacency[candidate], [&](CellIndex neighbor) {
+                    return assignments[neighbor] == static_cast<int>(selectedRoom);
+                });
+            const float noise = unitNoise(generationSeed,
+                static_cast<std::uint64_t>(assignedCount) * 131071U
+                    + selectedRoom * 8191U + candidate)
+                    * 2.0F
+                - 1.0F;
+
+            float score = 0.0F;
+            switch (profile.style) {
+            case GrowthStyle::Compact:
+                score = static_cast<float>(sameRoomNeighbors) * 1.0F
+                    - radius / cellScale * 0.06F + noise * 0.3F;
+                break;
+            case GrowthStyle::Elongated:
+                score = axisAlignment * 1.8F
+                    - perpendicularAlignment * 0.7F
+                    + static_cast<float>(sameRoomNeighbors) * 0.12F
+                    + noise * 0.4F;
+                break;
+            case GrowthStyle::Branching:
+                score = (sameRoomNeighbors == 1 ? 1.4F : 0.0F)
+                    - static_cast<float>(sameRoomNeighbors) * 0.22F
+                    + radius / cellScale * 0.04F + noise * 0.75F;
+                break;
+            case GrowthStyle::Irregular:
+                score = static_cast<float>(sameRoomNeighbors) * 0.12F
+                    + noise * 1.7F;
+                break;
+            case GrowthStyle::LShaped: {
+                const bool followsForwardWing
+                    = (axisAlignment >= perpendicularAlignment && along >= 0.0F)
+                    || (perpendicularAlignment > axisAlignment && across >= 0.0F);
+                score = std::max(axisAlignment, perpendicularAlignment) * 1.45F
+                    + (followsForwardWing ? 0.55F : -0.45F)
+                    + static_cast<float>(sameRoomNeighbors) * 0.15F
+                    + noise * 0.4F;
+                break;
+            }
+            }
+            if (score > bestGrowthScore) {
+                frontierIndex = candidateIndex;
+                bestGrowthScore = score;
+            }
+        }
         const CellIndex cell = frontier[frontierIndex];
         frontier[frontierIndex] = frontier.back();
         frontier.pop_back();
@@ -900,12 +1044,15 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
             return distanceFromOrigin(cells[lhs].position)
                 < distanceFromOrigin(cells[rhs].position);
         });
+    const EntranceSelection entranceSelection
+        = selectEntrances(grid.entranceCandidates, random);
     if (method == RoomGenerationMethod::OrganicGrowth) {
         generateOrganicGrowth(grid,
             adjacency,
             buildable,
             buildableCells,
             center,
+            entranceSelection,
             generationSeed,
             random,
             cellAssignments,
@@ -952,9 +1099,9 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
     // Sometimes establish a few radial branches before connecting the outside.
     // This keeps an edge room from always being the room that reaches the center.
     const std::size_t maximumEarlyBranches = desiredRooms
-            > REQUIRED_EDGE_CONNECTIONS + 1
+            > entranceSelection.targetCount + 1
         ? std::min<std::size_t>(
-              4, desiredRooms - REQUIRED_EDGE_CONNECTIONS - 1)
+              4, desiredRooms - entranceSelection.targetCount - 1)
         : 0;
     std::uniform_int_distribution<std::size_t> earlyBranchDistribution(
         0, maximumEarlyBranches);
@@ -974,21 +1121,12 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
         }
     }
 
-    // Randomize the supplied entrances and make only the selected candidate
-    // buildable, preserving negative space around the rest of the footprint.
-    std::vector<std::size_t> entranceOrder;
-    entranceOrder.reserve(grid.entranceCandidates.size());
-    for (std::size_t entrance = 0;
-         entrance < grid.entranceCandidates.size(); ++entrance) {
-        entranceOrder.push_back(entrance);
-    }
-    std::ranges::shuffle(entranceOrder, random);
-
-    for (const std::size_t entrance : entranceOrder) {
-        if (connectedEntrances.size() >= REQUIRED_EDGE_CONNECTIONS) {
+    // Make only the selected candidates buildable, preserving negative space
+    // around the rest of the footprint.
+    for (const CellIndex edgeCenter : entranceSelection.order) {
+        if (connectedEntrances.size() >= entranceSelection.targetCount) {
             break;
         }
-        const CellIndex edgeCenter = grid.entranceCandidates[entrance];
         if (cellAssignments[edgeCenter] != EMPTY_CELL) {
             continue;
         }

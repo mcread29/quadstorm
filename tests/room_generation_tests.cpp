@@ -121,8 +121,10 @@ bool roomLayoutIsValid(const stalberg::StalbergGrid& grid,
         "room generation creates multiple rooms");
     valid &= check(layout.getRoomCount() <= stalberg::rooms::MAX_GENERATED_ROOMS,
         "every generated room has a unique renderer color");
-    valid &= check(connectedEntrances.size() >= 4,
-        "rooms connect to the centers of at least four outer edges");
+    valid &= check(connectedEntrances.size() >= 3,
+        "rooms connect to the centers of at least three outer edges");
+    valid &= check(connectedEntrances.size() <= 6,
+        "rooms connect to no more than six outer edges");
     for (std::size_t index = 0; index < connectedEntrances.size(); ++index) {
         const std::size_t cell = connectedEntrances[index];
         valid &= check(cell < assignments.size() && vertices[cell].fixed,
@@ -334,24 +336,78 @@ bool organicGrowthIsEvenlyDispersed(const stalberg::StalbergGrid& grid)
     return valid;
 }
 
-bool organicGrowthCanUseEveryEntranceSet()
+bool generationMethodsVaryRoomShapes(const stalberg::StalbergGrid& grid)
+{
+    const auto input = stalberg::makeRoomGrid(grid);
+    bool valid = true;
+    for (const auto method : std::array {
+             stalberg::rooms::RoomGenerationMethod::BranchingShapes,
+             stalberg::rooms::RoomGenerationMethod::OrganicGrowth }) {
+        const auto layout
+            = stalberg::rooms::RoomGenerator {}.generate(input, 1, method);
+        std::vector<float> boundaryRatios;
+        for (const auto& room : layout.getRooms()) {
+            std::size_t boundaryEdges = 0;
+            for (std::size_t cell = 0; cell < input.cells.size(); ++cell) {
+                if (layout.getCellAssignment(cell) != room.id) {
+                    continue;
+                }
+                boundaryEdges += std::ranges::count_if(
+                    input.neighbors[cell], [&](std::size_t neighbor) {
+                        return layout.getCellAssignment(neighbor) != room.id;
+                    });
+            }
+            boundaryRatios.push_back(static_cast<float>(boundaryEdges)
+                / std::sqrt(static_cast<float>(room.cellCount)));
+        }
+        const auto [smallest, largest]
+            = std::ranges::minmax_element(boundaryRatios);
+        valid &= check(smallest != boundaryRatios.end()
+                && *largest >= *smallest * 1.35F,
+            "growth profiles produce varied room silhouettes");
+    }
+    return valid;
+}
+
+bool organicGrowthVariesRoomSizes(const stalberg::StalbergGrid& grid)
+{
+    const auto layout = generateRooms(
+        grid, 1, stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
+    const auto rooms = layout.getRooms();
+    const auto [smallest, largest] = std::ranges::minmax_element(
+        rooms, {}, &stalberg::rooms::GeneratedRoom::cellCount);
+    return check(smallest != rooms.end()
+            && largest->cellCount >= smallest->cellCount * 3,
+        "organic growth produces substantial room-size variance");
+}
+
+bool organicGrowthCanUseEveryValidEntranceSet()
 {
     stalberg::StalbergGrid grid;
     grid.generate(3, 1);
     const auto input = stalberg::makeRoomGrid(grid);
     std::set<std::vector<stalberg::rooms::CellIndex>> entranceSets;
-    for (std::uint32_t seed = 1; seed <= 180; ++seed) {
+    std::array<std::size_t, 7> countFrequencies {};
+    for (std::uint32_t seed = 1; seed <= 600; ++seed) {
         const auto layout = stalberg::rooms::RoomGenerator {}.generate(input,
             seed,
             stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
         std::vector<stalberg::rooms::CellIndex> entrances(
             layout.getConnectedEntrances().begin(),
             layout.getConnectedEntrances().end());
+        if (entrances.size() < countFrequencies.size()) {
+            ++countFrequencies[entrances.size()];
+        }
         std::ranges::sort(entrances);
         entranceSets.insert(std::move(entrances));
     }
-    return check(entranceSets.size() == 15,
-        "organic growth can select every four-of-six entrance set");
+    return check(entranceSets.size() == 42,
+               "organic growth can select every three-to-six entrance set")
+        && check(countFrequencies[3] > countFrequencies[4]
+                && countFrequencies[4] > countFrequencies[5]
+                && countFrequencies[5] > countFrequencies[6]
+                && countFrequencies[6] > 0,
+            "entrance counts follow their proportional combination weights");
 }
 
 bool compactLayoutsVaryAcrossGridSeeds()
@@ -441,7 +497,9 @@ int main()
         }
     }
     valid &= organicGrowthIsEvenlyDispersed(grid);
-    valid &= organicGrowthCanUseEveryEntranceSet();
+    valid &= generationMethodsVaryRoomShapes(grid);
+    valid &= organicGrowthVariesRoomSizes(grid);
+    valid &= organicGrowthCanUseEveryValidEntranceSet();
     valid &= compactLayoutsVaryAcrossGridSeeds();
     valid &= largeLayoutUsesExpandedRoomBudget();
     valid &= degenerateGridDoesNotCreateSingleCellRoom();
