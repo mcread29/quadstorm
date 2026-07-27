@@ -55,7 +55,13 @@ add_executable(stalberg_grid
 target_link_libraries(stalberg_grid PRIVATE stalberg_room_grid_adapter raylib)
 enable_project_warnings(stalberg_grid)
 
-add_executable(stalberg_game src/game/main.cpp)
+add_executable(stalberg_game
+    src/game/game_camera.cpp
+    src/game/game_input.cpp
+    src/game/main.cpp
+    src/game/player.cpp
+    src/game/prototype_renderer.cpp
+)
 target_compile_features(stalberg_game PRIVATE cxx_std_20)
 target_link_libraries(stalberg_game PRIVATE raylib)
 enable_project_warnings(stalberg_game)
