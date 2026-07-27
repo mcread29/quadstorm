@@ -28,8 +28,11 @@ A system raylib installation is used when available. Otherwise CMake downloads r
 cmake -S . -B build
 cmake --build build -j
 ctest --test-dir build --output-on-failure
-./build/stalberg_grid
+./build/stalberg_game       # minimal 2.5D movement prototype
+./build/stalberg_grid       # procedural-generation diagnostic demo
 ```
+
+The movement prototype is intentionally small: use **WASD** to move the sphere and the **mouse** to aim its facing marker across the XZ ground plane. A tilted orthographic camera follows the player.
 
 Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Each module has its own headless test executable.
 

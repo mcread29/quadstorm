@@ -55,6 +55,11 @@ add_executable(stalberg_grid
 target_link_libraries(stalberg_grid PRIVATE stalberg_room_grid_adapter raylib)
 enable_project_warnings(stalberg_grid)
 
+add_executable(stalberg_game src/game/main.cpp)
+target_compile_features(stalberg_game PRIVATE cxx_std_20)
+target_link_libraries(stalberg_game PRIVATE raylib)
+enable_project_warnings(stalberg_game)
+
 include(CTest)
 if(BUILD_TESTING)
     add_executable(stalberg_grid_tests tests/grid_tests.cpp)
