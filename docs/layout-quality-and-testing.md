@@ -375,12 +375,13 @@ Callers should check `getRoomCount()` before constructing gameplay state.
 
 ## Test organization
 
-CTest currently builds two headless generator executables. The separate `stalberg_game` runtime has graphical smoke coverage only; dedicated simulation tests are planned alongside projectile work as described in [`game-handoff.md`](game-handoff.md).
+CTest currently builds three headless test executables: two for generation and one for the separate `stalberg_game` simulation modules. Rendering remains covered by graphical smoke runs.
 
 | Test | Coverage |
 |---|---|
 | `stalberg_grid_tests` | Base mesh topology, repeatability, dual geometry, and relaxation |
 | `stalberg_room_generation_tests` | Adapter contract, all room methods, physical metadata, circulation, roles, scoring, and edge cases |
+| `stalberg_game_tests` | Projectile movement/interpolation, lifetime expiry, pool exhaustion/reuse, muzzle position, and fixed fire cadence |
 
 Run:
 

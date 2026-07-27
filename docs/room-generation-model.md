@@ -359,7 +359,7 @@ Connected entrances are not `Doorway` objects. They do not include an exterior s
 
 ## Gameplay consumption
 
-> Runtime status: `stalberg_game` currently contains only the flat-plane movement prototype and does not consume `RoomGrid` or `RoomLayout` yet. Generated-level conversion is Milestone 6 in [`game-roadmap.md`](game-roadmap.md); see [`game-handoff.md`](game-handoff.md) for current architecture and integration constraints.
+> Runtime status: `stalberg_game` currently contains a flat-plane movement, aiming, and pooled-projectile prototype. It does not consume `RoomGrid` or `RoomLayout` yet. Target collision is the next runtime milestone; generated-level conversion remains Milestone 6 in [`game-roadmap.md`](game-roadmap.md). See [`game-handoff.md`](game-handoff.md) for current architecture and integration constraints.
 
 ### Walkability
 

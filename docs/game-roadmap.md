@@ -41,7 +41,7 @@ The runtime now provides:
 - Fixed-step projectile movement, lifetime expiry, and stable-slot reuse.
 - Previous/current projectile positions for render interpolation and later swept collision.
 - Lit projectile meshes with a simple motion trail.
-- Headless tests for movement, interpolation, pool exhaustion/reuse, and weapon cadence.
+- Headless tests for projectile movement/interpolation, lifetime expiry, pool exhaustion/reuse, muzzle spawning, and weapon cadence.
 
 Acceptance check: the player can move and aim while holding fire; projectile spacing and speed remain stable at different render rates, and expired projectiles reuse pool capacity without allocation.
 

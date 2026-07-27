@@ -13,7 +13,7 @@ As a separate pass, the room generator consumes a neutral cell graph with physic
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
-The repository now also contains the first runtime slice of a top-down 2.5D roguelite bullet hell. The `stalberg_game` executable currently focuses only on movement and aiming over a flat test plane; generated-level integration follows after the core combat sandbox is proven.
+The repository now also contains the first two runtime slices of a top-down 2.5D roguelite bullet hell. The `stalberg_game` executable supports movement, aiming, and fixed-cadence pooled projectile firing over a flat test plane; generated-level integration follows after the core combat sandbox is proven.
 
 ## Documentation
 
@@ -32,11 +32,13 @@ A system raylib installation is used when available. Otherwise CMake downloads r
 cmake -S . -B build
 cmake --build build -j
 ctest --test-dir build --output-on-failure
-./build/stalberg_game       # minimal 2.5D movement prototype
+./build/stalberg_game       # minimal 2.5D shooting prototype
 ./build/stalberg_grid       # procedural-generation diagnostic demo
 ```
 
-The movement prototype is intentionally small: use **WASD** to move the sphere and the **mouse** to aim its facing marker across the XZ ground plane. A 45-degree tilted orthographic camera follows the player. Simulation runs at a fixed 120 Hz and rendering interpolates player and camera state.
+The shooting prototype is intentionally small: use **WASD** to move the sphere, the **mouse** to aim its facing marker across the XZ ground plane, and hold the **left mouse button** to fire. A 45-degree tilted orthographic camera follows the player. Simulation runs at a fixed 120 Hz; rendering interpolates player, camera, and projectile state. Firing uses a preallocated stable-slot pool and does not allocate per shot.
+
+Debug builds apply debugger-friendly optimization to the game runtime and bundled raylib so interactive frame pacing remains representative while symbols and assertions stay enabled. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized stepping is required.
 
 Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Each module has its own headless test executable.
 
@@ -46,9 +48,10 @@ Grid generation and room generation are independent libraries. The room library 
 |---|---|
 | WASD | Move relative to the camera |
 | Mouse | Aim on the ground plane |
+| Hold left mouse button | Fire |
 | Escape/window close | Exit |
 
-Shooting is the next milestone and is not implemented yet.
+Projectile firing is complete. The next milestone adds a stationary target, swept collision, health/reset behavior, and hit feedback.
 
 ## Generator demo controls
 

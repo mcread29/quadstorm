@@ -61,7 +61,8 @@ Camera3D + interpolated Player/Projectiles ──→ PrototypeRenderer
 | `src/game/game_input.hpp/.cpp` | All current polling of raylib keyboard and mouse input |
 | `src/game/prototype_renderer.hpp/.cpp` | GPU resource ownership and all prototype drawing |
 | `src/game/directional_shader.hpp` | Embedded GLSL and shared directional-light vector |
-| `CMakeLists.txt` | `stalberg_game` source list and raylib linkage |
+| `tests/game_tests.cpp` | Headless projectile pool and weapon simulation coverage |
+| `CMakeLists.txt` | Runtime/test source lists, raylib linkage, warnings, and Debug runtime optimization |
 
 The renderer's destructor unloads models before unloading the shared lighting shader. It must be destroyed before `CloseWindow()`, which is why it lives inside an inner scope in `main.cpp`.
 
@@ -86,6 +87,22 @@ Simulation advances in fixed `1/120` second steps. Rendering interpolates betwee
 
 Frame time is clamped to 50 ms before entering the accumulator to avoid an unbounded catch-up spiral after pauses or debugger stops.
 
+### Projectile contract
+
+Projectile state uses `Vector2` X/Z coordinates and converts to `Vector3` only in the renderer. The pool contains 192 stable slots and scans from the beginning for the first inactive slot. A full pool drops the attempted shot; the weapon still consumes its cooldown so exhaustion cannot create a burst when a slot becomes available.
+
+Current tuning constants are:
+
+| Constant | Value |
+|---|---:|
+| Fire interval | 0.1 seconds |
+| Muzzle distance from player center | 1.3 world units |
+| Projectile speed | 22 world units/second |
+| Projectile lifetime | 1.8 seconds |
+| Projectile radius | 0.16 world units |
+
+Every fixed projectile update copies `position` to `previousPosition` before advancing. `main.cpp` updates the player, attempts weapon firing, advances projectiles, and then updates the camera. A newly spawned projectile therefore has a valid muzzle-to-first-step segment immediately. Preserve that segment for swept collision; do not replace collision with a current-position overlap test.
+
 ### Input boundary
 
 `updatePlayer()` must not call `IsKeyDown()`, `GetMousePosition()`, or other input APIs. Extend `PlayerInput`, then populate it in `readPlayerInput()`. This keeps simulation code testable and leaves room for controller or replay input.
@@ -102,7 +119,16 @@ Cross-room movement must eventually open only exact doorway cell pairs published
 
 ## Next implementation: target and hit feedback
 
-Add one stationary target on the test plane with a 2D circle collider and a small health value. Keep collision authoritative on X/Z and keep target rendering inside `PrototypeRenderer`.
+Recommended files:
+
+```text
+src/game/target.hpp
+src/game/target.cpp
+```
+
+Add one stationary target on the test plane with a 2D circle collider and a small health value. Keep collision authoritative on X/Z and keep target rendering inside `PrototypeRenderer`. Extend the projectile-pool simulation API as needed to deactivate hit slots without allocating or transferring collision ownership to the renderer.
+
+For each projectile segment, project the target center onto `previousPosition → position`, clamp the segment parameter to `[0, 1]`, and compare squared distance against `(target.radius + PROJECTILE_RADIUS)²`. Handle a zero-length segment without dividing by zero.
 
 Implementation order:
 
@@ -127,7 +153,7 @@ Acceptance criteria:
 - Lighting is diffuse-only and the player shadow is a projected decal rather than general occlusion.
 - The ground and debug grid cover a finite 80-by-80 area.
 - Gameplay constants are compiled into their owning modules.
-- Headless game tests currently cover projectile movement/interpolation, pool exhaustion/reuse, and fire cadence; player movement and rendering still lack dedicated tests.
+- Headless game tests currently cover projectile movement/interpolation, lifetime expiry, pool exhaustion/reuse, muzzle spawning, and fire cadence; player movement and rendering still lack dedicated tests.
 - Debug runtime builds use debugger-friendly optimization (`-Og` with GCC/Clang or `/O1` with MSVC) for `stalberg_game` and a bundled raylib while retaining debug symbols and assertions. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized instruction-by-instruction stepping is required. Use a separate Release build when profiling performance.
 
 ## Validation and debugging

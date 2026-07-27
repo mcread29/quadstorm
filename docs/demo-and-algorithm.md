@@ -10,7 +10,7 @@ Room-generation details are split into focused documents:
 - [`shooter-level-generation.md`](shooter-level-generation.md) — complete graph-first shooter pipeline.
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently implements the movement-and-aiming milestone on a flat test plane and does not yet consume generated layouts.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently implements movement, aiming, and pooled projectile firing on a flat test plane and does not yet consume generated layouts.
 
 ## Overview
 
@@ -406,11 +406,14 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/main.cpp` | Compose generation modules, process controls, update, and render the diagnostic demo |
 | `src/game/main.cpp` | Run the fixed-step 2.5D prototype loop and compose runtime modules |
 | `src/game/player.*` | Player movement, facing, and interpolated render state |
+| `src/game/weapon.*` | Fixed fire cadence and facing-marker muzzle spawning |
+| `src/game/projectile_pool.*` | Preallocated projectile slots, movement, lifetime, reuse, and interpolation |
 | `src/game/game_camera.*` | Orthographic follow camera, camera-relative controls, and ground projection |
 | `src/game/game_input.*` | Poll raylib input into simulation-facing `PlayerInput` data |
 | `src/game/prototype_renderer.*` | Own game GPU resources and render the current prototype scene |
 | `tests/grid_tests.cpp` | Headless grid topology and relaxation tests |
 | `tests/room_generation_tests.cpp` | Headless room connectivity, doorway, and determinism tests |
+| `tests/game_tests.cpp` | Headless projectile movement, interpolation, pool, and weapon-cadence tests |
 
 ## Compact pseudocode
 
@@ -464,7 +467,7 @@ function relaxOnce():
 
 ## Current scope and limitations
 
-The generation demo intentionally focuses on a single understandable patch. The separate game executable currently proves only movement, aiming, camera behavior, lighting, and timing. The generator does not currently implement:
+The generation demo intentionally focuses on a single understandable patch. The separate game executable currently proves movement, aiming, pooled projectile firing, camera behavior, lighting, and fixed-step timing. It does not yet consume generated layouts. The generator does not currently implement:
 
 - Infinite chunk generation.
 - Cross-chunk relaxation.
