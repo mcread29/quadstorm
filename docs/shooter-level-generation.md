@@ -4,7 +4,7 @@ This document describes the default `RoomGenerationMethod::ShooterLayout` pipeli
 
 For the input/output types and physical geometry contract, see [`room-generation-model.md`](room-generation-model.md). For candidate validation, scoring, deterministic retries, and tests, see [`layout-quality-and-testing.md`](layout-quality-and-testing.md).
 
-The separate `stalberg_game` runtime currently proves movement, aiming, and pooled projectile firing on a flat plane; it does not consume these layouts yet. Runtime milestones are tracked in [`game-roadmap.md`](game-roadmap.md), and [`game-handoff.md`](game-handoff.md) records the current implementation boundary.
+The separate `stalberg_game` runtime currently proves movement, aiming, pooled projectile firing, and swept target hits on a flat plane; it does not consume these layouts yet. Runtime milestones are tracked in [`game-roadmap.md`](game-roadmap.md), and [`game-handoff.md`](game-handoff.md) records the current implementation boundary.
 
 ## Goals
 

@@ -10,7 +10,7 @@ Room-generation details are split into focused documents:
 - [`shooter-level-generation.md`](shooter-level-generation.md) — complete graph-first shooter pipeline.
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently implements movement, aiming, and pooled projectile firing on a flat test plane and does not yet consume generated layouts.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently implements movement, aiming, pooled projectile firing, and a resettable swept-collision target on a flat test plane; it does not yet consume generated layouts.
 
 ## Overview
 
@@ -408,6 +408,7 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/game/player.*` | Player movement, facing, and interpolated render state |
 | `src/game/weapon.*` | Fixed fire cadence and facing-marker muzzle spawning |
 | `src/game/projectile_pool.*` | Preallocated projectile slots, movement, lifetime, reuse, and interpolation |
+| `src/game/target.*` | Target health/reset state and swept projectile-versus-circle collision |
 | `src/game/game_camera.*` | Orthographic follow camera, camera-relative controls, and ground projection |
 | `src/game/game_input.*` | Poll raylib input into simulation-facing `PlayerInput` data |
 | `src/game/prototype_renderer.*` | Own game GPU resources and render the current prototype scene |
@@ -467,7 +468,7 @@ function relaxOnce():
 
 ## Current scope and limitations
 
-The generation demo intentionally focuses on a single understandable patch. The separate game executable currently proves movement, aiming, pooled projectile firing, camera behavior, lighting, and fixed-step timing. It does not yet consume generated layouts. The generator does not currently implement:
+The generation demo intentionally focuses on a single understandable patch. The separate game executable currently proves movement, aiming, pooled projectile firing, swept target hits, hit feedback, camera behavior, lighting, and fixed-step timing. It does not yet consume generated layouts. The generator does not currently implement:
 
 - Infinite chunk generation.
 - Cross-chunk relaxation.

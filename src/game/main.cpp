@@ -3,6 +3,7 @@
 #include "player.hpp"
 #include "projectile_pool.hpp"
 #include "prototype_renderer.hpp"
+#include "target.hpp"
 #include "weapon.hpp"
 
 #include "raylib.h"
@@ -29,6 +30,7 @@ int main()
         Player previousPlayer = player;
         Weapon weapon;
         ProjectilePool projectiles;
+        Target target;
         Camera3D camera = makeGameCamera(player);
         Camera3D previousCamera = camera;
         Camera3D renderCamera = camera;
@@ -51,6 +53,7 @@ int main()
                 updateWeapon(weapon, projectiles, player,
                     input.fireHeld, FIXED_STEP_TIME);
                 projectiles.update(FIXED_STEP_TIME);
+                updateTarget(target, projectiles, FIXED_STEP_TIME);
                 updateGameCamera(camera, player, FIXED_STEP_TIME);
                 accumulatedTime -= FIXED_STEP_TIME;
             }
@@ -61,7 +64,7 @@ int main()
             renderCamera = interpolateGameCamera(
                 previousCamera, camera, interpolationAmount);
             renderer.draw(renderCamera, renderPlayer, aimPoint,
-                projectiles, interpolationAmount);
+                projectiles, target, interpolationAmount);
         }
     }
 

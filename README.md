@@ -13,7 +13,7 @@ As a separate pass, the room generator consumes a neutral cell graph with physic
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
-The repository now also contains the first two runtime slices of a top-down 2.5D roguelite bullet hell. The `stalberg_game` executable supports movement, aiming, and fixed-cadence pooled projectile firing over a flat test plane; generated-level integration follows after the core combat sandbox is proven.
+The repository now also contains the first three runtime slices of a top-down 2.5D roguelite bullet hell. The `stalberg_game` executable supports movement, aiming, fixed-cadence pooled projectile firing, and a resettable target with swept hit detection over a flat test plane; generated-level integration follows after the core combat sandbox is proven.
 
 ## Documentation
 
@@ -32,11 +32,11 @@ A system raylib installation is used when available. Otherwise CMake downloads r
 cmake -S . -B build
 cmake --build build -j
 ctest --test-dir build --output-on-failure
-./build/stalberg_game       # minimal 2.5D shooting prototype
+./build/stalberg_game       # minimal 2.5D target-practice prototype
 ./build/stalberg_grid       # procedural-generation diagnostic demo
 ```
 
-The shooting prototype is intentionally small: use **WASD** to move the sphere, the **mouse** to aim its facing marker across the XZ ground plane, and hold the **left mouse button** to fire. A 45-degree tilted orthographic camera follows the player. Simulation runs at a fixed 120 Hz; rendering interpolates player, camera, and projectile state. Firing uses a preallocated stable-slot pool and does not allocate per shot.
+The target-practice prototype is intentionally small: use **WASD** to move the sphere, the **mouse** to aim its facing marker across the XZ ground plane, and hold the **left mouse button** to fire. A five-health target flashes on swept projectile hits, shows a defeat cue, and resets after one second. A 45-degree tilted orthographic camera follows the player. Simulation runs at a fixed 120 Hz; rendering interpolates player, camera, and projectile state. Firing uses a preallocated stable-slot pool and does not allocate per shot.
 
 Debug builds apply debugger-friendly optimization to the game runtime and bundled raylib so interactive frame pacing remains representative while symbols and assertions stay enabled. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized stepping is required.
 
@@ -51,7 +51,7 @@ Grid generation and room generation are independent libraries. The room library 
 | Hold left mouse button | Fire |
 | Escape/window close | Exit |
 
-Projectile firing is complete. The next milestone adds a stationary target, swept collision, health/reset behavior, and hit feedback.
+Target collision and hit feedback are complete. The next milestone adds hard-coded arena walls, player collision/sliding, and projectile-wall collision.
 
 ## Generator demo controls
 

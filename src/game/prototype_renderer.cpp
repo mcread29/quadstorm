@@ -37,17 +37,20 @@ PrototypeRenderer::PrototypeRenderer()
     , playerModel(LoadModelFromMesh(GenMeshSphere(PLAYER_RADIUS, 16, 24)))
     , projectileModel(LoadModelFromMesh(
           GenMeshSphere(PROJECTILE_RADIUS, 8, 12)))
+    , targetModel(LoadModelFromMesh(GenMeshSphere(TARGET_RADIUS, 16, 24)))
     , shadowModel(LoadModelFromMesh(
           GenMeshCylinder(PLAYER_RADIUS * 1.05F, 0.01F, 32)))
 {
     groundModel.materials[0].shader = lightingShader;
     playerModel.materials[0].shader = lightingShader;
     projectileModel.materials[0].shader = lightingShader;
+    targetModel.materials[0].shader = lightingShader;
 }
 
 PrototypeRenderer::~PrototypeRenderer()
 {
     UnloadModel(shadowModel);
+    UnloadModel(targetModel);
     UnloadModel(projectileModel);
     UnloadModel(playerModel);
     UnloadModel(groundModel);
@@ -55,7 +58,7 @@ PrototypeRenderer::~PrototypeRenderer()
 }
 
 void PrototypeRenderer::draw(const Camera3D& camera, const Player& player,
-    Vector3 aimPoint, const ProjectilePool& projectiles,
+    Vector3 aimPoint, const ProjectilePool& projectiles, const Target& target,
     float interpolationAmount) const
 {
     BeginDrawing();
@@ -68,14 +71,26 @@ void PrototypeRenderer::draw(const Camera3D& camera, const Player& player,
     drawPlayerShadow(player);
     DrawSphere(Vector3 { aimPoint.x, 0.06F, aimPoint.z }, 0.12F,
         Color { 225, 241, 232, 210 });
+    drawTarget(target);
     drawProjectiles(projectiles, interpolationAmount);
     drawPlayer(player);
     EndMode3D();
 
-    DrawRectangle(16, 16, 420, 76, Color { 8, 25, 30, 220 });
-    DrawText("SHOOTING PROTOTYPE", 28, 27, 22, Color { 225, 241, 232, 255 });
+    DrawRectangle(16, 16, 530, 108, Color { 8, 25, 30, 220 });
+    DrawText("TARGET PRACTICE", 28, 27, 22, Color { 225, 241, 232, 255 });
     DrawText("WASD move  |  mouse aim  |  hold LMB fire", 28, 60, 17,
         Color { 151, 193, 190, 255 });
+    if (target.health > 0) {
+        DrawText(TextFormat("Target %i/%i  |  active %i  |  10/s  22u/s  r0.16",
+                     target.health, TARGET_MAX_HEALTH,
+                     static_cast<int>(projectiles.activeCount())),
+            28, 91, 17, Color { 225, 241, 232, 255 });
+    } else {
+        DrawText(TextFormat("Target resetting in %.1fs  |  active %i",
+                     target.resetRemaining,
+                     static_cast<int>(projectiles.activeCount())),
+            28, 91, 17, Color { 255, 197, 121, 255 });
+    }
     DrawFPS(GetScreenWidth() - 96, 20);
 
     EndDrawing();
@@ -94,6 +109,49 @@ void PrototypeRenderer::drawPlayerShadow(const Player& player) const
     DrawModelEx(shadowModel, shadowPosition, Vector3 { 0.0F, 1.0F, 0.0F },
         shadowAngle, Vector3 { 1.35F, 1.0F, 0.78F },
         Color { 7, 15, 17, 82 });
+}
+
+void PrototypeRenderer::drawTarget(const Target& target) const
+{
+    const Vector3 targetCenter {
+        target.position.x,
+        TARGET_RADIUS,
+        target.position.y
+    };
+    const Vector3 groundCenter {
+        target.position.x,
+        0.025F,
+        target.position.y
+    };
+
+    if (target.health <= 0) {
+        const float resetProgress = 1.0F
+            - target.resetRemaining / TARGET_RESET_DELAY;
+        DrawCircle3D(groundCenter,
+            TARGET_RADIUS * (0.35F + resetProgress * 0.9F),
+            Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+            Color { 255, 174, 92, 220 });
+        DrawSphereWires(targetCenter, TARGET_RADIUS * 0.4F,
+            8, 12, Color { 255, 210, 140, 150 });
+        return;
+    }
+
+    const float flashAmount = target.hitFlashRemaining
+        / TARGET_HIT_FLASH_DURATION;
+    const float targetScale = 1.0F + flashAmount * 0.18F;
+    const Color targetColor = flashAmount > 0.0F
+        ? Color { 255, 238, 194, 255 }
+        : Color { 207, 75, 72, 255 };
+
+    DrawCircle3D(groundCenter, TARGET_RADIUS * 1.05F,
+        Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+        Color { 91, 31, 35, 230 });
+    DrawModel(targetModel, targetCenter, targetScale, targetColor);
+    if (flashAmount > 0.0F) {
+        DrawSphereWires(targetCenter,
+            TARGET_RADIUS * (1.15F + (1.0F - flashAmount) * 0.45F),
+            8, 12, Color { 255, 245, 210, 210 });
+    }
 }
 
 void PrototypeRenderer::drawProjectiles(

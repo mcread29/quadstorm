@@ -4,7 +4,7 @@ This is the continuation guide for the `stalberg_game` runtime. Read [`game-road
 
 ## Current objective
 
-The projectile-firing milestone is complete. The next objective is **Milestone 3: target and hit feedback**—add one stationary circle target, swept projectile collision, health/reset behavior, and clear hit feedback. Do not combine that work with enemies, arena walls, generated geometry, or upgrades.
+The target-and-hit milestone is complete. The next objective is **Milestone 4: arena boundaries**—add hard-coded wall segments, player circle collision with sliding, and projectile-wall collision. Do not combine that work with enemies, generated geometry, audio, or upgrades.
 
 ## Current behavior
 
@@ -25,7 +25,7 @@ Controls:
 | Hold left mouse button | Fire |
 | Escape/window close | Exit |
 
-The runtime currently renders a flat test plane, an aimed sphere player, a mouse-ground marker, directional diffuse lighting, a projected blob shadow, and pooled projectiles with motion trails. Holding the left mouse button fires ten projectiles per second from the facing marker. The blob is intentionally not a shadow map; it is cheap and sufficient until real level geometry makes general occlusion valuable.
+The runtime currently renders a flat test plane, an aimed sphere player, a mouse-ground marker, directional diffuse lighting, a projected blob shadow, pooled projectiles with motion trails, and one stationary target at X/Z `(-5, -5)`. Holding the left mouse button fires ten projectiles per second from the facing marker. Swept hits damage the five-health target once per projectile, trigger a flash/expanding impact cue, and reset the defeated target after one second. The HUD publishes target health, active projectile count, speed, radius, and fire cadence.
 
 ## Runtime architecture
 
@@ -41,12 +41,13 @@ PlayerInput ──→ updatePlayer() ──→ Player
       │               └── pure of direct raylib input calls
       └──→ updateWeapon() ──→ Weapon + ProjectilePool
                                       │
-                                      └── fixed-step movement/lifetime
+                                      ├── fixed-step movement/lifetime
+                                      └──→ updateTarget() ──→ Target
 
 Player ──→ updateGameCamera() ──→ Camera3D
 Camera3D + keyboard/mouse ──→ readPlayerInput()
 
-Camera3D + interpolated Player/Projectiles ──→ PrototypeRenderer
+Camera3D + interpolated Player/Projectiles + Target ──→ PrototypeRenderer
 ```
 
 ### File map
@@ -56,7 +57,8 @@ Camera3D + interpolated Player/Projectiles ──→ PrototypeRenderer
 | `src/game/main.cpp` | Window lifetime, 120 Hz accumulator, interpolation, and composition |
 | `src/game/player.hpp/.cpp` | Player/Input state, movement, facing, and player interpolation |
 | `src/game/weapon.hpp/.cpp` | Fire cadence and muzzle spawning |
-| `src/game/projectile_pool.hpp/.cpp` | Preallocated projectile slots, fixed-step movement/lifetime, and interpolation |
+| `src/game/projectile_pool.hpp/.cpp` | Preallocated projectile slots, fixed-step movement/lifetime, reuse, and interpolation |
+| `src/game/target.hpp/.cpp` | Target health/reset state and swept projectile-versus-circle collision |
 | `src/game/game_camera.hpp/.cpp` | Camera creation/following, camera-relative movement, ground projection, and camera interpolation |
 | `src/game/game_input.hpp/.cpp` | All current polling of raylib keyboard and mouse input |
 | `src/game/prototype_renderer.hpp/.cpp` | GPU resource ownership and all prototype drawing |
@@ -101,7 +103,13 @@ Current tuning constants are:
 | Projectile lifetime | 1.8 seconds |
 | Projectile radius | 0.16 world units |
 
-Every fixed projectile update copies `position` to `previousPosition` before advancing. `main.cpp` updates the player, attempts weapon firing, advances projectiles, and then updates the camera. A newly spawned projectile therefore has a valid muzzle-to-first-step segment immediately. Preserve that segment for swept collision; do not replace collision with a current-position overlap test.
+Every fixed projectile update copies `position` to `previousPosition` before advancing. `main.cpp` updates the player, attempts weapon firing, advances projectiles, resolves target hits, and then updates the camera. A newly spawned projectile therefore has a valid muzzle-to-first-step segment immediately. Preserve that segment for future wall collision; do not replace swept collision with a current-position overlap test.
+
+### Target contract
+
+The target is fixed at X/Z `(-5, -5)` with radius `0.85`, five health, a `0.16` second hit flash, and a one-second reset delay. `updateTarget()` projects the target center onto each active projectile's clamped previous-to-current segment and compares squared distance against the combined target/projectile radius. Zero-length segments are handled without division.
+
+A hit immediately deactivates the projectile and removes one health. Processing stops when a hit defeats the target, so later slots in that fixed step remain active. While defeated, the target does not collide; it resets at the same position with full health after the delay. Target collision has no dedicated headless coverage by explicit request, so preserve and manually verify direct hits, fast crossing hits, misses, and single-hit behavior when changing it.
 
 ### Input boundary
 
@@ -113,47 +121,45 @@ Gameplay code does not own raylib `Model` or `Shader` handles. `PrototypeRendere
 
 ### Procedural generation boundary
 
-The game target does not yet link the generator libraries. Do not integrate them during the target-and-hit milestone. Later, the level runtime must retain `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` together because exact floor polygons and doorway segments are not all present in `RoomLayout` alone.
+The game target does not yet link the generator libraries. Do not integrate them during the arena-boundary milestone. Later, the level runtime must retain `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` together because exact floor polygons and doorway segments are not all present in `RoomLayout` alone.
 
 Cross-room movement must eventually open only exact doorway cell pairs published by `RoomLayout`; physical contact between regions is not automatically traversable.
 
-## Next implementation: target and hit feedback
+## Next implementation: arena boundaries
 
 Recommended files:
 
 ```text
-src/game/target.hpp
-src/game/target.cpp
+src/game/arena.hpp
+src/game/arena.cpp
 ```
 
-Add one stationary target on the test plane with a 2D circle collider and a small health value. Keep collision authoritative on X/Z and keep target rendering inside `PrototypeRenderer`. Extend the projectile-pool simulation API as needed to deactivate hit slots without allocating or transferring collision ownership to the renderer.
-
-For each projectile segment, project the target center onto `previousPosition → position`, clamp the segment parameter to `[0, 1]`, and compare squared distance against `(target.radius + PROJECTILE_RADIUS)²`. Handle a zero-length segment without dividing by zero.
+Define a small immutable array of 2D wall segments around the existing test area. Keep wall geometry and collision authoritative on X/Z; convert segments to wall meshes or primitives only in `PrototypeRenderer`.
 
 Implementation order:
 
-1. Add a minimal target simulation state containing position, radius, health, and hit-flash time.
-2. Test every active projectile's `previousPosition → position` segment against the target circle after projectile movement.
-3. Deactivate a projectile on its first hit and decrement target health once.
-4. Render the target and a short, unambiguous hit flash or impact cue.
-5. Reset the target after health reaches zero so the prototype remains continuously testable.
-6. Add headless tests for direct hits, misses, tangent/near-tangent shots, fast swept hits, and single-hit deactivation.
+1. Define `WallSegment` start/end points and one hard-coded closed arena.
+2. Preserve the player's pre-movement position, resolve its `PLAYER_RADIUS` circle against walls after `updatePlayer()`, and remove only velocity into each contact normal so movement slides along walls.
+3. Resolve corners iteratively with a small fixed pass count rather than allocating contact collections.
+4. Perform swept moving-projectile-versus-segment collision, including wall endpoints, after projectile movement and before target collision; deactivate a projectile at its first wall hit.
+5. Render wall geometry that matches the exact simulation segments.
+6. Add focused collision tests for face contact, endpoint contact, corners, sliding, and fast projectiles.
 
 Acceptance criteria:
 
-- Fast projectiles cannot tunnel through the target.
-- Each projectile damages the target at most once.
-- Hits and target defeat/reset are visually unambiguous.
-- Collision behavior remains fixed-step and independent of render rate.
-- Build, tests, and graphical smoke checks pass.
+- The player cannot leave the arena or penetrate corners.
+- Movement slides smoothly along walls instead of stopping tangential motion.
+- Fast projectiles deactivate on walls without tunneling.
+- Wall visuals and authoritative collision segments agree.
+- Existing target behavior, build, tests, and graphical smoke checks pass.
 
 ## Known limitations
 
-- There is no target, collision, enemy, audio, generated-level rendering, or run state yet.
+- There are no arena boundaries, player-wall collision, projectile-wall collision, enemies, audio, generated-level rendering, or run state yet.
 - Lighting is diffuse-only and the player shadow is a projected decal rather than general occlusion.
 - The ground and debug grid cover a finite 80-by-80 area.
 - Gameplay constants are compiled into their owning modules.
-- Headless game tests currently cover projectile movement/interpolation, lifetime expiry, pool exhaustion/reuse, muzzle spawning, and fire cadence; player movement and rendering still lack dedicated tests.
+- Headless game tests currently cover projectile movement/interpolation, lifetime expiry, pool exhaustion/reuse, muzzle spawning, and fire cadence. Target collision, player movement, and rendering lack dedicated tests.
 - Debug runtime builds use debugger-friendly optimization (`-Og` with GCC/Clang or `/O1` with MSVC) for `stalberg_game` and a bundled raylib while retaining debug symbols and assertions. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized instruction-by-instruction stepping is required. Use a separate Release build when profiling performance.
 
 ## Validation and debugging
@@ -181,7 +187,7 @@ DISPLAY=:0 ./build/stalberg_game
 Useful runtime evidence in raylib logs:
 
 - Custom vertex and fragment shaders compile successfully.
-- Ground, player, projectile, and shadow VAOs upload successfully.
+- Ground, player, projectile, target, and shadow VAOs upload successfully.
 - Models unload before the custom shader when the window closes.
 
 When investigating performance, still configure and compare a Release build rather than drawing final conclusions from a Debug build:

@@ -375,7 +375,7 @@ Callers should check `getRoomCount()` before constructing gameplay state.
 
 ## Test organization
 
-CTest currently builds three headless test executables: two for generation and one for the separate `stalberg_game` simulation modules. Rendering remains covered by graphical smoke runs.
+CTest currently builds three headless test executables: two for generation and one for the separate `stalberg_game` projectile/weapon modules. Target collision and rendering currently rely on graphical smoke runs; target headless tests were explicitly deferred for Milestone 3.
 
 | Test | Coverage |
 |---|---|

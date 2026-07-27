@@ -45,16 +45,21 @@ The runtime now provides:
 
 Acceptance check: the player can move and aim while holding fire; projectile spacing and speed remain stable at different render rates, and expired projectiles reuse pool capacity without allocation.
 
-## Next milestones
+### Milestone 3: target and hit feedback — complete
 
-### Milestone 3: target and hit feedback
+The runtime now provides:
 
-- Add a stationary target with a circle collider and health.
-- Add swept projectile-versus-circle collision.
-- Add hit flash, impact effect, and target reset.
-- Display enough diagnostics to tune projectile speed, radius, and fire rate.
+- One stationary five-health target with a 2D circle collider.
+- Swept projectile-segment collision including both target and projectile radii.
+- Single-hit projectile deactivation and damage.
+- A target hit flash, expanding impact cue, defeat state, and automatic reset.
+- HUD diagnostics for target health, active projectile count, speed, radius, and fire rate.
+
+Headless target-collision tests were explicitly deferred for this milestone; existing projectile and weapon tests continue to pass.
 
 Acceptance check: fast projectiles cannot tunnel through the target, and hits feel unambiguous.
+
+## Next milestones
 
 ### Milestone 4: arena boundaries
 

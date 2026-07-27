@@ -84,6 +84,7 @@ add_executable(stalberg_game
     src/game/player.cpp
     src/game/projectile_pool.cpp
     src/game/prototype_renderer.cpp
+    src/game/target.cpp
     src/game/weapon.cpp
 )
 target_compile_features(stalberg_game PRIVATE cxx_std_20)
