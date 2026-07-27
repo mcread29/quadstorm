@@ -4,6 +4,8 @@ This document describes the default `RoomGenerationMethod::ShooterLayout` pipeli
 
 For the input/output types and physical geometry contract, see [`room-generation-model.md`](room-generation-model.md). For candidate validation, scoring, deterministic retries, and tests, see [`layout-quality-and-testing.md`](layout-quality-and-testing.md).
 
+The separate `stalberg_game` runtime does not consume these layouts yet. Runtime milestones are tracked in [`game-roadmap.md`](game-roadmap.md), and [`game-handoff.md`](game-handoff.md) records the current implementation boundary.
+
 ## Goals
 
 The shooter method is designed for a 3D twin-stick game whose simulation remains planar. It aims to produce:

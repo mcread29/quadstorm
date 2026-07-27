@@ -1,0 +1,150 @@
+# Game Roadmap
+
+This document tracks the path from the procedural-generation demo to a top-down 2.5D roguelite bullet hell. The immediate rule is to finish one small, playable capability at a time instead of expanding every system in parallel.
+
+For the current implementation state and continuation instructions, see [`game-handoff.md`](game-handoff.md).
+
+## Product direction
+
+- Render a three-dimensional world with a tilted orthographic camera.
+- Keep authoritative gameplay on the horizontal XZ plane; world Y represents visual height.
+- Use mouse and keyboard twin-stick controls first, with controller support later.
+- Preserve `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` as the procedural level compiler.
+- Build and validate combat in a simple test plane before consuming generated levels.
+- Keep the simulation deterministic enough for seeded runs and reproducible debugging.
+
+## Current status
+
+### Milestone 1: movement prototype — complete
+
+The `stalberg_game` executable currently provides:
+
+- A flat XZ ground plane.
+- A sphere player with accelerated, normalized WASD movement.
+- Camera-relative controls.
+- Mouse aiming through screen-ray/ground-plane intersection.
+- A 45-degree elevation, 45-degree heading orthographic follow camera.
+- A directional diffuse-light shader.
+- A lightweight projected player shadow.
+- A fixed 120 Hz simulation with interpolated rendering.
+- Cached ground, player, and shadow meshes.
+
+Acceptance check: the player can move smoothly in every direction, aim independently, and remain readable under the follow camera.
+
+## Next milestones
+
+### Milestone 2: projectile firing
+
+Add only the smallest complete shooting behavior:
+
+- Add `fireHeld` to `PlayerInput` and bind it to the left mouse button.
+- Add a weapon state containing its fire cooldown.
+- Add a preallocated projectile pool with stable slots.
+- Spawn projectiles from the end of the player's facing marker.
+- Simulate position, velocity, range/lifetime, and deactivation at the fixed timestep.
+- Render active projectiles and a minimal trail or motion cue.
+- Keep firing cadence independent of render frame rate.
+
+Do not add enemies, damage, upgrades, walls, or a generic weapon-definition framework in this milestone.
+
+Acceptance check: the player can move and aim while holding fire; projectile spacing and speed remain stable at different render rates, and expired projectiles reuse pool capacity without allocation.
+
+### Milestone 3: target and hit feedback
+
+- Add a stationary target with a circle collider and health.
+- Add swept projectile-versus-circle collision.
+- Add hit flash, impact effect, and target reset.
+- Display enough diagnostics to tune projectile speed, radius, and fire rate.
+
+Acceptance check: fast projectiles cannot tunnel through the target, and hits feel unambiguous.
+
+### Milestone 4: arena boundaries
+
+- Add simple wall segments around a hard-coded arena.
+- Add player circle-versus-segment collision and sliding.
+- Add projectile collision with walls.
+- Keep exact 2D collision authoritative; 3D meshes remain visual.
+
+Acceptance check: movement remains smooth along corners and walls, and neither player nor projectiles escape the arena.
+
+### Milestone 5: first enemy
+
+- Add one enemy that moves toward or around the player.
+- Add one readable enemy projectile pattern.
+- Add player health, damage, invulnerability timing, death, and restart.
+- Add minimal combat audio and effects.
+
+Acceptance check: the hard-coded arena supports a repeatable 60–90 second survival encounter.
+
+### Milestone 6: generated level runtime
+
+Create an immutable runtime level package retaining the related generation artifacts:
+
+```text
+StalbergGrid
+    → DualGrid
+    → RoomGrid
+    → RoomLayout
+    → render meshes + collision + navigation + doors
+```
+
+- Triangulate assigned `DualCell` polygons into floor meshes.
+- Extrude closed dual boundaries into walls.
+- Open only doorway pairs published by `RoomLayout`.
+- Build door-aware traversal and navigation data.
+- Spawn the player in the generated start room.
+
+Acceptance check: the player can traverse a generated level through every authorized doorway without crossing closed contacts or leaving the floor.
+
+### Milestone 7: encounters and room progression
+
+- Add room states: dormant, entered, locked, fighting, cleared, rewarded.
+- Filter the generator's enemy-spawn candidates for gameplay constraints.
+- Lock doors during encounters and reopen them after clearing.
+- Treat generated room roles as structural hints; assign encounter and reward content in a separate pass.
+
+Acceptance check: a generated floor can be entered at Start, cleared room by room, and completed at Exit.
+
+### Milestone 8: roguelite run
+
+- Compose multiple floors into one seeded run.
+- Add reward choices and a small build-modifier system.
+- Split random streams for topology, encounters, placement, rewards, and cosmetics.
+- Add difficulty escalation, a boss, death, victory, and immediate restart.
+
+Acceptance check: the game supports a complete short run with meaningful build variation.
+
+## Deferred systems
+
+Do not build these until a milestone requires them:
+
+- ECS or generic scene graph.
+- Scripting language for projectile patterns.
+- General-purpose asset manager.
+- Meta-progression and permanent unlock trees.
+- Save-anywhere support.
+- Real-time shadow maps.
+- Infinite/chunked procedural levels.
+- Network or replay protocol guarantees.
+
+## Engineering gates
+
+After every change:
+
+```sh
+cmake -S . -B build
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+```
+
+For graphical smoke testing without a visible desktop:
+
+```sh
+xvfb-run -a ./build/stalberg_game
+```
+
+For interactive testing on the local X display used during development:
+
+```sh
+DISPLAY=:0 ./build/stalberg_game
+```

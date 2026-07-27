@@ -375,7 +375,7 @@ Callers should check `getRoomCount()` before constructing gameplay state.
 
 ## Test organization
 
-CTest builds two headless executables:
+CTest currently builds two headless generator executables. The separate `stalberg_game` runtime has graphical smoke coverage only; dedicated simulation tests are planned alongside projectile work as described in [`game-handoff.md`](game-handoff.md).
 
 | Test | Coverage |
 |---|---|

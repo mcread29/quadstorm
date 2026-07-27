@@ -1,4 +1,4 @@
-# Stålberg-style quad grid (raylib)
+# Stålberg grid and 2.5D game prototype (raylib)
 
 A compact C++ implementation of the grid-generation technique associated with Oskar Stålberg's *Townscaper*:
 
@@ -13,8 +13,12 @@ As a separate pass, the room generator consumes a neutral cell graph with physic
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
+The repository now also contains the first runtime slice of a top-down 2.5D roguelite bullet hell. The `stalberg_game` executable currently focuses only on movement and aiming over a flat test plane; generated-level integration follows after the core combat sandbox is proven.
+
 ## Documentation
 
+- [`docs/game-roadmap.md`](docs/game-roadmap.md) — ordered milestones from the movement prototype through a complete roguelite run.
+- [`docs/game-handoff.md`](docs/game-handoff.md) — current runtime architecture, decisions, limitations, validation, and exact next work.
 - [`docs/demo-and-algorithm.md`](docs/demo-and-algorithm.md) — base mesh mathematics, topology, relaxation, rendering, and source map.
 - [`docs/room-generation-model.md`](docs/room-generation-model.md) — neutral physical input, output API, roles, doorways, and gameplay integration contract.
 - [`docs/shooter-level-generation.md`](docs/shooter-level-generation.md) — complete graph-first arena, route, corridor, entrance, doorway, and tactical-annotation pipeline.
@@ -32,11 +36,21 @@ ctest --test-dir build --output-on-failure
 ./build/stalberg_grid       # procedural-generation diagnostic demo
 ```
 
-The movement prototype is intentionally small: use **WASD** to move the sphere and the **mouse** to aim its facing marker across the XZ ground plane. A tilted orthographic camera follows the player.
+The movement prototype is intentionally small: use **WASD** to move the sphere and the **mouse** to aim its facing marker across the XZ ground plane. A 45-degree tilted orthographic camera follows the player. Simulation runs at a fixed 120 Hz and rendering interpolates player and camera state.
 
 Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Each module has its own headless test executable.
 
-## Controls
+## Game prototype controls
+
+| Input | Action |
+|---|---|
+| WASD | Move relative to the camera |
+| Mouse | Aim on the ground plane |
+| Escape/window close | Exit |
+
+Shooting is the next milestone and is not implemented yet.
+
+## Generator demo controls
 
 | Input | Action |
 |---|---|
@@ -62,6 +76,6 @@ For a remote machine, use one of these options:
 
 - Connect with X11 forwarding: `ssh -X user@host`, then run the application. The local machine must have an X server.
 - Use a VNC/RDP desktop session and launch it from a terminal there.
-- For a non-visible CI smoke test only: `xvfb-run -a ./build/stalberg_grid`.
+- For a non-visible CI smoke test only: `xvfb-run -a ./build/stalberg_game` or `xvfb-run -a ./build/stalberg_grid`.
 
-`xvfb-run` supplies a virtual display, so it verifies that the application starts but does not show an interactive window.
+`xvfb-run` supplies a virtual display, so it verifies that an application starts but does not show an interactive window. The development workstation used for the prototype can launch interactively with `DISPLAY=:0 ./build/stalberg_game`.

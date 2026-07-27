@@ -10,6 +10,8 @@ Room-generation details are split into focused documents:
 - [`shooter-level-generation.md`](shooter-level-generation.md) — complete graph-first shooter pipeline.
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
 
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently implements the movement-and-aiming milestone on a flat test plane and does not yet consume generated layouts.
+
 ## Overview
 
 The program generates an irregular mesh made entirely from quadrilateral faces. It starts from a regular triangular lattice inside a hexagonal boundary, randomly merges neighboring triangles, subdivides every remaining face into quads, and then smooths the result.
@@ -56,6 +58,7 @@ Configure and build the project with CMake:
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ./build/stalberg_grid
+./build/stalberg_game
 ```
 
 CMake uses an installed raylib package when available. Otherwise it downloads and builds raylib 5.5 through `FetchContent`.
@@ -400,7 +403,12 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/rooms/room_layout.hpp` | Read-only rooms, physical statistics, roles, tactical candidates, assignments, doorways, and quality metadata |
 | `src/integration/room_grid_adapter.cpp` | Translate `StalbergGrid` and select its hex-boundary entrances |
 | `src/grid_renderer.cpp` / `drawGrid()` | Render room fills, connected rounded boundaries, and dual centers |
-| `src/main.cpp` | Compose generation modules, process controls, update, and render |
+| `src/main.cpp` | Compose generation modules, process controls, update, and render the diagnostic demo |
+| `src/game/main.cpp` | Run the fixed-step 2.5D prototype loop and compose runtime modules |
+| `src/game/player.*` | Player movement, facing, and interpolated render state |
+| `src/game/game_camera.*` | Orthographic follow camera, camera-relative controls, and ground projection |
+| `src/game/game_input.*` | Poll raylib input into simulation-facing `PlayerInput` data |
+| `src/game/prototype_renderer.*` | Own game GPU resources and render the current prototype scene |
 | `tests/grid_tests.cpp` | Headless grid topology and relaxation tests |
 | `tests/room_generation_tests.cpp` | Headless room connectivity, doorway, and determinism tests |
 
@@ -456,7 +464,7 @@ function relaxOnce():
 
 ## Current scope and limitations
 
-The demo intentionally focuses on a single understandable patch. It does not currently implement:
+The generation demo intentionally focuses on a single understandable patch. The separate game executable currently proves only movement, aiming, camera behavior, lighting, and timing. The generator does not currently implement:
 
 - Infinite chunk generation.
 - Cross-chunk relaxation.
