@@ -1085,6 +1085,55 @@ struct ShooterGenerationResult {
     bool complete = true;
 };
 
+enum class ArenaDistribution {
+    Dispersed,
+    Landmark,
+    Cluster
+};
+
+struct ArenaDistributionBrief {
+    ArenaDistribution distribution = ArenaDistribution::Dispersed;
+    std::size_t firstFeaturedArena = 0;
+    std::size_t featuredArenaCount = 0;
+};
+
+ArenaDistributionBrief chooseArenaDistribution(std::size_t buildableCellCount,
+    std::size_t arenaCount,
+    std::uint32_t requestedSeed,
+    std::uint32_t generationSeed)
+{
+    // Compact maps need every arena placement to carry mission structure. Larger
+    // maps can spend some of that freedom on an occasional landmark or district.
+    if (buildableCellCount < 160 || arenaCount < 5) {
+        return {};
+    }
+
+    const float choice = unitNoise(requestedSeed,
+        0x4152454e41545950ULL ^ buildableCellCount);
+    if (choice < 0.45F) {
+        return {};
+    }
+
+    if (choice < 0.725F) {
+        const std::size_t available = arenaCount - 2;
+        const std::size_t offset = std::min<std::size_t>(
+            static_cast<std::size_t>(unitNoise(generationSeed,
+                0x4c414e444d41524bULL)
+                * static_cast<float>(available)),
+            available - 1);
+        return { ArenaDistribution::Landmark, 2 + offset, 1 };
+    }
+
+    const std::size_t clusterSize = arenaCount >= 7 ? 3 : 2;
+    const std::size_t availableStarts = arenaCount - clusterSize - 1;
+    const std::size_t offset = std::min<std::size_t>(
+        static_cast<std::size_t>(unitNoise(generationSeed,
+            0x434c555354455253ULL)
+            * static_cast<float>(availableStarts)),
+        availableStarts - 1);
+    return { ArenaDistribution::Cluster, 2 + offset, clusterSize };
+}
+
 void addRequiredDoorway(
     std::vector<std::pair<int, int>>& requiredDoorways, int first, int second)
 {
@@ -1148,8 +1197,13 @@ std::vector<CellIndex> growArenaRoom(
     inRoom[seedCell] = true;
     std::vector<CellIndex> frontier;
     const auto addFrontier = [&](CellIndex cell) {
+        const bool protectsAnotherSeed = std::ranges::any_of(
+            adjacency[cell], [&](CellIndex neighbor) {
+                return reservedSeeds[neighbor] && neighbor != seedCell;
+            });
         if (buildable[cell] && assignments[cell] == EMPTY_CELL && !inRoom[cell]
-            && !inFrontier[cell] && (!reservedSeeds[cell] || cell == seedCell)) {
+            && !inFrontier[cell] && (!reservedSeeds[cell] || cell == seedCell)
+            && !protectsAnotherSeed) {
             frontier.push_back(cell);
             inFrontier[cell] = true;
         }
@@ -1582,6 +1636,7 @@ ShooterGenerationResult generateShooterLayout(
     const std::vector<CellIndex>& buildableCells,
     CellIndex center,
     const EntranceSelection& entranceSelection,
+    std::uint32_t requestedSeed,
     std::uint32_t generationSeed,
     std::mt19937& random,
     std::vector<int>& assignments,
@@ -1632,13 +1687,38 @@ ShooterGenerationResult generateShooterLayout(
         2, buildableCells.size() / 8);
     const std::size_t desiredArenaCount = std::min(maximumArenaCount,
         std::clamp<std::size_t>(buildableCells.size() / 55, 4, 20));
+    const float averageTarget = static_cast<float>(buildableCells.size())
+        * 0.36F / static_cast<float>(std::max<std::size_t>(desiredArenaCount, 1));
+    const float cellScale = estimateCellScale(grid, adjacency, buildable);
+    const ArenaDistributionBrief distribution = chooseArenaDistribution(
+        buildableCells.size(), desiredArenaCount, requestedSeed, generationSeed);
+
     std::vector<CellIndex> requestedSeeds { result.startCell };
     if (result.exitCell != result.startCell) {
         requestedSeeds.push_back(result.exitCell);
     }
     while (requestedSeeds.size() < desiredArenaCount) {
         CellIndex selected = assignments.size();
-        float selectedScore = -1.0F;
+        float selectedScore = -std::numeric_limits<float>::infinity();
+        const std::size_t arenaIndex = requestedSeeds.size();
+        const bool clusteredSatellite
+            = distribution.distribution == ArenaDistribution::Cluster
+            && arenaIndex > distribution.firstFeaturedArena
+            && arenaIndex < distribution.firstFeaturedArena
+                    + distribution.featuredArenaCount;
+        const CellIndex clusterAnchor = clusteredSatellite
+            ? requestedSeeds[distribution.firstFeaturedArena]
+            : assignments.size();
+        const float nominalRadius
+            = cellScale * std::sqrt(std::max(averageTarget, 4.0F)
+                / std::numbers::pi_v<float>);
+        const float preferredClusterDistance
+            = nominalRadius * 1.75F + cellScale * 0.5F;
+        const float minimumClusterDistance
+            = nominalRadius * 1.35F + cellScale * 0.5F;
+        const float maximumClusterDistance
+            = nominalRadius * 2.35F + cellScale * 0.75F;
+
         for (const CellIndex candidate : buildableCells) {
             if (std::ranges::find(requestedSeeds, candidate) != requestedSeeds.end()) {
                 continue;
@@ -1649,11 +1729,62 @@ ShooterGenerationResult generateShooterLayout(
                     distance(grid.cells[seed].position, grid.cells[candidate].position));
             }
             const float noise = unitNoise(generationSeed,
-                requestedSeeds.size() * 104729U + candidate);
-            const float score = nearestDistance * (0.9F + noise * 0.2F);
-            if (score > selectedScore) {
+                arenaIndex * 104729U + candidate);
+            float score = nearestDistance * (0.9F + noise * 0.2F);
+            if (clusteredSatellite) {
+                const float anchorDistance = distance(
+                    grid.cells[clusterAnchor].position,
+                    grid.cells[candidate].position);
+                float distanceFromOtherSeeds = std::numeric_limits<float>::infinity();
+                for (std::size_t index = 0; index < requestedSeeds.size(); ++index) {
+                    if (index != distribution.firstFeaturedArena) {
+                        distanceFromOtherSeeds = std::min(distanceFromOtherSeeds,
+                            distance(grid.cells[requestedSeeds[index]].position,
+                                grid.cells[candidate].position));
+                    }
+                }
+                if (anchorDistance < minimumClusterDistance
+                    || anchorDistance > maximumClusterDistance
+                    || distanceFromOtherSeeds < minimumClusterDistance) {
+                    continue;
+                }
+                score = -std::abs(anchorDistance - preferredClusterDistance)
+                    + distanceFromOtherSeeds * 0.12F
+                    + grid.cells[candidate].clearance * 0.2F
+                    + noise * cellScale * 0.35F;
+            }
+            if (score > selectedScore
+                || (score == selectedScore && candidate < selected)) {
                 selected = candidate;
                 selectedScore = score;
+            }
+        }
+
+        // A narrow or oddly shaped map may not contain the desired cluster
+        // annulus. Fall back to normal farthest-point placement rather than
+        // sacrificing a required arena.
+        if (selected == assignments.size() && clusteredSatellite) {
+            selectedScore = -1.0F;
+            for (const CellIndex candidate : buildableCells) {
+                if (std::ranges::find(requestedSeeds, candidate)
+                    != requestedSeeds.end()) {
+                    continue;
+                }
+                float nearestDistance = std::numeric_limits<float>::infinity();
+                for (const CellIndex seed : requestedSeeds) {
+                    nearestDistance = std::min(nearestDistance,
+                        distance(grid.cells[seed].position,
+                            grid.cells[candidate].position));
+                }
+                const float noise = unitNoise(generationSeed,
+                    arenaIndex * 104729U + candidate);
+                const float score
+                    = nearestDistance * (0.9F + noise * 0.2F);
+                if (score > selectedScore
+                    || (score == selectedScore && candidate < selected)) {
+                    selected = candidate;
+                    selectedScore = score;
+                }
             }
         }
         if (selected == assignments.size()) {
@@ -1664,8 +1795,6 @@ ShooterGenerationResult generateShooterLayout(
 
     const auto plannedConnections
         = planArenaConnections(grid, requestedSeeds, generationSeed);
-    const float averageTarget = static_cast<float>(buildableCells.size())
-        * 0.36F / static_cast<float>(std::max<std::size_t>(requestedSeeds.size(), 1));
     // A passage shorter than an arena's approximate diameter is a doorway
     // transition, not another room. Keep one explicit connector for shooter
     // structure, then reserve additional connector identities for long routes.
@@ -1680,8 +1809,32 @@ ShooterGenerationResult generateShooterLayout(
     std::vector<CellIndex> arenaSeeds;
     std::uniform_real_distribution<float> sizeVariation(0.82F, 1.18F);
     for (std::size_t index = 0; index < requestedSeeds.size(); ++index) {
+        const bool featured = index >= distribution.firstFeaturedArena
+            && index < distribution.firstFeaturedArena
+                    + distribution.featuredArenaCount;
+        float featureScale = 1.0F;
+        std::size_t maximumTarget = 60;
+        if (distribution.distribution == ArenaDistribution::Landmark) {
+            featureScale = featured
+                ? 2.0F
+                : static_cast<float>(requestedSeeds.size() - 2)
+                    / static_cast<float>(requestedSeeds.size() - 1);
+            maximumTarget = featured ? 96 : 60;
+        } else if (distribution.distribution == ArenaDistribution::Cluster) {
+            constexpr float clusterScale = 1.2F;
+            featureScale = featured
+                ? clusterScale
+                : (static_cast<float>(requestedSeeds.size())
+                        - clusterScale
+                            * static_cast<float>(distribution.featuredArenaCount))
+                    / static_cast<float>(requestedSeeds.size()
+                        - distribution.featuredArenaCount);
+        }
         const std::size_t targetSize = std::clamp<std::size_t>(
-            static_cast<std::size_t>(averageTarget * sizeVariation(random)), 4, 60);
+            static_cast<std::size_t>(averageTarget * featureScale
+                * sizeVariation(random)),
+            4,
+            maximumTarget);
         const std::vector<CellIndex> roomCells = growArenaRoom(grid,
             adjacency,
             buildable,
@@ -2581,6 +2734,7 @@ RoomLayout RoomGenerator::generateCandidate(const RoomGrid& grid,
             buildableCells,
             center,
             entranceSelection,
+            requestedSeed,
             generationSeed,
             random,
             cellAssignments,

@@ -124,7 +124,7 @@ desiredArenaCount = min(maximumArenaCount, clamp(B / 55, 4, 20))
 
 Integer division is used. The second cap leaves room for corridor regions and entrance spurs while staying below the global 64-room limit.
 
-Additional seeds are selected by noise-weighted farthest-point sampling. For each buildable candidate:
+Most additional seeds are selected by noise-weighted farthest-point sampling. For each buildable candidate:
 
 ```text
 nearestDistance = distance to the nearest already selected seed
@@ -133,7 +133,15 @@ score = nearestDistance × (0.9 + 0.2 × deterministicNoise)
 
 The highest score wins. The distance term distributes arenas across the available patch; the small noise term varies composition without overpowering spatial separation.
 
-Every requested seed is reserved before room growth so another arena cannot consume it.
+Maps with at least 160 buildable cells and five arenas can instead receive one deterministic density feature. The requested room seed fixes the feature type across all best-of-N candidates:
+
+- **Dispersed** (45%): retain normal farthest-point placement and sizing.
+- **Landmark** (27.5%): make one non-start/exit arena roughly twice the normal target size.
+- **Cluster** (27.5%): place two substantial arenas together, or three when at least seven arenas fit, in an annulus around a normally distributed anchor.
+
+Cluster satellites prefer a center spacing based on the estimated physical cell scale and normal arena radius. They still keep enough separation for distinct connected footprints and walls. If the map has no usable candidate in that annulus, seed placement falls back to farthest-point sampling rather than failing a required arena.
+
+Every requested seed is reserved before room growth. Growth also protects the one-cell ring around every other reserved seed, preventing an earlier large or clustered arena from enclosing a later seed.
 
 ## Stage 5: plan the abstract arena graph
 
@@ -183,8 +191,10 @@ The arena budget targets 36% of buildable cells before corridors and entrance sp
 ```text
 averageTarget = 0.36 × B / requestedArenaCount
 variation = uniform random value in [0.82, 1.18]
-targetSize = clamp(integer(averageTarget × variation), 4, 60)
+targetSize = clamp(integer(averageTarget × featureWeight × variation), 4, limit)
 ```
+
+Normal arenas use weight `1`. A landmark uses weight `2` and may target up to 96 cells. Cluster members use weight `1.2`. Non-featured arena weights are reduced so the sum of all feature weights still equals the requested arena count; density features redistribute the same aggregate arena budget instead of simply removing negative space everywhere.
 
 `growArenaRoom()` begins with the seed and repeatedly chooses one connected frontier cell. Candidate score:
 

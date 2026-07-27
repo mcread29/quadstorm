@@ -79,6 +79,12 @@ Tests verify that:
 - Three-, four-, five-, and six-side counts are strictly descending, consistent with the expected combination weighting. The test does not apply a statistical tolerance to the exact `20:15:6:1` ratio.
 - Candidate-count changes do not change the entrance brief.
 
+## Fixed shooter density mode
+
+On maps large enough to support it, the requested room seed also fixes whether the shooter layout is dispersed, contains one landmark arena, or attempts a two-to-three-arena cluster. This choice does not use the candidate variant seed, so best-of-N scoring cannot compare a requested dense layout against ordinary dispersed variants. Candidate variants may change which non-start/exit arena is featured and the exact cluster placement.
+
+Compact maps always use dispersed placement. A clustered candidate that cannot find a safe local satellite position falls back to ordinary farthest-point placement, preserving mission validity rather than forcing density into unsupported geometry.
+
 ## Candidate budget and constrained-grid retries
 
 Public options default to:
@@ -453,6 +459,8 @@ It then verifies identical assignments and quality score.
 - Start-to-exit graph distance of at least three.
 
 `largeShooterLayoutUsesDirectArenaLinks()` checks that a representative radius 14 layout uses direct arena links, keeps connector count to at most half its arena count, and publishes at most one structural two-cell connector.
+
+`shooterLayoutsCanCreateDenseAreas()` uses fixed radius 14 seeds to verify both density feature forms: a landmark arena at least 1.75 times the median arena size, and a three-arena cluster whose substantial members are joined locally within nine average cell-edge lengths.
 
 Additional regressions cover:
 

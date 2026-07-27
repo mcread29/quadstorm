@@ -260,6 +260,116 @@ bool largeShooterLayoutUsesDirectArenaLinks()
             "large shooter layouts publish at most one structural two-cell connector");
 }
 
+bool shooterLayoutsCanCreateDenseAreas()
+{
+    stalberg::StalbergGrid grid;
+    grid.generate(14, 1);
+    grid.relaxToCompletion();
+    const auto input = stalberg::makeRoomGrid(grid);
+    const stalberg::rooms::RoomGenerator generator;
+    const auto landmark = generator.generate(input,
+        1,
+        stalberg::rooms::RoomGenerationMethod::ShooterLayout);
+    const auto cluster = generator.generate(input,
+        6,
+        stalberg::rooms::RoomGenerationMethod::ShooterLayout);
+    if (landmark.getRoomCount() == 0 || cluster.getRoomCount() == 0) {
+        return check(false,
+            "large shooter maps can realize landmark and clustered arena briefs");
+    }
+
+    std::vector<std::size_t> landmarkSizes;
+    for (const auto& room : landmark.getRooms()) {
+        if (room.role != stalberg::rooms::RoomRole::Connector) {
+            landmarkSizes.push_back(room.cellCount);
+        }
+    }
+    std::ranges::sort(landmarkSizes);
+    const std::size_t landmarkMedian
+        = landmarkSizes[landmarkSizes.size() / 2];
+    bool valid = check(landmarkSizes.back() * 4 >= landmarkMedian * 7,
+        "some shooter maps contain one substantially larger landmark arena");
+
+    float cellScale = 0.0F;
+    std::size_t measuredConnections = 0;
+    for (std::size_t cell = 0; cell < input.connections.size(); ++cell) {
+        for (const auto& connection : input.connections[cell]) {
+            if (connection.cell > cell && input.cells[cell].buildable
+                && input.cells[connection.cell].buildable) {
+                cellScale += connection.distance;
+                ++measuredConnections;
+            }
+        }
+    }
+    cellScale /= static_cast<float>(measuredConnections);
+
+    std::vector<stalberg::rooms::CellPoint> centroids(cluster.getRoomCount());
+    std::vector<std::size_t> centroidCounts(cluster.getRoomCount(), 0);
+    for (std::size_t cell = 0; cell < input.cells.size(); ++cell) {
+        const int room = cluster.getCellAssignment(cell);
+        if (room < 0) {
+            continue;
+        }
+        auto& centroid = centroids[static_cast<std::size_t>(room)];
+        centroid.x += input.cells[cell].position.x;
+        centroid.y += input.cells[cell].position.y;
+        ++centroidCounts[static_cast<std::size_t>(room)];
+    }
+    for (std::size_t room = 0; room < centroids.size(); ++room) {
+        centroids[room].x /= static_cast<float>(centroidCounts[room]);
+        centroids[room].y /= static_cast<float>(centroidCounts[room]);
+    }
+
+    std::vector<std::size_t> clusterArenaSizes;
+    for (const auto& room : cluster.getRooms()) {
+        if (room.role != stalberg::rooms::RoomRole::Connector) {
+            clusterArenaSizes.push_back(room.cellCount);
+        }
+    }
+    std::ranges::sort(clusterArenaSizes);
+    const std::size_t clusterMedian
+        = clusterArenaSizes[clusterArenaSizes.size() / 2];
+    bool foundDenseCluster = false;
+    for (const auto& room : cluster.getRooms()) {
+        if (room.role == stalberg::rooms::RoomRole::Connector
+            || room.cellCount * 4 < clusterMedian * 3) {
+            continue;
+        }
+        std::size_t denseNeighbors = 0;
+        for (const auto& doorway : cluster.getDoorways()) {
+            int neighbor = -1;
+            if (doorway.firstRegion == room.id) {
+                neighbor = doorway.secondRegion;
+            } else if (doorway.secondRegion == room.id) {
+                neighbor = doorway.firstRegion;
+            }
+            if (neighbor < 0) {
+                continue;
+            }
+            const auto& neighborRoom
+                = cluster.getRooms()[static_cast<std::size_t>(neighbor)];
+            if (neighborRoom.role == stalberg::rooms::RoomRole::Connector
+                || neighborRoom.cellCount * 4 < clusterMedian * 3) {
+                continue;
+            }
+            const auto first = centroids[static_cast<std::size_t>(room.id)];
+            const auto second = centroids[static_cast<std::size_t>(neighbor)];
+            const float x = second.x - first.x;
+            const float y = second.y - first.y;
+            if (std::sqrt(x * x + y * y) <= cellScale * 9.0F) {
+                ++denseNeighbors;
+            }
+        }
+        if (denseNeighbors >= 2) {
+            foundDenseCluster = true;
+            break;
+        }
+    }
+    valid &= check(foundDenseCluster,
+        "some shooter maps group three substantial nearby arenas into a dense cluster");
+    return valid;
+}
+
 bool bestOfCandidatesDoesNotReduceQuality(const stalberg::StalbergGrid& grid)
 {
     const auto input = stalberg::makeRoomGrid(grid);
@@ -753,6 +863,7 @@ int main()
         grid, stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
     valid &= shooterLayoutHasExplicitCombatStructure(grid);
     valid &= largeShooterLayoutUsesDirectArenaLinks();
+    valid &= shooterLayoutsCanCreateDenseAreas();
     valid &= bestOfCandidatesDoesNotReduceQuality(grid);
     valid &= connectionOrderingDoesNotAffectGeneration(grid);
     valid &= roomInputIsIndependentFromLaterRelaxation();
