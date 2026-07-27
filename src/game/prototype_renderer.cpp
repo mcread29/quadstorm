@@ -35,23 +35,28 @@ PrototypeRenderer::PrototypeRenderer()
     : lightingShader(loadDirectionalShader())
     , groundModel(LoadModelFromMesh(GenMeshPlane(80.0F, 80.0F, 1, 1)))
     , playerModel(LoadModelFromMesh(GenMeshSphere(PLAYER_RADIUS, 16, 24)))
+    , projectileModel(LoadModelFromMesh(
+          GenMeshSphere(PROJECTILE_RADIUS, 8, 12)))
     , shadowModel(LoadModelFromMesh(
           GenMeshCylinder(PLAYER_RADIUS * 1.05F, 0.01F, 32)))
 {
     groundModel.materials[0].shader = lightingShader;
     playerModel.materials[0].shader = lightingShader;
+    projectileModel.materials[0].shader = lightingShader;
 }
 
 PrototypeRenderer::~PrototypeRenderer()
 {
     UnloadModel(shadowModel);
+    UnloadModel(projectileModel);
     UnloadModel(playerModel);
     UnloadModel(groundModel);
     UnloadShader(lightingShader);
 }
 
-void PrototypeRenderer::draw(
-    const Camera3D& camera, const Player& player, Vector3 aimPoint) const
+void PrototypeRenderer::draw(const Camera3D& camera, const Player& player,
+    Vector3 aimPoint, const ProjectilePool& projectiles,
+    float interpolationAmount) const
 {
     BeginDrawing();
     ClearBackground(Color { 27, 39, 45, 255 });
@@ -63,12 +68,13 @@ void PrototypeRenderer::draw(
     drawPlayerShadow(player);
     DrawSphere(Vector3 { aimPoint.x, 0.06F, aimPoint.z }, 0.12F,
         Color { 225, 241, 232, 210 });
+    drawProjectiles(projectiles, interpolationAmount);
     drawPlayer(player);
     EndMode3D();
 
-    DrawRectangle(16, 16, 310, 76, Color { 8, 25, 30, 220 });
-    DrawText("MOVEMENT PROTOTYPE", 28, 27, 22, Color { 225, 241, 232, 255 });
-    DrawText("WASD move  |  mouse aim", 28, 60, 17,
+    DrawRectangle(16, 16, 420, 76, Color { 8, 25, 30, 220 });
+    DrawText("SHOOTING PROTOTYPE", 28, 27, 22, Color { 225, 241, 232, 255 });
+    DrawText("WASD move  |  mouse aim  |  hold LMB fire", 28, 60, 17,
         Color { 151, 193, 190, 255 });
     DrawFPS(GetScreenWidth() - 96, 20);
 
@@ -90,6 +96,33 @@ void PrototypeRenderer::drawPlayerShadow(const Player& player) const
         Color { 7, 15, 17, 82 });
 }
 
+void PrototypeRenderer::drawProjectiles(
+    const ProjectilePool& projectiles, float interpolationAmount) const
+{
+    constexpr Color projectileColor { 117, 226, 255, 255 };
+    constexpr Color trailColor { 117, 226, 255, 155 };
+    constexpr float projectileHeight = PLAYER_RADIUS;
+    constexpr float trailLength = 0.5F;
+
+    for (const Projectile& projectile : projectiles.projectiles()) {
+        if (!projectile.active) {
+            continue;
+        }
+
+        const Vector2 position = interpolateProjectilePosition(
+            projectile, interpolationAmount);
+        const float inverseSpeed = 1.0F / PROJECTILE_SPEED;
+        const Vector3 head { position.x, projectileHeight, position.y };
+        const Vector3 tail {
+            head.x - projectile.velocity.x * inverseSpeed * trailLength,
+            projectileHeight,
+            head.z - projectile.velocity.y * inverseSpeed * trailLength
+        };
+        DrawLine3D(tail, head, trailColor);
+        DrawModel(projectileModel, head, 1.0F, projectileColor);
+    }
+}
+
 void PrototypeRenderer::drawPlayer(const Player& player) const
 {
     constexpr Color bodyColor { 239, 180, 74, 255 };
@@ -103,9 +136,9 @@ void PrototypeRenderer::drawPlayer(const Player& player) const
         player.position.z + player.facing.y * PLAYER_RADIUS * 0.55F
     };
     const Vector3 noseEnd {
-        player.position.x + player.facing.x * (PLAYER_RADIUS + 0.65F),
+        player.position.x + player.facing.x * PLAYER_FACING_MARKER_DISTANCE,
         player.position.y,
-        player.position.z + player.facing.y * (PLAYER_RADIUS + 0.65F)
+        player.position.z + player.facing.y * PLAYER_FACING_MARKER_DISTANCE
     };
     BeginShaderMode(lightingShader);
     DrawCylinderEx(noseStart, noseEnd, 0.18F, 0.05F, 12, facingColor);

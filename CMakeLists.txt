@@ -25,6 +25,28 @@ function(enable_project_warnings target)
     endif()
 endfunction()
 
+option(STALBERG_OPTIMIZE_DEBUG_RUNTIME
+    "Use debugger-friendly optimization for the game runtime" ON)
+
+function(enable_debug_runtime_optimization target)
+    if(NOT STALBERG_OPTIMIZE_DEBUG_RUNTIME)
+        return()
+    endif()
+
+    if(MSVC)
+        target_compile_options(${target} PRIVATE $<$<CONFIG:Debug>:/O1>)
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(${target} PRIVATE $<$<CONFIG:Debug>:-Og>)
+    endif()
+endfunction()
+
+if(TARGET raylib)
+    get_target_property(raylib_is_imported raylib IMPORTED)
+    if(NOT raylib_is_imported)
+        enable_debug_runtime_optimization(raylib)
+    endif()
+endif()
+
 add_library(stalberg_grid_generation
     src/grid/dual_grid.cpp
     src/grid/stalberg_grid.cpp
@@ -60,11 +82,14 @@ add_executable(stalberg_game
     src/game/game_input.cpp
     src/game/main.cpp
     src/game/player.cpp
+    src/game/projectile_pool.cpp
     src/game/prototype_renderer.cpp
+    src/game/weapon.cpp
 )
 target_compile_features(stalberg_game PRIVATE cxx_std_20)
 target_link_libraries(stalberg_game PRIVATE raylib)
 enable_project_warnings(stalberg_game)
+enable_debug_runtime_optimization(stalberg_game)
 
 include(CTest)
 if(BUILD_TESTING)
@@ -78,4 +103,15 @@ if(BUILD_TESTING)
         PRIVATE stalberg_room_grid_adapter)
     enable_project_warnings(stalberg_room_generation_tests)
     add_test(NAME stalberg_room_generation_tests COMMAND stalberg_room_generation_tests)
+
+    add_executable(stalberg_game_tests
+        tests/game_tests.cpp
+        src/game/projectile_pool.cpp
+        src/game/weapon.cpp
+    )
+    target_include_directories(stalberg_game_tests PRIVATE src)
+    target_compile_features(stalberg_game_tests PRIVATE cxx_std_20)
+    target_link_libraries(stalberg_game_tests PRIVATE raylib)
+    enable_project_warnings(stalberg_game_tests)
+    add_test(NAME stalberg_game_tests COMMAND stalberg_game_tests)
 endif()

@@ -3,11 +3,13 @@
 #include "raylib.h"
 
 inline constexpr float PLAYER_RADIUS = 0.65F;
+inline constexpr float PLAYER_FACING_MARKER_DISTANCE = PLAYER_RADIUS + 0.65F;
 
 struct PlayerInput {
     Vector2 movement {};
     Vector3 aimPoint {};
     bool hasAimPoint = false;
+    bool fireHeld = false;
 };
 
 struct Player {

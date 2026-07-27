@@ -4,7 +4,7 @@ This is the continuation guide for the `stalberg_game` runtime. Read [`game-road
 
 ## Current objective
 
-The movement milestone is complete. The next objective is **Milestone 2: projectile firing**—hold the left mouse button to emit pooled projectiles from the player's facing marker. Do not combine that work with enemies, damage, arena walls, generated geometry, or upgrades.
+The projectile-firing milestone is complete. The next objective is **Milestone 3: target and hit feedback**—add one stationary circle target, swept projectile collision, health/reset behavior, and clear hit feedback. Do not combine that work with enemies, arena walls, generated geometry, or upgrades.
 
 ## Current behavior
 
@@ -22,9 +22,10 @@ Controls:
 |---|---|
 | WASD | Camera-relative movement |
 | Mouse | Aim on the XZ ground plane |
+| Hold left mouse button | Fire |
 | Escape/window close | Exit |
 
-The runtime currently renders a flat test plane, an aimed sphere player, a mouse-ground marker, directional diffuse lighting, and a projected blob shadow. The blob is intentionally not a shadow map; it is cheap and sufficient until real level geometry makes general occlusion valuable.
+The runtime currently renders a flat test plane, an aimed sphere player, a mouse-ground marker, directional diffuse lighting, a projected blob shadow, and pooled projectiles with motion trails. Holding the left mouse button fires ten projectiles per second from the facing marker. The blob is intentionally not a shadow map; it is cheap and sufficient until real level geometry makes general occlusion valuable.
 
 ## Runtime architecture
 
@@ -36,13 +37,16 @@ main.cpp
     └── asks PrototypeRenderer to draw
 
 PlayerInput ──→ updatePlayer() ──→ Player
-                      │
-                      └── pure of direct raylib input calls
+      │               │
+      │               └── pure of direct raylib input calls
+      └──→ updateWeapon() ──→ Weapon + ProjectilePool
+                                      │
+                                      └── fixed-step movement/lifetime
 
 Player ──→ updateGameCamera() ──→ Camera3D
 Camera3D + keyboard/mouse ──→ readPlayerInput()
 
-Camera3D + interpolated Player ──→ PrototypeRenderer
+Camera3D + interpolated Player/Projectiles ──→ PrototypeRenderer
 ```
 
 ### File map
@@ -51,6 +55,8 @@ Camera3D + interpolated Player ──→ PrototypeRenderer
 |---|---|
 | `src/game/main.cpp` | Window lifetime, 120 Hz accumulator, interpolation, and composition |
 | `src/game/player.hpp/.cpp` | Player/Input state, movement, facing, and player interpolation |
+| `src/game/weapon.hpp/.cpp` | Fire cadence and muzzle spawning |
+| `src/game/projectile_pool.hpp/.cpp` | Preallocated projectile slots, fixed-step movement/lifetime, and interpolation |
 | `src/game/game_camera.hpp/.cpp` | Camera creation/following, camera-relative movement, ground projection, and camera interpolation |
 | `src/game/game_input.hpp/.cpp` | All current polling of raylib keyboard and mouse input |
 | `src/game/prototype_renderer.hpp/.cpp` | GPU resource ownership and all prototype drawing |
@@ -76,7 +82,7 @@ The camera uses orthographic projection with both a 45-degree elevation and diag
 
 ### Timing
 
-Simulation advances in fixed `1/120` second steps. Rendering interpolates between the previous and current player/camera states. New gameplay behavior—especially weapon cooldowns, projectile movement, collision, and enemy logic—belongs in the fixed update loop, not the render path.
+Simulation advances in fixed `1/120` second steps. Rendering interpolates between the previous and current player, camera, and projectile states. New gameplay behavior—especially weapon cooldowns, projectile movement, collision, and enemy logic—belongs in the fixed update loop, not the render path.
 
 Frame time is clamped to 50 ms before entering the accumulator to avoid an unbounded catch-up spiral after pauses or debugger stops.
 
@@ -86,71 +92,43 @@ Frame time is clamped to 50 ms before entering the accumulator to avoid an unbou
 
 ### Rendering boundary
 
-Gameplay code should not own raylib `Model` or `Shader` handles. `PrototypeRenderer` owns temporary runtime graphics resources. Projectiles should expose render state to the renderer rather than issuing draw calls from their simulation module.
+Gameplay code does not own raylib `Model` or `Shader` handles. `PrototypeRenderer` owns temporary runtime graphics resources. Projectiles expose stable simulation state to the renderer rather than issuing draw calls from their simulation module.
 
 ### Procedural generation boundary
 
-The game target does not yet link the generator libraries. Do not integrate them during the shooting milestone. Later, the level runtime must retain `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` together because exact floor polygons and doorway segments are not all present in `RoomLayout` alone.
+The game target does not yet link the generator libraries. Do not integrate them during the target-and-hit milestone. Later, the level runtime must retain `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` together because exact floor polygons and doorway segments are not all present in `RoomLayout` alone.
 
 Cross-room movement must eventually open only exact doorway cell pairs published by `RoomLayout`; physical contact between regions is not automatically traversable.
 
-## Next implementation: projectile firing
+## Next implementation: target and hit feedback
 
-Recommended files:
-
-```text
-src/game/weapon.hpp
-src/game/weapon.cpp
-src/game/projectile_pool.hpp
-src/game/projectile_pool.cpp
-```
-
-Suggested minimal state:
-
-```cpp
-struct Weapon {
-    float cooldownRemaining = 0.0F;
-};
-
-struct Projectile {
-    Vector2 position;
-    Vector2 previousPosition;
-    Vector2 velocity;
-    float remainingLifetime = 0.0F;
-    bool active = false;
-};
-```
-
-Use X/Z gameplay coordinates in the simulation structs; convert them to `Vector3` only for drawing. Reserve or pre-size the pool once. Firing must scan/reuse an inactive slot and must not allocate during gameplay.
+Add one stationary target on the test plane with a 2D circle collider and a small health value. Keep collision authoritative on X/Z and keep target rendering inside `PrototypeRenderer`.
 
 Implementation order:
 
-1. Add `bool fireHeld` to `PlayerInput` and populate it with `IsMouseButtonDown(MOUSE_BUTTON_LEFT)`.
-2. Add a weapon cooldown updated at the fixed timestep.
-3. Spawn from `player.position + player.facing * muzzleDistance` on X/Z.
-4. Store previous/current projectile positions for later swept collision and render interpolation.
-5. Advance active projectiles and expire them by lifetime or distance.
-6. Interpolate active projectiles for rendering.
-7. Add a simple projectile mesh or primitive to `PrototypeRenderer`.
-8. Stress the pool above the intended on-screen projectile count.
+1. Add a minimal target simulation state containing position, radius, health, and hit-flash time.
+2. Test every active projectile's `previousPosition → position` segment against the target circle after projectile movement.
+3. Deactivate a projectile on its first hit and decrement target health once.
+4. Render the target and a short, unambiguous hit flash or impact cue.
+5. Reset the target after health reaches zero so the prototype remains continuously testable.
+6. Add headless tests for direct hits, misses, tangent/near-tangent shots, fast swept hits, and single-hit deactivation.
 
 Acceptance criteria:
 
-- Holding fire produces consistent projectile spacing.
-- Moving and rotating while firing works.
-- Behavior is stable under VSync and uncapped graphical smoke runs.
-- No allocation occurs per shot.
-- Pool exhaustion fails safely by skipping a shot or reusing a documented slot policy.
-- Build and existing tests pass.
+- Fast projectiles cannot tunnel through the target.
+- Each projectile damages the target at most once.
+- Hits and target defeat/reset are visually unambiguous.
+- Collision behavior remains fixed-step and independent of render rate.
+- Build, tests, and graphical smoke checks pass.
 
 ## Known limitations
 
-- There is no shooting, target, collision, enemy, audio, generated-level rendering, or run state yet.
+- There is no target, collision, enemy, audio, generated-level rendering, or run state yet.
 - Lighting is diffuse-only and the player shadow is a projected decal rather than general occlusion.
 - The ground and debug grid cover a finite 80-by-80 area.
 - Gameplay constants are compiled into their owning modules.
-- The game runtime has no dedicated headless tests yet; simulation/input separation now makes player and projectile tests straightforward to add.
-- The CMake build shown above is whatever build type the build directory was configured with; use a separate Release build when profiling performance.
+- Headless game tests currently cover projectile movement/interpolation, pool exhaustion/reuse, and fire cadence; player movement and rendering still lack dedicated tests.
+- Debug runtime builds use debugger-friendly optimization (`-Og` with GCC/Clang or `/O1` with MSVC) for `stalberg_game` and a bundled raylib while retaining debug symbols and assertions. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized instruction-by-instruction stepping is required. Use a separate Release build when profiling performance.
 
 ## Validation and debugging
 
@@ -177,10 +155,10 @@ DISPLAY=:0 ./build/stalberg_game
 Useful runtime evidence in raylib logs:
 
 - Custom vertex and fragment shaders compile successfully.
-- Ground, player, and shadow VAOs upload successfully.
+- Ground, player, projectile, and shadow VAOs upload successfully.
 - Models unload before the custom shader when the window closes.
 
-When investigating performance, first configure and compare a Release build rather than drawing conclusions from the current Debug build:
+When investigating performance, still configure and compare a Release build rather than drawing final conclusions from a Debug build:
 
 ```sh
 cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release

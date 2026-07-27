@@ -31,23 +31,21 @@ The `stalberg_game` executable currently provides:
 
 Acceptance check: the player can move smoothly in every direction, aim independently, and remain readable under the follow camera.
 
-## Next milestones
+### Milestone 2: projectile firing — complete
 
-### Milestone 2: projectile firing
+The runtime now provides:
 
-Add only the smallest complete shooting behavior:
-
-- Add `fireHeld` to `PlayerInput` and bind it to the left mouse button.
-- Add a weapon state containing its fire cooldown.
-- Add a preallocated projectile pool with stable slots.
-- Spawn projectiles from the end of the player's facing marker.
-- Simulate position, velocity, range/lifetime, and deactivation at the fixed timestep.
-- Render active projectiles and a minimal trail or motion cue.
-- Keep firing cadence independent of render frame rate.
-
-Do not add enemies, damage, upgrades, walls, or a generic weapon-definition framework in this milestone.
+- Left-mouse held firing with a fixed ten-shot-per-second cadence.
+- A 192-slot preallocated projectile pool with safe dropped shots on exhaustion.
+- Muzzle spawning from the player's facing marker.
+- Fixed-step projectile movement, lifetime expiry, and stable-slot reuse.
+- Previous/current projectile positions for render interpolation and later swept collision.
+- Lit projectile meshes with a simple motion trail.
+- Headless tests for movement, interpolation, pool exhaustion/reuse, and weapon cadence.
 
 Acceptance check: the player can move and aim while holding fire; projectile spacing and speed remain stable at different render rates, and expired projectiles reuse pool capacity without allocation.
+
+## Next milestones
 
 ### Milestone 3: target and hit feedback
 

@@ -13,5 +13,6 @@ PlayerInput readPlayerInput(const Camera3D& camera)
     input.movement = cameraRelativeMovement(camera, screenMovement);
     input.hasAimPoint = groundPointAtScreenPosition(
         camera, GetMousePosition(), input.aimPoint);
+    input.fireHeld = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     return input;
 }
