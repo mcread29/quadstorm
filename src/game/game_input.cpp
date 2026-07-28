@@ -17,5 +17,10 @@ PlayerInput readPlayerInput(const Camera3D& camera)
     input.dashPressed = IsKeyPressed(KEY_SPACE);
     input.restartPressed = IsKeyPressed(KEY_R);
     input.toggleViewPressed = IsKeyPressed(KEY_F1);
+    input.interactPressed = IsKeyPressed(KEY_E);
+    input.startRoundPressed = IsKeyPressed(KEY_N);
+    input.buyDamagePressed = IsKeyPressed(KEY_ONE);
+    input.buyFireRatePressed = IsKeyPressed(KEY_TWO);
+    input.buyDashPressed = IsKeyPressed(KEY_THREE);
     return input;
 }

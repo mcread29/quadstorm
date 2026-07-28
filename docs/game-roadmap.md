@@ -154,7 +154,8 @@ Acceptance check: several generated enemies coexist and can be defeated determin
 The current generator is physically valid but often reads as an alternating arena/connector chain, substantial rooms share similar compact growth, and the runtime follow camera hides the complete layout. Complete the pass in [`level-identity-pass.md`](level-identity-pass.md) before adding more crowd systems.
 
 - **Complete:** add a fitted full-level runtime overview and read-only deterministic representative-seed browser.
-- **Next:** select and publish strong map-level topology archetypes before physical routing.
+- **Complete for small maps:** select and publish Hub Circuit, Broken Ring, and Twin Wings gameplay recipes before candidate placement and routing.
+- **Next for broader generation:** extend archetypes and room-shape grammar beyond the radius-5 vertical slice.
 - Penalize repetitive room/connector alternation and weak graph signatures.
 - Add explicit room-shape grammar and geometry validation.
 - Add role-, shape-, and district-driven semantic anchors and landmarks.
@@ -162,33 +163,28 @@ The current generator is physically valid but often reads as an alternating aren
 
 Acceptance check: representative layouts are distinguishable at a glance by silhouette, graph structure, room-shape distribution, and landmark hierarchy; no representative layout is dominated by repetitive arena/connector alternation; and all existing deterministic geometry, doorway, navigation, combat, and reset contracts remain correct.
 
-### Milestone 8C: horde combat continuation — planned
+### Milestone 8C: horde combat continuation — small-map vertical slice complete
 
-- Add crowd pursuit and pathfinding through the published room/door graph.
-- Add local separation, wall-safe steering, and deterministic spawn control.
-- Add crowd-readable hit, death, and threat feedback.
-- Introduce Drifter, Runner, and Caster roles.
-- Organize combat into rounds with build-up, peak, cleanup, and intermission states.
+- The radius-5 vertical slice has crowd pursuit through exact opened doorway cells, local separation, wall-safe steering, deterministic spawn control, Drifter/Runner/Caster/Elite roles, and buildup → peak → cleanup → intermission rounds.
+- Continue tuning route caching, crowd readability, spawn visibility, and larger-map population pressure after the small-map recipe gate.
 
 Acceptance check: generated rooms and connectors support readable crowd movement, deliberate dodging, and escalating round pressure without enemies crossing closed geometry.
 
-### Milestone 9: persistent map progression
+### Milestone 9: persistent map progression — small-map vertical slice complete
 
-- Keep one generated map active for the complete match.
-- Turn doorway thresholds into purchasable gates whose state affects collision and navigation for players and enemies.
-- Add the primary match currency, fixed services, traps, and combat upgrades.
+- The small-map match persists for five rounds with one point currency, permanently purchasable exact-threshold gates, synchronized collision/navigation, and damage/fire-rate/dash upgrades.
+- Fixed services and traps remain broader-milestone work.
 - Turn the generated role/shape/district identity established in Milestone 8B into persistent economy, service, trap, and objective locations rather than one-time room-clear labels.
 - Let waves and enemies move across every currently opened part of the map.
 
 Acceptance check: spending, route choice, and gate state materially change both survival strategy and enemy flow throughout a match.
 
-### Milestone 10: the living map
+### Milestone 10: the living map — basic objective slice complete, puzzle depth pending
 
-- Add distributed Grid Anchors, powered-room state, and a central Hub machine.
-- Add readable objective prompts through world animation, lighting, symbols, and audio.
-- Add holdouts and other combat-driven interactions that alter the map.
-- Add a main quest, optional side Easter eggs, and persistent quest feedback.
-- Add the first wonder weapon whose behavior uses the map's irregular geometry.
+- The small-map recipe includes one Anchor holdout, Hub activation, an objective-locked Exit, contextual prompts, persistent feedback, and an optional ordered three-relay Reward sequence that grants fire rate.
+- The required Anchor is explicitly a pressure objective—remain in its gold ring for eight accumulated seconds during the objective wave—not a logic puzzle. The optional relay exposes the next correct target and is intentionally shallow.
+- The next puzzle slice must add a readable multi-step dependency with clues and meaningful failure/recovery rather than relabeling another holdout as a puzzle.
+- Multiple distributed Anchors, deeper Easter eggs, traps, authored clue families, and a geometry-driven wonder weapon remain future expansion.
 
 Acceptance check: players can understand and complete the main objective from in-game evidence, while optional secrets reward deeper observation and experimentation.
 

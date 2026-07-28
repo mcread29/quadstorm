@@ -3,8 +3,8 @@
 #include "encounter.hpp"
 #include "game_camera.hpp"
 #include "game_input.hpp"
-#include "generated_encounter.hpp"
 #include "generated_level.hpp"
+#include "horde_match.hpp"
 #include "level_session.hpp"
 #include "prototype_renderer.hpp"
 
@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <exception>
 #include <memory>
+#include <string_view>
 
 namespace {
 
@@ -29,8 +30,9 @@ constexpr float MAX_FRAME_TIME = 0.05F;
 
 class GameApplication {
 public:
-    GameApplication()
-        : renderer(level)
+    explicit GameApplication(GeneratedLevelConfig config)
+        : level(config)
+        , renderer(level)
         , levelSession(level)
         , previousGeneratedPlayer(levelSession.player())
         , previousCombatPlayer(encounter.player)
@@ -49,8 +51,7 @@ public:
     {
         if (IsKeyPressed(KEY_F2)) {
             overviewActive = !overviewActive;
-            restartQueued = false;
-            dashQueued = false;
+            clearQueuedInputs();
             accumulatedTime = 0.0F;
         }
         if (overviewActive) {
@@ -68,6 +69,7 @@ public:
             const GeneratedLevel& overviewLevel = selectedOverviewLevel();
             renderer.drawGeneratedOverview(overviewLevel,
                 overviewConfiguration == 0 ? &levelSession : nullptr,
+                overviewConfiguration == 0 ? &hordeMatch : nullptr,
                 overviewConfiguration, REPRESENTATIVE_LEVEL_CONFIGS.size());
             return;
         }
@@ -81,8 +83,7 @@ public:
         }
         if (input.toggleViewPressed) {
             combatArenaActive = !combatArenaActive;
-            restartQueued = false;
-            dashQueued = false;
+            clearQueuedInputs();
             accumulatedTime = 0.0F;
             input.hasAimPoint = false;
             if (combatArenaActive) {
@@ -98,8 +99,18 @@ public:
 
         restartQueued |= input.restartPressed;
         dashQueued |= input.dashPressed;
+        interactQueued |= input.interactPressed;
+        startRoundQueued |= input.startRoundPressed;
+        buyDamageQueued |= input.buyDamagePressed;
+        buyFireRateQueued |= input.buyFireRatePressed;
+        buyDashQueued |= input.buyDashPressed;
         input.restartPressed = restartQueued;
         input.dashPressed = dashQueued;
+        input.interactPressed = interactQueued;
+        input.startRoundPressed = startRoundQueued;
+        input.buyDamagePressed = buyDamageQueued;
+        input.buyFireRatePressed = buyFireRateQueued;
+        input.buyDashPressed = buyDashQueued;
         if (input.hasAimPoint) {
             aimPoint = input.aimPoint;
         }
@@ -111,10 +122,14 @@ public:
             } else {
                 updateGeneratedLevel(input);
             }
-            restartQueued = false;
-            dashQueued = false;
+            clearQueuedInputs();
             input.restartPressed = false;
             input.dashPressed = false;
+            input.interactPressed = false;
+            input.startRoundPressed = false;
+            input.buyDamagePressed = false;
+            input.buyFireRatePressed = false;
+            input.buyDashPressed = false;
             accumulatedTime -= FIXED_STEP_TIME;
         }
 
@@ -133,20 +148,18 @@ public:
                 previousGeneratedPlayer, levelSession.player(),
                 interpolationAmount);
             renderer.drawGenerated(renderCamera, renderPlayer, aimPoint,
-                level, levelSession, generatedEncounter.playerProjectiles(),
-                generatedEncounter.combatForRoom(levelSession.currentRoom()),
-                generatedEncounter.floorIsComplete(), interpolationAmount,
+                level, levelSession, hordeMatch, interpolationAmount,
                 showDebug);
         }
     }
 
 private:
-    GeneratedLevel level { REPRESENTATIVE_LEVEL_CONFIGS.front() };
+    GeneratedLevel level;
     PrototypeRenderer renderer;
     CombatAudio combatAudio;
     Encounter encounter;
     LevelSession levelSession;
-    GeneratedEncounterCoordinator generatedEncounter;
+    HordeMatch hordeMatch { level, levelSession };
     Player previousGeneratedPlayer;
     Player previousCombatPlayer;
     bool combatArenaActive = false;
@@ -161,6 +174,22 @@ private:
     float accumulatedTime = 0.0F;
     bool restartQueued = false;
     bool dashQueued = false;
+    bool interactQueued = false;
+    bool startRoundQueued = false;
+    bool buyDamageQueued = false;
+    bool buyFireRateQueued = false;
+    bool buyDashQueued = false;
+
+    void clearQueuedInputs()
+    {
+        restartQueued = false;
+        dashQueued = false;
+        interactQueued = false;
+        startRoundQueued = false;
+        buyDamageQueued = false;
+        buyFireRateQueued = false;
+        buyDashQueued = false;
+    }
 
     void selectOverviewConfiguration(std::size_t configuration)
     {
@@ -201,10 +230,9 @@ private:
     void updateGeneratedLevel(const PlayerInput& input)
     {
         previousGeneratedPlayer = levelSession.player();
-        const GeneratedEncounterStepResult result
-            = updateGeneratedEncounter(generatedEncounter,
-                levelSession, level, input, FIXED_STEP_TIME);
-        if (result.levelSession.reset) {
+        const HordeMatchStepResult result = updateHordeMatch(
+            hordeMatch, levelSession, input, FIXED_STEP_TIME);
+        if (result.reset) {
             previousGeneratedPlayer = levelSession.player();
             camera = makeGameCamera(levelSession.player());
             previousCamera = camera;
@@ -212,11 +240,11 @@ private:
         } else {
             updateGameCamera(camera, levelSession.player(), FIXED_STEP_TIME);
         }
-        if (result.combat.enemyFired) {
+        if (result.enemyFired) {
             combatAudio.playEnemyShot();
         }
-        combatAudio.playPlayerDamage(result.combat.playerDamage);
-        combatAudio.playEnemyDamage(result.combat.enemyDamage);
+        combatAudio.playPlayerDamage(result.playerDamage);
+        combatAudio.playEnemyDamage(result.enemyDamage);
     }
 };
 
@@ -236,8 +264,19 @@ void runWebFrame(void* context)
 
 } // namespace
 
-int main()
+int main(int argumentCount, char** arguments)
 {
+    GeneratedLevelConfig levelConfig = REPRESENTATIVE_LEVEL_CONFIGS.front();
+    for (int argument = 1; argument < argumentCount; ++argument) {
+        const std::string_view value(arguments[argument]);
+        if (value == "--recipe=hub") {
+            levelConfig.roomSeed = 7;
+        } else if (value == "--recipe=ring") {
+            levelConfig.roomSeed = 2;
+        } else if (value == "--recipe=wings") {
+            levelConfig.roomSeed = 3;
+        }
+    }
     auto windowFlags = FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT;
 #if !defined(PLATFORM_WEB)
     windowFlags |= FLAG_WINDOW_RESIZABLE;
@@ -253,7 +292,7 @@ int main()
 
     std::unique_ptr<GameApplication> application;
     try {
-        application = std::make_unique<GameApplication>();
+        application = std::make_unique<GameApplication>(levelConfig);
     } catch (const std::exception& error) {
         std::fprintf(stderr, "Unable to initialize game: %s\n", error.what());
         CloseWindow();

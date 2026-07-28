@@ -174,12 +174,17 @@ A geometrically connected floor is not sufficient; accepted circulation must als
 - Every connector has doorway degree one or two.
 - Start and exit are present.
 - Shortest start-to-exit doorway-graph distance is at least three edges.
+- Radius-5 recipe layouts have exactly five substantial rooms with stable Start `0`, Exit `1`, Hub `2`, Anchor `3`, and Reward `4` semantics.
+- Every recipe materializes its exact required contracted arena edges; only Broken Ring and Twin Wings may add their declared optional edge.
+- Hub Circuit has no optional Start → Anchor edge, so Start and Anchor cannot become two adjacent entrances to the same destination room.
+- Reward remains a leaf reached without making its locked threshold part of the required Start-to-Exit route.
+- Start and Anchor branch doorway directions from the Hub have a normalized dot product no greater than `0.42`, or roughly 65 degrees of angular separation.
 
-This rejects layouts that are topologically valid but do not provide a meaningful shooter route.
+This rejects layouts that are topologically valid but do not provide a meaningful shooter route, including the playtest failure where two progression branches collapsed into neighboring doors leading to effectively the same place.
 
 ## Planned identity and diversity expansion
 
-The current validation proves local correctness and a minimum shooter structure, but it does not prove that accepted layouts are recognizably different. It permits candidates dominated by arena → connector → arena alternation, does not assign a map-level topology archetype, and does not validate distinct substantial-room shapes. The next pass in [`level-identity-pass.md`](level-identity-pass.md) adds both per-layout conformance and cross-seed diversity gates.
+Current validation proves local correctness and now requires small-map Hub Circuit, Broken Ring, or Twin Wings conformance, exact semantic edges, stable Hub/Reward semantics, and separated progression branches. It still does not validate distinct substantial-room shapes, districts, or broader cross-seed diversity, and larger maps retain the spatial planner. The next pass in [`level-identity-pass.md`](level-identity-pass.md) expands per-layout geometry conformance and cross-seed diversity gates.
 
 Planned graph measurements include:
 

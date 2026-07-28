@@ -9,9 +9,9 @@ Room-generation details are split into focused documents:
 - [`room-generation-model.md`](room-generation-model.md) — physical neutral input and output API.
 - [`shooter-level-generation.md`](shooter-level-generation.md) — complete graph-first shooter pipeline.
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
-- [`level-identity-pass.md`](level-identity-pass.md) — planned topology archetypes, room-shape grammar, runtime overview, and landmark pass.
+- [`level-identity-pass.md`](level-identity-pass.md) — small-map recipes plus the remaining room-shape, district, and landmark pass.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently consumes the complete generation chain through immutable `GeneratedLevel` geometry and mutable `LevelSession` state, renders exact assigned dual-cell floors, retains lockable doorway thresholds, closes unauthorized contacts, builds matching navigation, and spawns the player in Start. The player can dash and fire throughout traversal. `GeneratedEncounterCoordinator` preserves that weapon/projectile state while activating up to three deterministic stable-ID enemies in entered `Combat` and `Hub` rooms, keeping doorways locked until the collection is defeated, and marking the floor complete at Exit. The intended game turns one such generated layout into a persistent round-based horde map: thresholds become purchasable gates, room roles become machinery and quest landmarks, common enemies move as crowds across opened routes, and elites and bosses add readable bullet-hell patterns. The hard-coded deterministic arena remains available through `F1` as a separate regression wrapper.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It consumes the complete generation chain through immutable `GeneratedLevel` geometry and mutable `LevelSession` state, renders exact assigned floors, and keeps doorway collision/navigation synchronized. `HordeMatch` runs the active persistent radius-5 puzzle map with points, permanent gates, upgrades, five deterministic rounds, door-aware Drifter/Runner/Caster/Elite crowds, Anchor/Hub/relay objectives, and explicit Exit completion. The hard-coded deterministic arena remains available through `F1` as a separate regression wrapper.
 
 ## Overview
 
@@ -275,7 +275,7 @@ Q = 4M + 3(T - 2M)
   = 3T - 2M
 ```
 
-The default radius-6, seed-1 grid currently produces 460 quads.
+The canonical radius-6, seed-1 grid currently produces 458 quads.
 
 ## Stage 5: rebuild topology and identify the boundary
 
@@ -352,7 +352,7 @@ Interior dual-cell polygons are formed by angularly ordering the centers of all 
 
 The default **shooter layout** starts with an abstract mission graph. It anchors start and exit arenas near well-separated selected boundary entrances, distributes additional arena seeds using farthest-point sampling, and grows compact combat rooms around them while retaining negative space. A noise-perturbed Prim-like spatial tree creates the main route and side branches; maps with enough routing capacity may receive one deliberate long-cycle loop. Each planned edge is routed through unoccupied cells with physical costs that penalize low clearance and narrow portals. Longer routes become separate connector rooms and gain lateral cells where space allows. Links shorter than an arena's approximate diameter are folded into an endpoint arena and become direct arena doorways, avoiding a separate tiny connector for every mission-graph edge. At least one route remains an explicit connector, while additional connector identities are reserved for long passages. Opportunistic widening does not mathematically guarantee that every connector is narrower than every arena. Only planned arena/corridor contacts become logical doorways, so incidental physical contact cannot introduce an unintended shortcut.
 
-That pipeline is the current implementation, not the endpoint for map identity. In practice, the spatial tree, required connector, compact arena growth, and player-follow runtime camera can make layouts read as variations of arena → corridor → arena without exposing a memorable whole-map silhouette. The next pass adds a runtime full-level overview, chooses explicit topology archetypes before routing, publishes distinct room-shape grammar, and adds semantic landmark anchors and cross-seed diversity checks. See [`level-identity-pass.md`](level-identity-pass.md).
+That pipeline is not the endpoint for map identity. Radius-5 maps now select Hub Circuit, Broken Ring, or Twin Wings before placement and expose the result in the runtime overview, while larger layouts retain the spatial planner. Compact arena growth can still make local geometry read as oatmeal. The next pass publishes puzzle-driven room shapes, districts, additional recipes, semantic anchors, and cross-seed diversity checks. See [`level-identity-pass.md`](level-identity-pass.md).
 
 The legacy **branching shapes** method starts with a central room, uses geometric compact, elongated, branching, irregular, and L-shaped masks, and extends radial branches. The **organic growth** method joins the selected entrances to the center, expands a noisy footprint balanced across six angular sectors, and partitions it with weighted multi-source growth. These legacy methods use a quality-weighted spanning tree plus a bounded loop budget over their resulting room contacts.
 
@@ -488,9 +488,9 @@ The generation demo intentionally focuses on a single understandable patch. The 
 - Cross-chunk relaxation.
 - Explicit square-fitting forces.
 - Face-quality optimization after relaxation.
-- Crowd navigation, local separation, wave pacing, or round phases.
-- Explicit topology archetypes, published room-shape grammar, semantic landmark anchors, or cross-seed structural-diversity acceptance. The runtime full-level overview and fixed read-only seed browser are implemented.
-- Persistent gates, economy, services, objectives, quests, bosses, or extraction.
+- Large-map crowd/navigation scaling beyond the small deterministic horde slice.
+- Published room-shape grammar, districts, broader archetypes, or cross-seed structural-diversity acceptance. Small-map recipes and the runtime overview are implemented.
+- Traps, multiple services, multi-anchor quests, bespoke bosses, extraction choice, or endless continuation. The first gate economy, upgrades, Anchor/Hub/relay quest, Elite finale, and explicit Exit completion are implemented.
 - Mesh export.
 - General-purpose three-dimensional asset extrusion beyond runtime floor and wall geometry.
 

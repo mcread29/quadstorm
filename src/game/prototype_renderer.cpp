@@ -36,6 +36,34 @@ Color roomRoleColor(stalberg::rooms::RoomRole role)
     return Color { 70, 95, 105, 255 };
 }
 
+const char* smallMapRecipeName(stalberg::rooms::SmallMapRecipe recipe)
+{
+    switch (recipe) {
+    case stalberg::rooms::SmallMapRecipe::HubCircuit:
+        return "HUB CIRCUIT";
+    case stalberg::rooms::SmallMapRecipe::BrokenRing:
+        return "BROKEN RING";
+    case stalberg::rooms::SmallMapRecipe::TwinWings:
+        return "TWIN WINGS";
+    }
+    return "SMALL MAP";
+}
+
+const char* roundPhaseName(RoundPhase phase)
+{
+    switch (phase) {
+    case RoundPhase::Intermission:
+        return "INTERMISSION";
+    case RoundPhase::Buildup:
+        return "BUILDUP";
+    case RoundPhase::Peak:
+        return "PEAK";
+    case RoundPhase::Cleanup:
+        return "CLEANUP";
+    }
+    return "ROUND";
+}
+
 const char* roomRoleName(stalberg::rooms::RoomRole role)
 {
     switch (role) {
@@ -346,9 +374,12 @@ const char* baselineGeometryLabel(stalberg::rooms::RoomRole role)
 
 const char* baselineTopologyLabel(const GeneratedLevel& level)
 {
-    const std::size_t rooms = level.roomLayout().getRoomCount();
-    const std::size_t doors = level.roomLayout().getDoorways().size();
-    return doors >= rooms ? "SPATIAL TREE + LOOP" : "SPATIAL TREE";
+    if (!level.roomLayout().hasSmallMapRecipe()) {
+        const std::size_t rooms = level.roomLayout().getRoomCount();
+        const std::size_t doors = level.roomLayout().getDoorways().size();
+        return doors >= rooms ? "SPATIAL TREE + LOOP" : "SPATIAL TREE";
+    }
+    return smallMapRecipeName(level.roomLayout().getSmallMapRecipe());
 }
 
 void drawOverviewLandmark(Vector2 center,
@@ -429,8 +460,7 @@ PrototypeRenderer::~PrototypeRenderer()
 
 void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     const Player& player, Vector3 aimPoint, const GeneratedLevel& level,
-    const LevelSession& session, const ProjectilePool& playerProjectiles,
-    const GeneratedCombatState* combat, bool floorComplete,
+    const LevelSession& session, const HordeMatch& match,
     float interpolationAmount, bool showDebug) const
 {
     BeginDrawing();
@@ -442,19 +472,18 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
         WHITE);
     DrawModel(generatedWallModel, Vector3 {}, 1.0F, WHITE);
     drawLockedDoorways(level, session);
+    drawHordeLandmarks(level, session, match);
     DrawSphere(Vector3 { aimPoint.x, 0.06F, aimPoint.z }, 0.12F,
         Color { 205, 242, 236, 210 });
-    drawProjectiles(camera, playerProjectiles,
+    drawProjectiles(camera, match.playerProjectiles(),
         interpolationAmount, PLAYER_RADIUS,
         Color { 92, 225, 255, 255 }, Color { 92, 225, 255, 155 });
-    if (combat != nullptr) {
-        for (const StableEnemy& entry : combat->enemies.entries()) {
-            drawEnemy(entry.enemy, interpolationAmount);
-        }
-        drawProjectiles(camera, combat->enemyProjectiles,
-            interpolationAmount, PLAYER_RADIUS,
-            Color { 255, 93, 55, 255 }, Color { 255, 153, 70, 175 });
+    for (const HordeEnemy& enemy : match.enemies()) {
+        drawHordeEnemy(enemy, interpolationAmount);
     }
+    drawProjectiles(camera, match.enemyProjectiles(),
+        interpolationAmount, PLAYER_RADIUS,
+        Color { 255, 93, 55, 255 }, Color { 255, 153, 70, 175 });
     drawPlayer(player);
     EndMode3D();
 
@@ -466,6 +495,19 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     const auto* currentRoom = findRoom(level, currentRegion);
 
     drawPlayerHud(player);
+    DrawRectangleRounded(Rectangle { 292.0F, 16.0F, 330.0F, 64.0F },
+        0.18F, 8, Color { 7, 17, 24, 225 });
+    DrawText(TextFormat("POINTS  %i", match.points()), 308, 25, 20,
+        Color { 255, 211, 91, 255 });
+    DrawText(TextFormat("ROUND %i/%i  %s  ENEMIES %i",
+                 match.round(), HORDE_FINAL_ROUND,
+                 roundPhaseName(match.phase()),
+                 static_cast<int>(std::ranges::count_if(match.enemies(),
+                     [](const HordeEnemy& enemy) {
+                         return isEnemyAlive(enemy.enemy);
+                     }))),
+        308, 53, 14, Color { 184, 207, 202, 255 });
+
     if (currentRoom != nullptr) {
         const char* label = TextFormat("%s  %02i",
             roomRoleName(currentRoom->role), currentRoom->id + 1);
@@ -478,26 +520,161 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
             roomRoleColor(currentRoom->role));
     }
 
+    const Vector2 playerMapPosition {
+        player.position.x, player.position.z
+    };
+    const auto anchorGate = std::ranges::find(
+        match.plan().gates, GatePurpose::Anchor, &MapGate::purpose);
+    const bool anchorRouteOpen = anchorGate == match.plan().gates.end()
+        || anchorGate->open;
+    const char* interactionPrompt = nullptr;
+    float nearestGate = 2.2F;
+    const auto thresholds = level.doorwayThresholds();
+    for (const MapGate& gate : match.plan().gates) {
+        if (gate.open || gate.doorway >= thresholds.size()) {
+            continue;
+        }
+        const Vector2 closest = closestPointOnSegment(
+            playerMapPosition, thresholds[gate.doorway].segment).position;
+        const float x = closest.x - playerMapPosition.x;
+        const float y = closest.y - playerMapPosition.y;
+        const float distance = std::sqrt(x * x + y * y);
+        if (distance > nearestGate) {
+            continue;
+        }
+        nearestGate = distance;
+        if (gate.purpose == GatePurpose::Exit) {
+            interactionPrompt = "EXIT SEALED  -  POWER THE HUB";
+        } else if (gate.purpose == GatePurpose::Reward
+            && !anchorRouteOpen) {
+            interactionPrompt = "ANCHOR ROUTE REQUIRED BEFORE OPTIONAL SPENDING";
+        } else if (match.points() >= gate.cost) {
+            interactionPrompt = TextFormat("E  OPEN GATE  %i POINTS", gate.cost);
+        } else {
+            interactionPrompt = TextFormat("GATE %i  -  NEED %i MORE",
+                gate.cost, gate.cost - match.points());
+        }
+    }
+    const auto nearDevice = [&](Vector2 position) {
+        const float x = position.x - playerMapPosition.x;
+        const float y = position.y - playerMapPosition.y;
+        return x * x + y * y <= 2.2F * 2.2F;
+    };
+    if (interactionPrompt == nullptr
+        && nearDevice(match.plan().anchorPosition)
+        && !match.anchorIsComplete()) {
+        if (match.round() < 2) {
+            interactionPrompt = "ANCHOR DORMANT  -  SURVIVE TWO ROUNDS";
+        } else if (!anchorRouteOpen && anchorGate != match.plan().gates.end()) {
+            interactionPrompt = match.points() >= anchorGate->cost
+                ? TextFormat("E  FUND + START HOLDOUT  %i  -  STAY IN RING",
+                    anchorGate->cost)
+                : TextFormat("ANCHOR ROUTE NEEDS %i MORE POINTS",
+                    anchorGate->cost - match.points());
+        } else {
+            interactionPrompt = "E  START HOLDOUT  -  STAY INSIDE THE GOLD RING";
+        }
+    }
+    if (interactionPrompt == nullptr
+        && nearDevice(match.plan().hubPosition)) {
+        interactionPrompt = match.anchorIsComplete() && !match.hubIsPowered()
+            ? "E  POWER THE HUB"
+            : !anchorRouteOpen
+                ? "OPEN THE ANCHOR ROUTE TO ENABLE UPGRADES"
+                : "UPGRADES  1 DAMAGE 1200 | 2 FIRE 1000 | 3 DASH 900";
+    }
+    if (interactionPrompt == nullptr
+        && nearDevice(match.plan().exitPosition)) {
+        interactionPrompt = match.hubIsPowered()
+                && match.round() >= HORDE_FINAL_ROUND
+            ? "E  COMPLETE THE MAP"
+            : "EXIT DORMANT";
+    }
+    const auto rewardGate = std::ranges::find(
+        match.plan().gates, GatePurpose::Reward, &MapGate::purpose);
+    const bool rewardRouteOpen = rewardGate == match.plan().gates.end()
+        || rewardGate->open;
+    const bool nearRelay = std::ranges::any_of(
+        match.plan().relayTargets, [&](const RelayTarget& relay) {
+            return nearDevice(relay.position);
+        });
+    if (interactionPrompt == nullptr && nearRelay && match.hubIsPowered()
+        && rewardRouteOpen && !match.relayIsComplete()) {
+        interactionPrompt
+            = "SHOOT THE GOLD RELAY  -  A WRONG TARGET RESETS THE SEQUENCE";
+    }
+    if (interactionPrompt != nullptr) {
+        const int promptWidth = MeasureText(interactionPrompt, 18) + 30;
+        DrawRectangleRounded(Rectangle {
+                                 static_cast<float>(GetScreenWidth() / 2
+                                     - promptWidth / 2),
+                                 static_cast<float>(GetScreenHeight() - 108),
+                                 static_cast<float>(promptWidth), 38.0F },
+            0.2F, 6, Color { 7, 17, 24, 235 });
+        DrawText(interactionPrompt,
+            GetScreenWidth() / 2 - promptWidth / 2 + 15,
+            GetScreenHeight() - 98, 18,
+            Color { 255, 211, 91, 255 });
+    }
+
+    const char* objective = "Survive Round 1 and earn the first gate";
+    if (match.anchorIsActive()) {
+        objective = TextFormat(
+            "STAY IN THE GOLD RING  %.1f / %.1f  -  LEAVING PAUSES",
+            match.anchorProgress(), ANCHOR_HOLDOUT_DURATION);
+    } else if (!match.anchorIsComplete() && match.round() >= 2) {
+        objective
+            = "At the Anchor: press E, then stay in its gold ring during the wave";
+    } else if (match.anchorIsComplete() && !match.hubIsPowered()) {
+        objective = "Return to the Hub and press E to power the Exit";
+    } else if (match.hubIsPowered() && match.round() < HORDE_FINAL_ROUND) {
+        objective = "Press N to survive the remaining rounds";
+    } else if (match.hubIsPowered() && !match.matchIsComplete()) {
+        objective = "Reach the Exit monument and press E";
+    }
+    DrawRectangleRounded(Rectangle {
+                             16.0F,
+                             static_cast<float>(GetScreenHeight() - 58),
+                             700.0F, 40.0F },
+        0.15F, 6, Color { 7, 17, 24, 225 });
+    DrawText(objective, 30, GetScreenHeight() - 47, 17,
+        Color { 224, 211, 158, 255 });
+
+    const bool progressionAllowsRound
+        = !(match.round() >= 2 && !match.anchorIsComplete()
+                && !match.anchorIsActive())
+        && !(match.round() >= 3 && match.anchorIsComplete()
+            && !match.hubIsPowered());
+    if (match.phase() == RoundPhase::Intermission
+        && match.round() < HORDE_FINAL_ROUND && isPlayerAlive(player)
+        && progressionAllowsRound) {
+        DrawText("N  START NEXT ROUND", GetScreenWidth() - 255,
+            GetScreenHeight() - 45, 18, Color { 151, 231, 190, 255 });
+    }
+
     if (showDebug) {
-        DrawRectangleRounded(Rectangle { 16.0F, 82.0F, 620.0F, 118.0F },
+        DrawRectangleRounded(Rectangle { 16.0F, 90.0F, 720.0F, 142.0F },
             0.08F, 6, Color { 7, 17, 24, 225 });
-        DrawText("F3  HIDE DEBUG", 28, 94, 18,
+        DrawText("F3 HIDE DEBUG", 28, 101, 17,
             Color { 151, 193, 190, 255 });
-        DrawText("WASD move | SPACE dash | LMB fire | R reset | F1 arena | F2 overview",
-            28, 123, 16, Color { 180, 203, 200, 255 });
-        DrawText(TextFormat("rooms %i  doors %i  walls %i  room %i",
+        DrawText("WASD | SPACE dash | LMB fire | E interact | N round | 1/2/3 upgrades",
+            28, 127, 15, Color { 180, 203, 200, 255 });
+        DrawText("R reset | F1 regression arena | F2 overview / recipe browser",
+            28, 150, 15, Color { 180, 203, 200, 255 });
+        DrawText(TextFormat("%s  rooms %i  doors %i  room %i  walls %i",
+                     smallMapRecipeName(level.roomLayout().getSmallMapRecipe()),
                      static_cast<int>(level.roomLayout().getRoomCount()),
                      static_cast<int>(level.roomLayout().getDoorways().size()),
-                     static_cast<int>(session.activeWalls().size()), currentRegion),
-            28, 150, 16, Color { 224, 211, 158, 255 });
-        DrawText(TextFormat("grid %u  layout %u  quality %.1f  shots %i/%i",
-                     level.grid().getSeed(), level.roomLayout().getSeed(),
-                     level.roomLayout().getQualityScore(),
-                     static_cast<int>(playerProjectiles.activeCount()),
-                     combat != nullptr
-                         ? static_cast<int>(combat->enemyProjectiles.activeCount())
-                         : 0),
-            28, 177, 16, Color { 180, 203, 200, 255 });
+                     currentRegion, static_cast<int>(session.activeWalls().size())),
+            28, 177, 15, Color { 224, 211, 158, 255 });
+        DrawText(TextFormat("anchor %.1f  relay %i/%i  damage %i  shots %i/%i",
+                     match.anchorProgress(),
+                     static_cast<int>(match.relayProgress()),
+                     static_cast<int>(match.plan().relayTargets.size()),
+                     match.weaponDamage(),
+                     static_cast<int>(match.playerProjectiles().activeCount()),
+                     static_cast<int>(match.enemyProjectiles().activeCount())),
+            28, 201, 15, Color { 180, 203, 200, 255 });
         DrawFPS(GetScreenWidth() - 96, 70);
     }
 
@@ -505,8 +682,8 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     Color statusColor { 255, 174, 92, 255 };
     if (!isPlayerAlive(player)) {
         statusMessage = "DEFEATED  -  press R to restart";
-    } else if (floorComplete) {
-        statusMessage = "EXIT REACHED  -  floor complete";
+    } else if (match.matchIsComplete()) {
+        statusMessage = "MAP COMPLETE  -  press R to restart";
         statusColor = Color { 151, 231, 190, 255 };
     }
     if (statusMessage != nullptr) {
@@ -526,7 +703,8 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
 }
 
 void PrototypeRenderer::drawGeneratedOverview(const GeneratedLevel& level,
-    const LevelSession* session, std::size_t selectedConfiguration,
+    const LevelSession* session, const HordeMatch* match,
+    std::size_t selectedConfiguration,
     std::size_t configurationCount) const
 {
     const float screenWidth = static_cast<float>(GetScreenWidth());
@@ -621,6 +799,38 @@ void PrototypeRenderer::drawGeneratedOverview(const GeneratedLevel& level,
             Color { 207, 218, 213, 235 });
     }
 
+    if (match != nullptr) {
+        const auto drawSite = [&](Vector2 world, const char* label, Color color) {
+            const Vector2 site = overviewPoint(world, transform);
+            DrawCircleV(site, 11.0F, Color { 7, 17, 24, 235 });
+            DrawCircleLines(static_cast<int>(site.x), static_cast<int>(site.y),
+                12.0F, color);
+            const int width = MeasureText(label, 13);
+            DrawText(label, static_cast<int>(site.x) - width / 2,
+                static_cast<int>(site.y) - 6, 13, color);
+        };
+        drawSite(match->plan().anchorPosition, "A",
+            match->anchorIsComplete()
+                ? Color { 151, 231, 190, 255 }
+                : Color { 255, 211, 91, 255 });
+        drawSite(match->plan().hubPosition, "H",
+            match->hubIsPowered()
+                ? Color { 92, 225, 255, 255 }
+                : Color { 151, 193, 190, 255 });
+        drawSite(match->plan().exitPosition, "X",
+            match->hubIsPowered()
+                ? Color { 151, 231, 190, 255 }
+                : Color { 170, 120, 115, 255 });
+        for (std::size_t relay = 0;
+             relay < match->plan().relayTargets.size(); ++relay) {
+            drawSite(match->plan().relayTargets[relay].position,
+                TextFormat("%i", static_cast<int>(relay + 1)),
+                relay < match->relayProgress()
+                    ? Color { 151, 231, 190, 255 }
+                    : Color { 125, 162, 211, 255 });
+        }
+    }
+
     if (session != nullptr) {
         const Vector2 player = overviewPoint(Vector2 {
             session->player().position.x, session->player().position.z },
@@ -666,7 +876,7 @@ void PrototypeRenderer::drawGeneratedOverview(const GeneratedLevel& level,
         detailsX, detailsY, 16, primary);
 
     detailsY += 38;
-    DrawText("BASELINE STRUCTURE", detailsX, detailsY, 16, heading);
+    DrawText("MAP RECIPE", detailsX, detailsY, 16, heading);
     detailsY += 27;
     DrawText(baselineTopologyLabel(level), detailsX, detailsY, 17, primary);
     detailsY += 25;
@@ -684,7 +894,7 @@ void PrototypeRenderer::drawGeneratedOverview(const GeneratedLevel& level,
                  static_cast<int>(doorwayCount - lockedDoorways)),
         detailsX, detailsY, 15, secondary);
     detailsY += 22;
-    DrawText("shape grammar: pre-identity baseline", detailsX, detailsY,
+    DrawText("puzzle graph: anchor -> hub -> exit", detailsX, detailsY,
         14, Color { 226, 166, 102, 255 });
 
     detailsY += 39;
@@ -999,6 +1209,154 @@ void PrototypeRenderer::drawEnemy(
     };
     DrawCylinderEx(center, aimEnd, 0.18F, 0.07F, 8,
         Color { 255, 177, 92, 255 });
+}
+
+void PrototypeRenderer::drawHordeEnemy(
+    const HordeEnemy& entry, float interpolationAmount) const
+{
+    const Enemy& enemy = entry.enemy;
+    const Vector2 position = interpolateEnemyPosition(
+        enemy, interpolationAmount);
+    const Vector3 center { position.x, ENEMY_RADIUS, position.y };
+    const Vector3 ground { position.x, 0.026F, position.y };
+    drawActorShadow(center, ENEMY_RADIUS);
+
+    Color color { 190, 94, 75, 255 };
+    float scale = 0.88F;
+    switch (entry.role) {
+    case HordeEnemyRole::Drifter:
+        color = Color { 190, 94, 75, 255 };
+        break;
+    case HordeEnemyRole::Runner:
+        color = Color { 235, 145, 61, 255 };
+        scale = 0.72F;
+        break;
+    case HordeEnemyRole::Caster:
+        color = Color { 143, 81, 184, 255 };
+        scale = 0.95F;
+        break;
+    case HordeEnemyRole::Elite:
+        color = Color { 210, 118, 205, 255 };
+        scale = 1.25F;
+        break;
+    }
+    if (!isEnemyAlive(enemy)) {
+        DrawCircle3D(ground, ENEMY_RADIUS * 1.35F,
+            Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+            Color { 151, 231, 190, 145 });
+        return;
+    }
+    if (enemy.hitFlashRemaining > 0.0F) {
+        color = Color { 255, 238, 194, 255 };
+    }
+    DrawCircle3D(ground, ENEMY_RADIUS * scale * 1.08F,
+        Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+        Color { color.r, color.g, color.b, 110 });
+    DrawModel(enemyModel, center, scale, color);
+    if (entry.role == HordeEnemyRole::Caster
+        || entry.role == HordeEnemyRole::Elite) {
+        const Vector3 aimEnd {
+            center.x + enemy.facing.x * 1.25F,
+            center.y,
+            center.z + enemy.facing.y * 1.25F
+        };
+        DrawCylinderEx(center, aimEnd, 0.15F, 0.05F, 8,
+            Color { 255, 177, 92, 255 });
+    }
+}
+
+void PrototypeRenderer::drawHordeLandmarks(const GeneratedLevel& level,
+    const LevelSession& session, const HordeMatch& match) const
+{
+    const auto marker = [](Vector2 position, float height, float radius,
+                            Color color) {
+        DrawCylinder(Vector3 { position.x, height * 0.5F, position.y },
+            radius, radius * 0.78F, height, 10, color);
+    };
+
+    const Color hubColor = match.hubIsPowered()
+        ? Color { 92, 225, 255, 255 }
+        : Color { 78, 111, 119, 255 };
+    marker(match.plan().hubPosition, 2.6F, 0.72F, hubColor);
+    DrawSphere(Vector3 { match.plan().hubPosition.x, 2.8F,
+                   match.plan().hubPosition.y },
+        0.34F, hubColor);
+
+    const float anchorAmount = std::clamp(
+        match.anchorProgress() / ANCHOR_HOLDOUT_DURATION, 0.0F, 1.0F);
+    const Color anchorColor = match.anchorIsComplete()
+        ? Color { 151, 231, 190, 255 }
+        : match.anchorIsActive()
+            ? Color { 255, 211, 91, 255 }
+            : Color { 144, 98, 65, 255 };
+    marker(match.plan().anchorPosition, 1.8F, 0.58F, anchorColor);
+    DrawCircle3D(Vector3 { match.plan().anchorPosition.x, 0.035F,
+                     match.plan().anchorPosition.y },
+        ANCHOR_HOLDOUT_RADIUS,
+        Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+        Color { anchorColor.r, anchorColor.g, anchorColor.b,
+            static_cast<unsigned char>(80 + anchorAmount * 130.0F) });
+
+    const Color exitColor = match.hubIsPowered()
+        ? Color { 151, 231, 190, 255 }
+        : Color { 91, 78, 74, 255 };
+    DrawCube(Vector3 { match.plan().exitPosition.x, 1.7F,
+                 match.plan().exitPosition.y },
+        1.25F, 3.4F, 1.25F, exitColor);
+    DrawCubeWires(Vector3 { match.plan().exitPosition.x, 1.7F,
+                      match.plan().exitPosition.y },
+        1.35F, 3.5F, 1.35F, Color { 205, 229, 224, 210 });
+
+    for (std::size_t target = 0;
+         target < match.plan().relayTargets.size(); ++target) {
+        const RelayTarget& relay = match.plan().relayTargets[target];
+        Color color { 75, 116, 170, 255 };
+        if (match.relayIsComplete() || target < match.relayProgress()) {
+            color = Color { 151, 231, 190, 255 };
+        } else if (target == match.relayProgress()) {
+            color = Color { 255, 211, 91, 255 };
+        }
+        DrawSphere(Vector3 { relay.position.x, 0.72F, relay.position.y },
+            0.34F, color);
+        DrawSphereWires(Vector3 { relay.position.x, 0.72F,
+                            relay.position.y },
+            0.46F, 7, 9, Color { 220, 235, 230, 190 });
+    }
+
+    const auto thresholds = level.doorwayThresholds();
+    for (const MapGate& gate : match.plan().gates) {
+        if (gate.doorway >= thresholds.size()) {
+            continue;
+        }
+        const DoorwayThreshold& threshold = thresholds[gate.doorway];
+        const bool locked = session.doorwayIsLocked(gate.doorway);
+        const Color gateColor = locked
+            ? gate.purpose == GatePurpose::Exit
+                ? Color { 128, 82, 145, 255 }
+                : Color { 196, 111, 66, 255 }
+            : Color { 86, 183, 143, 190 };
+        for (const Vector2 endpoint
+            : { threshold.segment.start, threshold.segment.end }) {
+            DrawCylinder(Vector3 { endpoint.x, 1.1F, endpoint.y },
+                0.16F, 0.16F, 2.2F, 8, gateColor);
+        }
+        const auto gateBar = [&](float height, float radius, Color color) {
+            DrawCylinderEx(Vector3 { threshold.segment.start.x, height,
+                               threshold.segment.start.y },
+                Vector3 { threshold.segment.end.x, height,
+                    threshold.segment.end.y },
+                radius, radius, 8, color);
+        };
+        gateBar(2.16F, 0.13F, gateColor);
+        if (locked) {
+            const Color barrier {
+                gateColor.r, gateColor.g, gateColor.b, 205
+            };
+            gateBar(0.48F, 0.065F, barrier);
+            gateBar(1.05F, 0.065F, barrier);
+            gateBar(1.62F, 0.065F, barrier);
+        }
+    }
 }
 
 void PrototypeRenderer::drawPlayer(const Player& player) const

@@ -117,8 +117,10 @@ bool roomGenerationIsRepeatable(const stalberg::StalbergGrid& grid,
         && check(first.getRoomCount() == second.getRoomCount(),
             "same room seed produces the same room count")
         && check(first.getSelectedCandidate() == second.getSelectedCandidate()
-                && first.getQualityScore() == second.getQualityScore(),
-            "best-of-N selection is deterministic")
+                && first.getQualityScore() == second.getQualityScore()
+                && first.hasSmallMapRecipe() == second.hasSmallMapRecipe()
+                && first.getSmallMapRecipe() == second.getSmallMapRecipe(),
+            "best-of-N selection and recipe selection are deterministic")
         && check(std::ranges::equal(
                      first.getCellAssignments(), second.getCellAssignments()),
             "same room seed and method produce the same layout")
@@ -127,6 +129,112 @@ bool roomGenerationIsRepeatable(const stalberg::StalbergGrid& grid,
         && check(std::ranges::equal(first.getConnectedEntrances(),
                      second.getConnectedEntrances()),
             "same room seed and method connect the same entrances");
+}
+
+std::set<std::pair<int, int>> contractedArenaEdges(
+    const stalberg::rooms::RoomLayout& layout)
+{
+    const auto rooms = layout.getRooms();
+    std::set<std::pair<int, int>> result;
+    std::vector<std::vector<int>> connectorNeighbors(rooms.size());
+    for (const auto& doorway : layout.getDoorways()) {
+        const bool firstConnector = rooms[static_cast<std::size_t>(
+            doorway.firstRegion)].role == stalberg::rooms::RoomRole::Connector;
+        const bool secondConnector = rooms[static_cast<std::size_t>(
+            doorway.secondRegion)].role == stalberg::rooms::RoomRole::Connector;
+        if (!firstConnector && !secondConnector) {
+            result.insert(std::minmax(
+                doorway.firstRegion, doorway.secondRegion));
+        } else if (firstConnector != secondConnector) {
+            const int connector = firstConnector
+                ? doorway.firstRegion : doorway.secondRegion;
+            const int arena = firstConnector
+                ? doorway.secondRegion : doorway.firstRegion;
+            connectorNeighbors[static_cast<std::size_t>(connector)]
+                .push_back(arena);
+        }
+    }
+    for (const auto& neighbors : connectorNeighbors) {
+        if (neighbors.size() == 2) {
+            result.insert(std::minmax(neighbors[0], neighbors[1]));
+        }
+    }
+    return result;
+}
+
+bool smallMapRecipesPublishDistinctIntent()
+{
+    stalberg::StalbergGrid grid;
+    grid.generate(5, 1);
+    grid.relaxToCompletion();
+    const auto input = stalberg::makeRoomGrid(grid);
+    const stalberg::rooms::RoomGenerator generator;
+    const std::array recipes {
+        stalberg::rooms::SmallMapRecipe::HubCircuit,
+        stalberg::rooms::SmallMapRecipe::BrokenRing,
+        stalberg::rooms::SmallMapRecipe::TwinWings
+    };
+    std::vector<std::set<std::pair<int, int>>> signatures;
+    bool valid = true;
+    for (std::size_t index = 0; index < recipes.size(); ++index) {
+        const auto layout = generator.generate(input,
+            static_cast<std::uint32_t>(index + 1),
+            stalberg::rooms::RoomGenerationOptions {
+                .method = stalberg::rooms::RoomGenerationMethod::ShooterLayout,
+                .candidateCount = 12,
+                .smallMapRecipe = recipes[index]
+            });
+        valid &= check(layout.getRoomCount() > 0
+                && layout.hasSmallMapRecipe()
+                && layout.getSmallMapRecipe() == recipes[index],
+            "every small-map recipe is selected before candidate generation");
+        const std::size_t substantialRooms = static_cast<std::size_t>(
+            std::ranges::count_if(layout.getRooms(), [](const auto& room) {
+                return room.role != stalberg::rooms::RoomRole::Connector;
+            }));
+        valid &= check(substantialRooms == 5,
+            "radius-5 puzzle maps contain five intentional substantial rooms");
+        valid &= check(std::ranges::count(layout.getRooms(),
+                           stalberg::rooms::RoomRole::Hub,
+                           &stalberg::rooms::GeneratedRoom::role)
+                == 1
+                && std::ranges::count(layout.getRooms(),
+                       stalberg::rooms::RoomRole::Reward,
+                       &stalberg::rooms::GeneratedRoom::role)
+                    == 1,
+            "small recipes publish one Hub and one Reward room");
+        const auto signature = contractedArenaEdges(layout);
+        std::set<std::pair<int, int>> requiredEdges;
+        if (recipes[index] == stalberg::rooms::SmallMapRecipe::HubCircuit
+            || recipes[index] == stalberg::rooms::SmallMapRecipe::TwinWings) {
+            requiredEdges = { { 0, 2 }, { 1, 2 }, { 2, 3 }, { 2, 4 } };
+        } else {
+            requiredEdges = { { 0, 2 }, { 2, 3 }, { 1, 3 }, { 2, 4 } };
+        }
+        valid &= check(std::ranges::all_of(requiredEdges,
+                           [&](const auto& edge) {
+                               return signature.contains(edge);
+                           }),
+            "each recipe materializes its exact required semantic edges");
+        valid &= check(recipes[index]
+                    != stalberg::rooms::SmallMapRecipe::HubCircuit
+                || signature == requiredEdges,
+            "Hub Circuit has one distinct doorway branch per semantic room");
+        valid &= check(std::ranges::count_if(signature,
+                           [](const auto& edge) {
+                               return edge.first == 4 || edge.second == 4;
+                           })
+                == 1
+                && signature.contains({ 2, 4 }),
+            "every small recipe keeps Reward as an optional Hub leaf");
+        signatures.push_back(signature);
+    }
+    valid &= check(signatures.size() == 3
+            && signatures[0] != signatures[1]
+            && signatures[0] != signatures[2]
+            && signatures[1] != signatures[2],
+        "Hub Circuit, Broken Ring, and Twin Wings publish distinct graphs");
+    return valid;
 }
 
 bool shooterLayoutHasExplicitCombatStructure(const stalberg::StalbergGrid& grid)
@@ -251,8 +359,10 @@ bool largeShooterLayoutUsesDirectArenaLinks()
         }
     }
 
-    return check(directArenaLinks > 0,
-               "large shooter layouts turn short routes into direct arena links")
+    return check(!layout.hasSmallMapRecipe(),
+               "large shooter layouts do not misreport a small-map recipe")
+        && check(directArenaLinks > 0,
+            "large shooter layouts turn short routes into direct arena links")
         && check(connectorCount <= arenaCount / 2,
             "large shooter layouts reserve connector rooms for long links")
         && check(twoCellConnectorCount <= 1,
@@ -376,13 +486,15 @@ bool bestOfCandidatesDoesNotReduceQuality(const stalberg::StalbergGrid& grid)
         23,
         stalberg::rooms::RoomGenerationOptions {
             .method = stalberg::rooms::RoomGenerationMethod::OrganicGrowth,
-            .candidateCount = 1
+            .candidateCount = 1,
+            .smallMapRecipe = {}
         });
     const auto selected = stalberg::rooms::RoomGenerator {}.generate(input,
         23,
         stalberg::rooms::RoomGenerationOptions {
             .method = stalberg::rooms::RoomGenerationMethod::OrganicGrowth,
-            .candidateCount = 8
+            .candidateCount = 8,
+            .smallMapRecipe = {}
         });
     return check(selected.getQualityScore() >= single.getQualityScore(),
                "best-of-N selection never reduces candidate quality")
@@ -944,6 +1056,7 @@ int main()
         grid, stalberg::rooms::RoomGenerationMethod::BranchingShapes);
     valid &= roomGenerationIsRepeatable(
         grid, stalberg::rooms::RoomGenerationMethod::OrganicGrowth);
+    valid &= smallMapRecipesPublishDistinctIntent();
     valid &= shooterLayoutHasExplicitCombatStructure(grid);
     valid &= largeShooterLayoutUsesDirectArenaLinks();
     valid &= shooterLayoutsCanCreateDenseAreas();

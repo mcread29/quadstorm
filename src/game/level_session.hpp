@@ -33,6 +33,8 @@ public:
     std::span<const Segment2D> activeWalls() const { return collisionWalls; }
 
     bool doorwayIsLocked(std::size_t doorway) const;
+    bool setDoorwayLocked(std::size_t doorway, bool locked);
+    void openAllDoorways();
     bool canTraverse(stalberg::rooms::CellIndex first,
         stalberg::rooms::CellIndex second) const;
 

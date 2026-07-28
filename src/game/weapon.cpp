@@ -25,7 +25,7 @@ void updateWeaponState(Weapon& weapon, ProjectilePool& projectiles,
         if (!muzzleBlocked) {
             projectiles.spawn(muzzlePosition, player.facing);
         }
-        weapon.cooldownRemaining = WEAPON_FIRE_INTERVAL;
+        weapon.cooldownRemaining = std::max(weapon.fireInterval, 0.01F);
     }
 
     weapon.cooldownRemaining = std::max(

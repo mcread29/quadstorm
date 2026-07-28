@@ -30,6 +30,18 @@ constexpr std::size_t MAXIMUM_EDGE_CONNECTIONS = 6;
 constexpr std::size_t MINIMUM_DIRECT_CONNECTION_LENGTH = 2;
 constexpr std::size_t MAXIMUM_DIRECT_CONNECTION_LENGTH = 8;
 
+SmallMapRecipe smallMapRecipeForSeed(std::uint32_t seed)
+{
+    switch ((seed - 1U) % 3U) {
+    case 0:
+        return SmallMapRecipe::HubCircuit;
+    case 1:
+        return SmallMapRecipe::BrokenRing;
+    default:
+        return SmallMapRecipe::TwinWings;
+    }
+}
+
 using detail::breadthFirstDistances;
 using detail::CellAdjacency;
 using detail::DisjointSet;
@@ -56,12 +68,14 @@ RoomLayout RoomGenerator::generateCandidate(
     std::uint32_t requestedSeed,
     std::uint32_t variantSeed,
     RoomGenerationMethod method,
+    SmallMapRecipe smallMapRecipe,
     const std::vector<CellIndex>& entranceOrder,
     std::size_t entranceTargetCount) const
 {
     RoomLayout result;
     result.seed = requestedSeed;
     result.method = method;
+    result.smallMapRecipe = smallMapRecipe;
     auto& rooms = result.rooms;
     auto& doorways = result.doorways;
     auto& connectedEntrances = result.connectedEntrances;
@@ -102,10 +116,12 @@ RoomLayout RoomGenerator::generateCandidate(
             entranceSelection,
             requestedSeed,
             generationSeed,
+            smallMapRecipe,
             random,
             cellAssignments,
             rooms,
             connectedEntrances);
+        result.smallMapRecipeSelected = shooter.arenaRoomCount == 5;
         if (!shooter.complete || rooms.size() < 2
             || !generatePlannedDoorways(grid,
                 adjacency,
@@ -137,10 +153,19 @@ RoomLayout RoomGenerator::generateCandidate(
              arena < shooter.arenaRoomCount && arena < rooms.size(); ++arena) {
             GeneratedRoom& room = rooms[arena];
             if (room.role != RoomRole::Start && room.role != RoomRole::Exit) {
-                room.role = doorwayDegrees[arena] >= 3
-                    ? RoomRole::Hub
-                    : RoomRole::Combat;
+                room.role = shooter.arenaRoomCount == 5
+                    ? RoomRole::Combat
+                    : doorwayDegrees[arena] >= 3
+                        ? RoomRole::Hub
+                        : RoomRole::Combat;
             }
+        }
+        if (shooter.arenaRoomCount == 5 && rooms.size() > 2) {
+            rooms[2].role = RoomRole::Hub;
+        }
+        if (shooter.arenaRoomCount == 5
+            && rooms.size() >= shooter.arenaRoomCount) {
+            rooms[shooter.arenaRoomCount - 1].role = RoomRole::Reward;
         }
         for (const int connector : shooter.connectorRooms) {
             if (connector < 0 || static_cast<std::size_t>(connector) >= rooms.size()) {
@@ -361,7 +386,11 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
     std::uint32_t seed,
     RoomGenerationMethod method) const
 {
-    return generate(grid, seed, RoomGenerationOptions { method });
+    return generate(grid, seed, RoomGenerationOptions {
+        .method = method,
+        .candidateCount = 6,
+        .smallMapRecipe = std::nullopt
+    });
 }
 
 RoomLayout RoomGenerator::generate(const RoomGrid& grid,
@@ -371,6 +400,10 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
     const detail::PreparedGenerationContext prepared(grid);
     const std::size_t candidateCount
         = std::clamp<std::size_t>(options.candidateCount, 1, 32);
+    const SmallMapRecipe smallMapRecipe = options.smallMapRecipe.value_or(
+        prepared.buildableCells.size() < 160
+            ? SmallMapRecipe::HubCircuit
+            : smallMapRecipeForSeed(seed));
     std::size_t candidateLimit = candidateCount;
     RoomLayout best;
     bool haveBest = false;
@@ -395,6 +428,7 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
             seed,
             variantSeed,
             options.method,
+            smallMapRecipe,
             entranceBrief.order,
             entranceBrief.targetCount);
         candidate.selectedCandidate = candidateIndex;
@@ -415,7 +449,7 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
             MINIMUM_ROOM_SIZE,
             MAX_GENERATED_ROOMS);
         const bool shooterValid = options.method != RoomGenerationMethod::ShooterLayout
-            || detail::shooterCandidateIsValid(candidate);
+            || detail::shooterCandidateIsValid(grid, candidate);
         if (!entrancesValid || !structureValid || !shooterValid) {
             if (candidateIndex + 1 == candidateLimit && !haveBest
                 && options.method == RoomGenerationMethod::ShooterLayout
@@ -442,6 +476,7 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
     RoomLayout empty;
     empty.seed = seed;
     empty.method = options.method;
+    empty.smallMapRecipe = smallMapRecipe;
     empty.cellAssignments.assign(grid.getCellCount(), EMPTY_CELL);
     return empty;
 }

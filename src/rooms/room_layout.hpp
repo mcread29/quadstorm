@@ -27,6 +27,12 @@ enum class RoomRole : std::uint8_t {
     Exit
 };
 
+enum class SmallMapRecipe : std::uint8_t {
+    HubCircuit,
+    BrokenRing,
+    TwinWings
+};
+
 struct GeneratedRoom {
     int id = 0;
     std::size_t cellCount = 0;
@@ -57,6 +63,8 @@ class RoomLayout {
 public:
     std::uint32_t getSeed() const { return seed; }
     RoomGenerationMethod getMethod() const { return method; }
+    bool hasSmallMapRecipe() const { return smallMapRecipeSelected; }
+    SmallMapRecipe getSmallMapRecipe() const { return smallMapRecipe; }
     std::size_t getRoomCount() const { return rooms.size(); }
     float getQualityScore() const { return qualityScore; }
     std::size_t getSelectedCandidate() const { return selectedCandidate; }
@@ -75,6 +83,8 @@ private:
 
     std::uint32_t seed = 1;
     RoomGenerationMethod method {};
+    SmallMapRecipe smallMapRecipe = SmallMapRecipe::HubCircuit;
+    bool smallMapRecipeSelected = false;
     std::vector<int> cellAssignments;
     std::vector<GeneratedRoom> rooms;
     std::vector<Doorway> doorways;

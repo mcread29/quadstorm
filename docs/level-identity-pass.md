@@ -8,13 +8,13 @@ For the implemented generator pipeline, see [`shooter-level-generation.md`](shoo
 
 ## Current baseline
 
-- The active game constructs the default `GeneratedLevelConfig`: radius 6, grid seed 1, and room seed 1.
+- The active game constructs the curated small-map `GeneratedLevelConfig`: radius 5, grid seed 1, and Hub Circuit room seed 7. The other CLI recipe presets use room seeds 2 and 3.
 - The gameplay camera follows the player. F2 now opens a developer whole-level overview with exact runtime floor, boundaries, role/ID labels, the published room graph, open/locked thresholds, role markers, player position, and generator metadata.
 - Left/Right browses six fixed representative configurations as read-only previews; Home returns to the active session. Preview browsing pauses and never replaces or mutates the active simulation.
 - Until later slices publish archetype and room-shape metadata, the overview explicitly labels the current derived topology and compact/routed baseline rather than pretending the planned grammar already exists.
-- Shooter mission graphs are primarily a spatial tree with at most one deliberate loop.
+- Radius-5 shooter mission graphs select Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing. Larger maps retain the spatial-tree planner while broader archetypes are developed.
 - At least one explicit connector is required; long routed edges become connector regions.
-- Direct arena links and occasional dense clusters already exist, but the generator does not select or validate a strong map-level topology archetype.
+- Small-map recipe edges and semantic branch placement are validated, while larger-map direct links and occasional dense clusters still do not select or validate a strong map-level archetype.
 - Most shooter arenas grow from the same compact-room process. Roles describe gameplay purpose, not a distinct geometry grammar.
 - Runtime room identity is currently communicated mainly through modest floor-color differences and a role label.
 
@@ -45,9 +45,9 @@ It should show:
 
 The first version is a developer view, not the final player map. It reveals the complete layout. The fixed browser configurations live in `REPRESENTATIVE_LEVEL_CONFIGS`, and generated-level tests ensure that each remains unique, deterministic, and valid. If a player-facing tactical map is added later, unexplored-room rules should be layered separately.
 
-## Slice 2: topology archetypes
+## Slice 2: topology archetypes — complete for the small-map tier
 
-Choose a topology archetype before arena placement and route materialization. The archetype constrains the abstract mission graph; physical routing may reject a candidate that cannot realize it safely.
+Radius-5 maps choose Hub Circuit, Broken Ring, or Twin Wings before candidate placement and route materialization. Physical routing rejects candidates that cannot realize the selected graph safely. Hub Circuit is an exact four-edge Hub-and-spokes graph with no Start → Anchor shortcut; each semantic room owns one distinct branch. Broken Ring and Twin Wings may add their one recipe-specific optional edge. Candidate validation also requires the Start and Anchor transitions to leave the Hub at least approximately 65 degrees apart, preventing semantically different routes from collapsing into adjacent doors. The larger initial archetype table remains the expansion target beyond this vertical slice.
 
 Initial archetypes:
 
@@ -146,4 +146,4 @@ The overview should support a repeatable screenshot matrix for representative se
 
 From the full-level overview, representative accepted layouts are distinguishable at a glance by silhouette, topology archetype, room-shape distribution, and landmark hierarchy. No representative layout is dominated by a repetitive arena/connector alternation. Each map contains multiple mechanically distinct substantial-room geometries, while exact walls, authorized doorways, navigation, spawn clearance, deterministic generation, and runtime reset remain correct.
 
-After this gate passes, continue Milestone 8 with crowd navigation, local separation, deterministic spawn pacing, enemy roles, and the round director.
+Crowd navigation, local separation, deterministic spawn pacing, enemy roles, and the small-map round director are now complete. After the remaining identity gate passes, continue with puzzle-specific room grammar, authored clue families, and broader recipes rather than adding more seed-only variants.

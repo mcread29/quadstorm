@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 namespace stalberg::rooms {
@@ -16,6 +17,7 @@ struct PreparedGenerationContext;
 struct RoomGenerationOptions {
     RoomGenerationMethod method = RoomGenerationMethod::ShooterLayout;
     std::size_t candidateCount = 6;
+    std::optional<SmallMapRecipe> smallMapRecipe;
 };
 
 class RoomGenerator {
@@ -35,6 +37,7 @@ private:
         std::uint32_t requestedSeed,
         std::uint32_t variantSeed,
         RoomGenerationMethod method,
+        SmallMapRecipe smallMapRecipe,
         const std::vector<CellIndex>& entranceOrder,
         std::size_t entranceTargetCount) const;
 };

@@ -31,6 +31,23 @@ bool LevelSession::doorwayIsLocked(std::size_t doorway) const
     return doorway < lockedDoorways.size() && lockedDoorways[doorway];
 }
 
+bool LevelSession::setDoorwayLocked(std::size_t doorway, bool locked)
+{
+    if (doorway >= lockedDoorways.size()) {
+        return false;
+    }
+    lockedDoorways[doorway] = locked;
+    rebuildWalls();
+    return true;
+}
+
+void LevelSession::openAllDoorways()
+{
+    std::fill(lockedDoorways.begin(), lockedDoorways.end(), false);
+    lockedRoomId.reset();
+    rebuildWalls();
+}
+
 bool LevelSession::canTraverse(stalberg::rooms::CellIndex first,
     stalberg::rooms::CellIndex second) const
 {

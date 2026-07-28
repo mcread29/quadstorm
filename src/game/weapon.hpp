@@ -11,6 +11,7 @@ inline constexpr float WEAPON_MUZZLE_DISTANCE = PLAYER_FACING_MARKER_DISTANCE;
 
 struct Weapon {
     float cooldownRemaining = 0.0F;
+    float fireInterval = WEAPON_FIRE_INTERVAL;
 };
 
 void updateWeapon(Weapon& weapon, ProjectilePool& projectiles,

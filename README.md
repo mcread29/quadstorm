@@ -15,13 +15,14 @@ The current generator pass addresses level identity rather than adding more comb
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
-The repository also contains the first seven runtime milestones and the completed Milestone 8A combat foundation of a top-down 2.5D round-based horde shooter. The finished game is intended to take place on one persistent, learnable generated map per match: players survive escalating waves, earn currency, open routes, power strange machinery, solve a readable main quest, uncover optional Easter eggs, acquire geometry-driven wonder weapons, and reach a boss or extraction. Most enemies create crowd pressure, while ranged enemies, elites, objectives, and bosses introduce readable bullet-hell patterns. The current `stalberg_game` executable provides exact generated-floor traversal, always-available player firing, a short cooldown-based dash, and generated-room encounters containing up to three deterministic stable-ID enemies; the focused single-enemy regression arena remains available through **F1**.
+The repository also contains a complete small-map **systems** vertical slice of a top-down 2.5D round-based horde shooter. The current `stalberg_game` executable generates one of three intentional radius-5 gameplay graphs before physical routing, then runs a persistent five-round match with points, purchasable gates, Drifter/Runner/Caster/Elite hordes, door-aware navigation, an Anchor holdout, Hub activation, an optional ordered relay puzzle, upgrades, and explicit Exit completion. The required Anchor is a combat pressure objective rather than a logic puzzle; deeper puzzle mechanics remain future work. The focused single-enemy regression arena remains available through **F1**.
 
 ## Documentation
 
 - [`docs/game-roadmap.md`](docs/game-roadmap.md) — complete horde-shooter concept, match structure, and milestones.
 - [`docs/game-handoff.md`](docs/game-handoff.md) — current runtime architecture, decisions, limitations, and immediate implementation slice.
-- [`docs/level-identity-pass.md`](docs/level-identity-pass.md) — in-progress overview, topology-archetype, room-grammar, landmark, and diversity-validation pass.
+- [`docs/level-identity-pass.md`](docs/level-identity-pass.md) — in-progress topology, room-grammar, landmark, and diversity-validation pass.
+- [`docs/small-puzzle-horde-slice.md`](docs/small-puzzle-horde-slice.md) — interactive and headless acceptance guide for recipes, economy, rounds, puzzles, enemies, and upgrades.
 - [`docs/demo-and-algorithm.md`](docs/demo-and-algorithm.md) — base mesh mathematics, topology, relaxation, rendering, and source map.
 - [`docs/room-generation-model.md`](docs/room-generation-model.md) — neutral physical input, output API, roles, doorways, and gameplay integration contract.
 - [`docs/shooter-level-generation.md`](docs/shooter-level-generation.md) — complete graph-first arena, route, corridor, entrance, doorway, and tactical-annotation pipeline.
@@ -64,7 +65,7 @@ gesture; native builds retain audio.
 
 The runtime starts in generated traversal mode. `GeneratedLevel` retains the relaxed source grid, exact dual geometry, neutral room graph, shooter layout, and exact doorway threshold segments together. Assigned dual polygons become a cached floor mesh; floor/void edges and unauthorized cross-room contacts become walls; only exact published doorway cell pairs remain open. Mutable player, room-lifecycle, lock, and active-wall state lives separately in `LevelSession`. The player spawns at a high-clearance cell in Start and can move through the matching door-aware navigation graph without leaving the floor.
 
-Use **WASD** to move, **Space** to dash, the **mouse** to aim, and hold the **left mouse button** to fire anywhere on the generated map. Press **F1** for the intentionally small combat regression arena, where the same player controls exercise a stationary target, a 20-health enemy, pooled projectiles, swept relative-motion collision, player health, invulnerability, defeat, victory, and deterministic restart. Press **F2** for the fitted full-level developer overview; Left/Right browses six fixed read-only representative layouts and Home returns to the active session. A 45-degree tilted orthographic camera follows the active player, simulation runs at a fixed 120 Hz, and rendering interpolates simulation state.
+Use **WASD** to move, **Space** to dash, the **mouse** to aim, and hold the **left mouse button** to fire. Press **N** to begin a round, **E** to buy nearby gates or activate devices (including atomic Anchor funding/activation when affordable), and **1/2/3** at the Hub to buy damage, fire-rate, or dash upgrades. Press **F1** for the combat regression arena. Press **F2** for the fitted full-level overview; Left/Right browses six fixed read-only layouts and Home returns to the active session. Run with `--recipe=hub`, `--recipe=ring`, or `--recipe=wings` to play each graph directly. Simulation runs at a fixed 120 Hz and rendering interpolates simulation state.
 
 Debug builds apply debugger-friendly optimization to the game runtime and bundled raylib so interactive frame pacing remains representative while symbols and assertions stay enabled. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized stepping is required.
 
@@ -78,15 +79,18 @@ Grid generation and room generation are independent libraries. The room library 
 | Space | Dash in the movement direction, or facing direction while stationary |
 | Mouse | Aim on the ground plane |
 | Hold left mouse button | Fire on the generated map or in the combat regression arena |
-| R | Reset to Start, or restart after combat defeat/victory |
-| F1 | Toggle generated traversal / combat regression arena |
+| N | Start the next horde round during intermission |
+| E | Buy a nearby gate or activate the Anchor, Hub, or Exit; at Anchor, fund-and-start when affordable |
+| 1 / 2 / 3 at Hub | Buy damage, fire-rate, or dash upgrades |
+| R | Reset the complete match, or restart regression combat |
+| F1 | Toggle generated horde match / combat regression arena |
 | F2 | Toggle the full-level developer overview |
 | Left / Right in overview | Browse fixed representative configurations read-only |
 | Home in overview | Return to the active generated layout |
 | F3 | Toggle rendering/gameplay diagnostics |
 | Escape/window close | Exit |
 
-Generated traversal and generated-room encounters share the reusable game core. `LevelSession` owns the authoritative player and room lifecycle, while `GeneratedEncounterCoordinator` keeps the generated weapon and player projectiles active during traversal and preserves them across encounter activation and clearing. Its stable enemy collection updates up to three enemies in identity order and keeps room thresholds locked until all are defeated. Atomic encounter transitions keep room state, doorway locks, and active collision walls synchronized through combat, clearing, and progression toward Exit. The intended horde mode will reinterpret the same exact doorway thresholds as persistent gates, the room roles as map landmarks, and the navigation graph as the shared movement contract for crowds crossing every opened part of the map.
+`LevelSession` owns the authoritative generated player, doorway collision, and traversal state. `HordeMatch` owns persistent weapon/projectile state, points, gates, upgrades, deterministic round schedules, the map-wide enemy collection, Anchor/Hub/relay/Exit objective state, and terminal progression. Gate purchases update collision and player/enemy navigation together through exact published thresholds. Drifters and Runners pursue through opened cells, Casters preserve the ranged fan-pattern language, and the optional relay sequence grants a persistent fire-rate reward.
 
 ## Generator demo controls
 

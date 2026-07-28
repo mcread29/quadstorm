@@ -1330,6 +1330,49 @@ bool addCorridorRoom(
     return true;
 }
 
+std::vector<std::pair<int, int>> planRecipeArenaConnections(
+    std::size_t arenaCount, SmallMapRecipe recipe)
+{
+    std::vector<std::pair<int, int>> edges;
+    if (arenaCount < 3) {
+        return edges;
+    }
+
+    switch (recipe) {
+    case SmallMapRecipe::HubCircuit:
+        edges.emplace_back(0, 2);
+        edges.emplace_back(2, 1);
+        for (std::size_t arena = 3; arena < arenaCount; ++arena) {
+            edges.emplace_back(2, static_cast<int>(arena));
+        }
+        break;
+    case SmallMapRecipe::BrokenRing:
+        edges.emplace_back(0, 2);
+        if (arenaCount == 3) {
+            edges.emplace_back(2, 1);
+            break;
+        }
+        edges.emplace_back(2, 3);
+        edges.emplace_back(3, 1);
+        for (std::size_t arena = 4; arena < arenaCount; ++arena) {
+            edges.emplace_back(2, static_cast<int>(arena));
+        }
+        edges.emplace_back(0, 3);
+        break;
+    case SmallMapRecipe::TwinWings:
+        edges.emplace_back(0, 2);
+        edges.emplace_back(2, 1);
+        for (std::size_t arena = 3; arena < arenaCount; ++arena) {
+            edges.emplace_back(2, static_cast<int>(arena));
+        }
+        if (arenaCount >= 4) {
+            edges.emplace_back(3, 1);
+        }
+        break;
+    }
+    return edges;
+}
+
 std::vector<std::pair<int, int>> planArenaConnections(
     const RoomGrid& grid,
     const std::vector<CellIndex>& arenaSeeds,
@@ -1441,6 +1484,7 @@ ShooterGenerationResult generateShooterLayout(
     const EntranceSelection& entranceSelection,
     std::uint32_t requestedSeed,
     std::uint32_t generationSeed,
+    SmallMapRecipe smallMapRecipe,
     std::mt19937& random,
     std::vector<int>& assignments,
     std::vector<GeneratedRoom>& rooms,
@@ -1488,8 +1532,11 @@ ShooterGenerationResult generateShooterLayout(
 
     const std::size_t maximumArenaCount = std::max<std::size_t>(
         2, buildableCells.size() / 8);
+    const std::size_t minimumArenaCount
+        = buildableCells.size() >= 160 ? 5 : 4;
     const std::size_t desiredArenaCount = std::min(maximumArenaCount,
-        std::clamp<std::size_t>(buildableCells.size() / 55, 4, 20));
+        std::clamp<std::size_t>(
+            buildableCells.size() / 55, minimumArenaCount, 20));
     const float averageTarget = static_cast<float>(buildableCells.size())
         * 0.36F / static_cast<float>(std::max<std::size_t>(desiredArenaCount, 1));
     const ArenaDistributionBrief distribution = chooseArenaDistribution(
@@ -1498,6 +1545,12 @@ ShooterGenerationResult generateShooterLayout(
     std::vector<CellIndex> requestedSeeds { result.startCell };
     if (result.exitCell != result.startCell) {
         requestedSeeds.push_back(result.exitCell);
+    }
+    if (desiredArenaCount == 5
+        && smallMapRecipe != SmallMapRecipe::BrokenRing
+        && center < assignments.size() && buildable[center]
+        && std::ranges::find(requestedSeeds, center) == requestedSeeds.end()) {
+        requestedSeeds.push_back(center);
     }
     while (requestedSeeds.size() < desiredArenaCount) {
         CellIndex selected = assignments.size();
@@ -1520,6 +1573,25 @@ ShooterGenerationResult generateShooterLayout(
             = nominalRadius * 1.35F + cellScale * 0.5F;
         const float maximumClusterDistance
             = nominalRadius * 2.35F + cellScale * 0.75F;
+        const bool brokenRingIntermediate = desiredArenaCount == 5
+            && smallMapRecipe == SmallMapRecipe::BrokenRing;
+        CellPoint brokenRingTarget {};
+        if (brokenRingIntermediate) {
+            const CellPoint start = grid.cells[result.startCell].position;
+            const CellPoint exit = grid.cells[result.exitCell].position;
+            const float x = exit.x - start.x;
+            const float y = exit.y - start.y;
+            const float routeLength = std::max(std::sqrt(x * x + y * y), 1.0F);
+            const float amount = static_cast<float>(arenaIndex - 1)
+                / static_cast<float>(desiredArenaCount - 1);
+            const float bendDirection = (requestedSeed & 1U) == 0 ? 1.0F : -1.0F;
+            const float bend = std::sin(amount * std::numbers::pi_v<float>)
+                * routeLength * 0.2F * bendDirection;
+            brokenRingTarget = CellPoint {
+                start.x + x * amount - y / routeLength * bend,
+                start.y + y * amount + x / routeLength * bend
+            };
+        }
 
         for (const CellIndex candidate : buildableCells) {
             if (std::ranges::find(requestedSeeds, candidate) != requestedSeeds.end()) {
@@ -1533,7 +1605,13 @@ ShooterGenerationResult generateShooterLayout(
             const float noise = unitNoise(generationSeed,
                 arenaIndex * 104729U + candidate);
             float score = nearestDistance * (0.9F + noise * 0.2F);
-            if (clusteredSatellite) {
+            if (brokenRingIntermediate) {
+                score = -distance(
+                            grid.cells[candidate].position, brokenRingTarget)
+                    + nearestDistance * 0.08F
+                    + grid.cells[candidate].clearance * 0.12F
+                    + noise * cellScale * 0.2F;
+            } else if (clusteredSatellite) {
                 const float anchorDistance = distance(
                     grid.cells[clusterAnchor].position,
                     grid.cells[candidate].position);
@@ -1595,8 +1673,10 @@ ShooterGenerationResult generateShooterLayout(
         requestedSeeds.push_back(selected);
     }
 
-    const auto plannedConnections
-        = planArenaConnections(grid, requestedSeeds, generationSeed);
+    const bool usesSmallMapRecipe = requestedSeeds.size() == 5;
+    const auto plannedConnections = usesSmallMapRecipe
+        ? planRecipeArenaConnections(requestedSeeds.size(), smallMapRecipe)
+        : planArenaConnections(grid, requestedSeeds, generationSeed);
     // A passage shorter than an arena's approximate diameter is a doorway
     // transition, not another room. Keep one explicit connector for shooter
     // structure, then reserve additional connector identities for long routes.
@@ -1691,7 +1771,6 @@ ShooterGenerationResult generateShooterLayout(
             loopAdded = true;
         }
     }
-
     std::vector<bool> floor(assignments.size(), false);
     for (CellIndex cell = 0; cell < assignments.size(); ++cell) {
         floor[cell] = assignments[cell] != EMPTY_CELL;

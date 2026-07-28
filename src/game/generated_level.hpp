@@ -16,7 +16,7 @@
 #include <vector>
 
 struct GeneratedLevelConfig {
-    int gridRadius = 6;
+    int gridRadius = 5;
     std::uint32_t gridSeed = 1;
     std::uint32_t roomSeed = 1;
     float worldScale = 0.16F;
@@ -25,12 +25,12 @@ struct GeneratedLevelConfig {
 // Fixed read-only browser matrix; the first entry also configures the active level.
 inline constexpr std::array<GeneratedLevelConfig, 6>
     REPRESENTATIVE_LEVEL_CONFIGS {{
-        { 6, 1, 1, 0.16F },
-        { 6, 7, 19, 0.16F },
-        { 6, 23, 41, 0.16F },
-        { 8, 3, 17, 0.16F },
-        { 8, 29, 73, 0.16F },
-        { 10, 11, 5, 0.16F },
+        { 5, 1, 7, 0.16F },
+        { 5, 1, 2, 0.16F },
+        { 5, 1, 3, 0.16F },
+        { 5, 1, 4, 0.16F },
+        { 5, 1, 8, 0.16F },
+        { 5, 1, 6, 0.16F },
     }};
 
 struct FloorTriangle {

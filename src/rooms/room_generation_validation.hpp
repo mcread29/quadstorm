@@ -8,7 +8,10 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <queue>
 #include <ranges>
+#include <set>
 #include <vector>
 
 namespace stalberg::rooms::detail {
@@ -192,7 +195,119 @@ inline bool candidateIsValid(const RoomGrid& grid,
         distances, [](int value) { return value >= 0; });
 }
 
-inline bool shooterCandidateIsValid(const RoomLayout& layout)
+inline bool semanticHubBranchesAreSeparated(
+    const RoomGrid& grid, const RoomLayout& layout,
+    const std::vector<std::vector<int>>& roomGraph)
+{
+    constexpr int hubRoom = 2;
+    constexpr int startRoom = 0;
+    constexpr int anchorRoom = 3;
+    if (roomGraph.size() <= static_cast<std::size_t>(anchorRoom)) {
+        return false;
+    }
+
+    CellPoint hubCenter {};
+    std::size_t hubCellCount = 0;
+    const auto assignments = layout.getCellAssignments();
+    for (CellIndex cell = 0; cell < assignments.size(); ++cell) {
+        if (assignments[cell] == hubRoom) {
+            hubCenter.x += grid.cells[cell].position.x;
+            hubCenter.y += grid.cells[cell].position.y;
+            ++hubCellCount;
+        }
+    }
+    if (hubCellCount == 0) {
+        return false;
+    }
+    hubCenter.x /= static_cast<float>(hubCellCount);
+    hubCenter.y /= static_cast<float>(hubCellCount);
+
+    const auto branchDoorwayCenter = [&](int destination)
+        -> std::optional<CellPoint> {
+        std::optional<int> branchNeighbor;
+        for (const int neighbor : roomGraph[hubRoom]) {
+            std::vector<bool> reached(roomGraph.size(), false);
+            std::queue<int> frontier;
+            reached[static_cast<std::size_t>(hubRoom)] = true;
+            reached[static_cast<std::size_t>(neighbor)] = true;
+            frontier.push(neighbor);
+            while (!frontier.empty()) {
+                const int room = frontier.front();
+                frontier.pop();
+                if (room == destination) {
+                    branchNeighbor = neighbor;
+                    break;
+                }
+                if (layout.getRooms()[static_cast<std::size_t>(room)].role
+                    != RoomRole::Connector) {
+                    continue;
+                }
+                for (const int next : roomGraph[static_cast<std::size_t>(room)]) {
+                    if (!reached[static_cast<std::size_t>(next)]
+                        && (next == destination
+                            || layout.getRooms()[static_cast<std::size_t>(next)].role
+                                == RoomRole::Connector)) {
+                        reached[static_cast<std::size_t>(next)] = true;
+                        frontier.push(next);
+                    }
+                }
+            }
+            if (branchNeighbor.has_value()) {
+                break;
+            }
+        }
+        if (!branchNeighbor.has_value()) {
+            return std::nullopt;
+        }
+        const auto doorway = std::ranges::find_if(layout.getDoorways(),
+            [&](const Doorway& edge) {
+                return (edge.firstRegion == hubRoom
+                           && edge.secondRegion == *branchNeighbor)
+                    || (edge.secondRegion == hubRoom
+                        && edge.firstRegion == *branchNeighbor);
+            });
+        if (doorway == layout.getDoorways().end()
+            || doorway->firstCell >= grid.cells.size()
+            || doorway->secondCell >= grid.cells.size()) {
+            return std::nullopt;
+        }
+        return CellPoint {
+            (grid.cells[doorway->firstCell].position.x
+                + grid.cells[doorway->secondCell].position.x)
+                * 0.5F,
+            (grid.cells[doorway->firstCell].position.y
+                + grid.cells[doorway->secondCell].position.y)
+                * 0.5F
+        };
+    };
+
+    const auto startDoor = branchDoorwayCenter(startRoom);
+    const auto anchorDoor = branchDoorwayCenter(anchorRoom);
+    if (!startDoor.has_value() || !anchorDoor.has_value()) {
+        return false;
+    }
+    const CellPoint startDirection {
+        startDoor->x - hubCenter.x, startDoor->y - hubCenter.y
+    };
+    const CellPoint anchorDirection {
+        anchorDoor->x - hubCenter.x, anchorDoor->y - hubCenter.y
+    };
+    const float startLength = std::hypot(
+        startDirection.x, startDirection.y);
+    const float anchorLength = std::hypot(
+        anchorDirection.x, anchorDirection.y);
+    if (startLength <= 0.001F || anchorLength <= 0.001F) {
+        return false;
+    }
+    const float directionDot
+        = (startDirection.x * anchorDirection.x
+              + startDirection.y * anchorDirection.y)
+        / (startLength * anchorLength);
+    return directionDot <= 0.42F;
+}
+
+inline bool shooterCandidateIsValid(
+    const RoomGrid& grid, const RoomLayout& layout)
 {
     const auto rooms = layout.getRooms();
     std::size_t arenaCount = 0;
@@ -240,6 +355,70 @@ inline bool shooterCandidateIsValid(const RoomLayout& layout)
     if (arenaCount < 3 || connectorCount < 1
         || startRoom == EMPTY_CELL || exitRoom == EMPTY_CELL) {
         return false;
+    }
+    if (layout.hasSmallMapRecipe() && arenaCount == 5
+        && layout.getSmallMapRecipe() == SmallMapRecipe::BrokenRing
+        && rooms.size() > 2 && doorwayDegrees[2] < 2) {
+        return false;
+    }
+    if (layout.hasSmallMapRecipe() && arenaCount == 5
+        && layout.getSmallMapRecipe() != SmallMapRecipe::BrokenRing
+        && rooms.size() > 2 && doorwayDegrees[2] < 3) {
+        return false;
+    }
+    if (layout.hasSmallMapRecipe() && arenaCount == 5
+        && std::ranges::count(
+               rooms, RoomRole::Reward, &GeneratedRoom::role)
+            < 1) {
+        return false;
+    }
+    if (layout.hasSmallMapRecipe() && arenaCount == 5) {
+        if (!semanticHubBranchesAreSeparated(grid, layout, roomGraph)) {
+            return false;
+        }
+        std::set<std::pair<int, int>> arenaEdges;
+        for (const Doorway& doorway : layout.getDoorways()) {
+            const bool firstConnector = rooms[static_cast<std::size_t>(
+                doorway.firstRegion)].role == RoomRole::Connector;
+            const bool secondConnector = rooms[static_cast<std::size_t>(
+                doorway.secondRegion)].role == RoomRole::Connector;
+            if (!firstConnector && !secondConnector) {
+                arenaEdges.insert(std::minmax(
+                    doorway.firstRegion, doorway.secondRegion));
+            }
+        }
+        for (const GeneratedRoom& room : rooms) {
+            const auto& neighbors
+                = roomGraph[static_cast<std::size_t>(room.id)];
+            if (room.role != RoomRole::Connector || neighbors.size() != 2
+                || rooms[static_cast<std::size_t>(neighbors[0])].role
+                    == RoomRole::Connector
+                || rooms[static_cast<std::size_t>(neighbors[1])].role
+                    == RoomRole::Connector) {
+                continue;
+            }
+            arenaEdges.insert(std::minmax(neighbors[0], neighbors[1]));
+        }
+
+        std::set<std::pair<int, int>> required;
+        std::optional<std::pair<int, int>> optional;
+        if (layout.getSmallMapRecipe() == SmallMapRecipe::BrokenRing) {
+            required = { { 0, 2 }, { 1, 3 }, { 2, 3 }, { 2, 4 } };
+            optional = std::pair<int, int> { 0, 3 };
+        } else {
+            required = { { 0, 2 }, { 1, 2 }, { 2, 3 }, { 2, 4 } };
+            if (layout.getSmallMapRecipe() == SmallMapRecipe::TwinWings) {
+                optional = std::pair<int, int> { 1, 3 };
+            }
+        }
+        if (!std::ranges::all_of(required,
+                [&](const auto& edge) { return arenaEdges.contains(edge); })
+            || std::ranges::any_of(arenaEdges, [&](const auto& edge) {
+                   return !required.contains(edge)
+                       && (!optional.has_value() || edge != *optional);
+               })) {
+            return false;
+        }
     }
 
     const std::vector<int> distances

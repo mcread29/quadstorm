@@ -4,7 +4,7 @@ This document describes the default `RoomGenerationMethod::ShooterLayout` pipeli
 
 For the input/output types and physical geometry contract, see [`room-generation-model.md`](room-generation-model.md). For candidate validation, scoring, deterministic retries, and tests, see [`layout-quality-and-testing.md`](layout-quality-and-testing.md). For the next topology-archetype, room-grammar, runtime-overview, and landmark pass, see [`level-identity-pass.md`](level-identity-pass.md).
 
-The `stalberg_game` runtime consumes shooter layouts through an immutable package retaining the source grid, dual geometry, neutral room graph, layout, and exact doorway threshold segments. It renders exact assigned floors, closes unauthorized contacts, opens published doorway pairs, builds matching navigation, and spawns the player in Start. A mutable `LevelSession` owns the authoritative generated player and dynamically locks retained thresholds for collision and traversal. `GeneratedEncounterCoordinator` keeps generated-player firing active during traversal, preserves in-flight shots across encounter activation, uses filtered `enemySpawnCandidates` to activate up to three deterministic stable-ID enemies in entered `Combat` and `Hub` rooms, locks every incident doorway until all spawned enemies are defeated, reopens them on clear, and marks the floor complete at Exit. The intended game reinterprets the same layout as one persistent round-based horde map: published thresholds become purchasable gates, rooms become learnable landmarks and objective sites, and the navigation graph governs crowds moving across opened routes. Runtime milestones are tracked in [`game-roadmap.md`](game-roadmap.md), and [`game-handoff.md`](game-handoff.md) records the current implementation boundary.
+The `stalberg_game` runtime consumes shooter layouts through immutable `GeneratedLevel`, retaining source grid, dual geometry, neutral room graph, recipe metadata, exact floor, and doorway thresholds. `LevelSession` owns the authoritative player and synchronized collision/navigation locks. `HordeMatch` turns published thresholds into point gates and objective locks, routes deterministic rounds across opened cells, and binds high-clearance semantic sites to the Anchor, Hub, relays, upgrades, and Exit. Runtime milestones are tracked in [`game-roadmap.md`](game-roadmap.md), and [`small-puzzle-horde-slice.md`](small-puzzle-horde-slice.md) is the interactive acceptance guide.
 
 ## Goals
 
@@ -24,9 +24,9 @@ The generator works over the irregular dual-cell graph produced by the Stålberg
 
 ### Current identity limitation and next pass
 
-The goals above describe valid shooter circulation, but the implemented planner still relies primarily on one noise-perturbed spatial tree, at most one loop, at least one explicit connector, and the same compact growth process for most arenas. Direct arena links, dense clusters, and landmark-sized arenas provide some contrast, yet representative runtime layouts can still read as alternating arena/connector chains whose substantial rooms have similar silhouettes.
+Larger shooter layouts still rely primarily on one noise-perturbed spatial tree and optional loop. Radius-5 layouts now use fixed recipe graphs, but all substantial rooms still share the same compact growth process. Direct links, recipes, dense clusters, and landmark-sized arenas improve global contrast while local silhouettes can still read as oatmeal.
 
-The first pass slice now exposes the complete runtime layout and six fixed read-only representative configurations in the F2 developer overview. The remaining work in [`level-identity-pass.md`](level-identity-pass.md) will choose an explicit topology archetype before routing, validate graph signatures and anti-alternation metrics, assign a separate room-shape grammar, and publish deterministic landmark anchors. The pipeline documented below remains the authoritative current generator implementation until those structural slices land.
+The runtime now exposes the complete layout and six fixed read-only configurations in F2. Radius-5 maps also choose and publish Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing; this is the first mechanics-first anti-oatmeal tier. Larger maps retain the spatial planner. The remaining work in [`level-identity-pass.md`](level-identity-pass.md) is explicit room-shape grammar, broader archetypes, stronger graph signatures, districts, and puzzle-specific geometry.
 
 ### Horde-map interpretation
 
@@ -68,9 +68,11 @@ validate and canonicalize neutral topology
         ↓
 select one fixed three-to-six entrance brief
         ↓
-choose start, exit, and additional arena seeds
+select one fixed small-map gameplay recipe when applicable
         ↓
-plan a spatial arena tree and optional loop candidates
+choose start, exit, Hub, and additional arena seeds
+        ↓
+materialize recipe edges, or plan the larger-map spatial tree/loop
         ↓
 grow connected combat arenas around every seed
         ↓
@@ -180,7 +182,7 @@ Every requested seed is reserved before room growth. Growth also protects the on
 
 ## Stage 5: plan the abstract arena graph
 
-`planArenaConnections()` runs before arena geometry is grown.
+For radius-5-sized layouts, the requested room seed fixes one `SmallMapRecipe` across every candidate: Hub Circuit, Broken Ring, or Twin Wings. `planRecipeArenaConnections()` publishes exact required semantic edges before physical routing; Hub is arena `2`, Anchor is `3`, Reward is the leaf arena `4`, and Exit is `1`. Hub Circuit is an exact four-edge spoke graph and deliberately has no Start → Anchor shortcut: playtesting showed that shortcut could place the first and Anchor progression gates beside each other around the same destination. Broken Ring and Twin Wings may attempt one recipe-specific shortcut, but their required graph never depends on it. Candidate validation requires the Start and Anchor approaches to leave Hub at least approximately 65 degrees apart. Broken Ring also places intermediate seeds along a bent Start-to-Exit brief so its intentional chain routes physically. For larger layouts, `planArenaConnections()` retains the spatial tree and optional-loop behavior below.
 
 ### Required tree
 
@@ -400,7 +402,7 @@ Shooter roles:
 - Other planned arenas: `Combat`.
 - Every explicit corridor or entrance-spur room: `Connector`.
 
-`Reward` is currently produced only by the legacy methods' generic role inference; shooter arenas are normalized to the roles above.
+Small recipe maps reserve arena `2` as Hub and the final substantial arena as Reward. Larger shooter layouts continue to infer Hub from doorway degree and normalize other arenas to Combat.
 
 The output always uses dense room IDs equal to the room's position in `RoomLayout::getRooms()`.
 

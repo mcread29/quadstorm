@@ -19,6 +19,11 @@ struct PlayerInput {
     bool dashPressed = false;
     bool restartPressed = false;
     bool toggleViewPressed = false;
+    bool interactPressed = false;
+    bool startRoundPressed = false;
+    bool buyDamagePressed = false;
+    bool buyFireRatePressed = false;
+    bool buyDashPressed = false;
 };
 
 struct Player {
@@ -31,6 +36,7 @@ struct Player {
     Vector2 dashDirection {};
     float dashRemaining = 0.0F;
     float dashCooldownRemaining = 0.0F;
+    float dashCooldownScale = 1.0F;
 };
 
 enum class PlayerDamageResult {

@@ -62,7 +62,8 @@ void updatePlayer(Player& player, const PlayerInput& input, float stepTime)
             : player.facing;
         if (length(player.dashDirection) > 0.0F) {
             player.dashRemaining = PLAYER_DASH_DURATION;
-            player.dashCooldownRemaining = PLAYER_DASH_COOLDOWN;
+            player.dashCooldownRemaining
+                = PLAYER_DASH_COOLDOWN * player.dashCooldownScale;
         }
     }
 
