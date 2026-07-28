@@ -50,6 +50,9 @@ public:
         accumulatedTime += frameTime;
 
         PlayerInput input = readPlayerInput(renderCamera);
+        if (IsKeyPressed(KEY_F3)) {
+            showDebug = !showDebug;
+        }
         if (input.toggleViewPressed) {
             combatArenaActive = !combatArenaActive;
             restartQueued = false;
@@ -93,7 +96,7 @@ public:
             renderer.drawCombat(renderCamera, renderPlayer, aimPoint,
                 encounter.combat.playerProjectiles, encounter.target,
                 encounter.combat.enemy, encounter.combat.enemyProjectiles,
-                interpolationAmount);
+                interpolationAmount, showDebug);
         } else {
             const Player renderPlayer = interpolatePlayer(
                 previousGeneratedPlayer, levelSession.player(),
@@ -101,7 +104,8 @@ public:
             renderer.drawGenerated(renderCamera, renderPlayer, aimPoint,
                 level, levelSession,
                 generatedEncounter.combatForRoom(levelSession.currentRoom()),
-                generatedEncounter.floorIsComplete(), interpolationAmount);
+                generatedEncounter.floorIsComplete(), interpolationAmount,
+                showDebug);
         }
     }
 
@@ -115,6 +119,7 @@ private:
     Player previousGeneratedPlayer;
     Player previousCombatPlayer;
     bool combatArenaActive = false;
+    bool showDebug = false;
     Camera3D camera;
     Camera3D previousCamera;
     Camera3D renderCamera;

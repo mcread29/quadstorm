@@ -79,6 +79,7 @@ Grid generation and room generation are independent libraries. The room library 
 | Hold left mouse button | Fire in the combat regression arena |
 | R | Reset to Start, or restart after combat defeat/victory |
 | F1 | Toggle generated traversal / combat regression arena |
+| F3 | Toggle rendering/gameplay diagnostics |
 | Escape/window close | Exit |
 
 Generated traversal and generated-room encounters share the reusable game core. `LevelSession` owns the authoritative player and room lifecycle, and atomic encounter transitions keep room state, doorway locks, and active collision walls synchronized through combat, clearing, and progression toward Exit.

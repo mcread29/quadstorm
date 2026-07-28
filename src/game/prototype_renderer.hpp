@@ -21,31 +21,38 @@ public:
     void drawGenerated(const Camera3D& camera, const Player& player,
         Vector3 aimPoint, const GeneratedLevel& level,
         const LevelSession& session, const CombatState* combat,
-        bool floorComplete, float interpolationAmount) const;
+        bool floorComplete, float interpolationAmount, bool showDebug) const;
     void drawCombat(const Camera3D& camera, const Player& player,
         Vector3 aimPoint, const ProjectilePool& playerProjectiles,
         const Target& target, const Enemy& enemy,
         const ProjectilePool& enemyProjectiles,
-        float interpolationAmount) const;
+        float interpolationAmount, bool showDebug) const;
 
 private:
     void drawArena() const;
-    void drawWalls(std::span<const Segment2D> walls) const;
-    void drawPlayerShadow(const Player& player) const;
+    void drawLockedDoorways(const GeneratedLevel& level,
+        const LevelSession& session) const;
+    void drawActorShadow(Vector3 position, float radius) const;
     void drawPlayer(const Player& player) const;
-    void drawProjectiles(const ProjectilePool& projectiles,
-        float interpolationAmount, float height, Color headColor,
-        Color trailColor) const;
+    void drawProjectiles(const Camera3D& camera,
+        const ProjectilePool& projectiles, float interpolationAmount,
+        float height, Color headColor, Color trailColor) const;
     void drawTarget(const Target& target) const;
     void drawEnemy(const Enemy& enemy, float interpolationAmount) const;
+    void updateLighting(const Camera3D& camera, Color fogColor) const;
+    void drawPlayerHud(const Player& player) const;
 
     Shader lightingShader {};
     Model groundModel {};
     Model generatedFloorModel {};
+    Model generatedWallModel {};
     Model wallModel {};
     Model playerModel {};
-    Model projectileModel {};
     Model targetModel {};
     Model enemyModel {};
     Model shadowModel {};
+    Texture2D projectileGlow {};
+    int cameraPositionLocation = -1;
+    int cameraTargetLocation = -1;
+    int fogColorLocation = -1;
 };

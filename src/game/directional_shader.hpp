@@ -14,16 +14,19 @@ attribute vec3 vertexNormal;
 attribute vec4 vertexColor;
 
 uniform mat4 mvp;
+uniform mat4 matModel;
 uniform mat4 matNormal;
 
 varying vec2 fragTexCoord;
 varying vec3 fragNormal;
+varying vec3 fragWorldPosition;
 varying vec4 fragColor;
 
 void main()
 {
     fragTexCoord = vertexTexCoord;
     fragNormal = normalize(vec3(matNormal * vec4(vertexNormal, 0.0)));
+    fragWorldPosition = vec3(matModel * vec4(vertexPosition, 1.0));
     fragColor = vertexColor;
     gl_Position = mvp * vec4(vertexPosition, 1.0);
 }
@@ -36,21 +39,32 @@ precision mediump float;
 
 varying vec2 fragTexCoord;
 varying vec3 fragNormal;
+varying vec3 fragWorldPosition;
 varying vec4 fragColor;
 
 uniform sampler2D texture0;
 uniform vec4 colDiffuse;
 uniform vec3 lightDirection;
 uniform vec3 lightColor;
-uniform vec3 ambientColor;
+uniform vec3 groundAmbient;
+uniform vec3 skyAmbient;
+uniform vec3 cameraPosition;
+uniform vec3 cameraTarget;
+uniform vec3 fogColor;
 
 void main()
 {
     vec4 surface = texture2D(texture0, fragTexCoord) * colDiffuse * fragColor;
     vec3 normal = normalize(fragNormal);
+    vec3 viewDirection = normalize(cameraPosition - fragWorldPosition);
     float diffuse = max(dot(normal, -normalize(lightDirection)), 0.0);
-    vec3 lighting = ambientColor + lightColor * diffuse;
-    gl_FragColor = vec4(surface.rgb * lighting, surface.a);
+    float skyAmount = normal.y * 0.5 + 0.5;
+    vec3 ambient = mix(groundAmbient, skyAmbient, skyAmount);
+    float rim = pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.0) * 0.12;
+    vec3 litColor = surface.rgb * (ambient + lightColor * diffuse) + surface.rgb * rim;
+    float fogDistance = length(fragWorldPosition.xz - cameraTarget.xz);
+    float fogAmount = smoothstep(12.0, 25.0, fogDistance);
+    gl_FragColor = vec4(mix(litColor, fogColor, fogAmount), surface.a);
 }
 )";
 #else
@@ -68,12 +82,14 @@ uniform mat4 matNormal;
 
 out vec2 fragTexCoord;
 out vec3 fragNormal;
+out vec3 fragWorldPosition;
 out vec4 fragColor;
 
 void main()
 {
     fragTexCoord = vertexTexCoord;
     fragNormal = normalize(vec3(matNormal * vec4(vertexNormal, 0.0)));
+    fragWorldPosition = vec3(matModel * vec4(vertexPosition, 1.0));
     fragColor = vertexColor;
     gl_Position = mvp * vec4(vertexPosition, 1.0);
 }
@@ -84,13 +100,18 @@ inline constexpr const char* LIGHTING_FRAGMENT_SHADER = R"(
 
 in vec2 fragTexCoord;
 in vec3 fragNormal;
+in vec3 fragWorldPosition;
 in vec4 fragColor;
 
 uniform sampler2D texture0;
 uniform vec4 colDiffuse;
 uniform vec3 lightDirection;
 uniform vec3 lightColor;
-uniform vec3 ambientColor;
+uniform vec3 groundAmbient;
+uniform vec3 skyAmbient;
+uniform vec3 cameraPosition;
+uniform vec3 cameraTarget;
+uniform vec3 fogColor;
 
 out vec4 finalColor;
 
@@ -98,9 +119,15 @@ void main()
 {
     vec4 surface = texture(texture0, fragTexCoord) * colDiffuse * fragColor;
     vec3 normal = normalize(fragNormal);
+    vec3 viewDirection = normalize(cameraPosition - fragWorldPosition);
     float diffuse = max(dot(normal, -normalize(lightDirection)), 0.0);
-    vec3 lighting = ambientColor + lightColor * diffuse;
-    finalColor = vec4(surface.rgb * lighting, surface.a);
+    float skyAmount = normal.y * 0.5 + 0.5;
+    vec3 ambient = mix(groundAmbient, skyAmbient, skyAmount);
+    float rim = pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.0) * 0.12;
+    vec3 litColor = surface.rgb * (ambient + lightColor * diffuse) + surface.rgb * rim;
+    float fogDistance = length(fragWorldPosition.xz - cameraTarget.xz);
+    float fogAmount = smoothstep(12.0, 25.0, fogDistance);
+    finalColor = vec4(mix(litColor, fogColor, fogAmount), surface.a);
 }
 )";
 #endif
