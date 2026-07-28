@@ -37,8 +37,7 @@ PrototypeRenderer::PrototypeRenderer()
     , groundModel(LoadModelFromMesh(GenMeshPlane(80.0F, 80.0F, 1, 1)))
     , wallModel(LoadModelFromMesh(GenMeshCube(1.0F, 2.0F, 0.18F)))
     , playerModel(LoadModelFromMesh(GenMeshSphere(PLAYER_RADIUS, 16, 24)))
-    , projectileModel(LoadModelFromMesh(
-          GenMeshSphere(PROJECTILE_RADIUS, 8, 12)))
+    , projectileModel(LoadModelFromMesh(GenMeshSphere(1.0F, 8, 12)))
     , targetModel(LoadModelFromMesh(GenMeshSphere(TARGET_RADIUS, 16, 24)))
     , shadowModel(LoadModelFromMesh(
           GenMeshCylinder(PLAYER_RADIUS * 1.05F, 0.01F, 32)))
@@ -87,9 +86,11 @@ void PrototypeRenderer::draw(const Camera3D& camera, const Player& player,
     DrawText("WASD move  |  mouse aim  |  hold LMB fire", 28, 60, 17,
         Color { 151, 193, 190, 255 });
     if (target.health > 0) {
-        DrawText(TextFormat("Target %i/%i  |  active %i  |  10/s  22u/s  r0.16",
+        DrawText(TextFormat(
+                     "Target %i/%i  |  active %i  |  10/s  %.0fu/s  r%.2f",
                      target.health, TARGET_MAX_HEALTH,
-                     static_cast<int>(projectiles.activeCount())),
+                     static_cast<int>(projectiles.activeCount()),
+                     projectiles.profile().speed, projectiles.profile().radius),
             28, 91, 17, Color { 225, 241, 232, 255 });
     } else {
         DrawText(TextFormat("Target resetting in %.1fs  |  active %i",
@@ -209,7 +210,7 @@ void PrototypeRenderer::drawProjectiles(
 
         const Vector2 position = interpolateProjectilePosition(
             projectile, interpolationAmount);
-        const float inverseSpeed = 1.0F / PROJECTILE_SPEED;
+        const float inverseSpeed = 1.0F / projectiles.profile().speed;
         const Vector3 head { position.x, projectileHeight, position.y };
         const Vector3 tail {
             head.x - projectile.velocity.x * inverseSpeed * trailLength,
@@ -217,7 +218,8 @@ void PrototypeRenderer::drawProjectiles(
             head.z - projectile.velocity.y * inverseSpeed * trailLength
         };
         DrawLine3D(tail, head, trailColor);
-        DrawModel(projectileModel, head, 1.0F, projectileColor);
+        DrawModel(projectileModel, head,
+            projectiles.profile().radius, projectileColor);
     }
 }
 

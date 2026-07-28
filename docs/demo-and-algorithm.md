@@ -406,16 +406,17 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/main.cpp` | Compose generation modules, process controls, update, and render the diagnostic demo |
 | `src/game/main.cpp` | Run the fixed-step 2.5D prototype loop and compose runtime modules |
 | `src/game/arena.*` | Define arena walls and resolve player/projectile wall collision |
+| `src/game/collision_2d.*` | Reusable swept-circle, segment, earliest-hit, and containment queries |
 | `src/game/player.*` | Player movement, facing, and interpolated render state |
 | `src/game/weapon.*` | Fixed fire cadence and facing-marker muzzle spawning |
-| `src/game/projectile_pool.*` | Preallocated projectile slots, movement, lifetime, reuse, and interpolation |
+| `src/game/projectile_pool.*` | Profile-driven preallocated projectile slots, movement, lifetime, reuse, and interpolation |
 | `src/game/target.*` | Target health/reset state and swept projectile-versus-circle collision |
 | `src/game/game_camera.*` | Orthographic follow camera, camera-relative controls, and ground projection |
 | `src/game/game_input.*` | Poll raylib input into simulation-facing `PlayerInput` data |
 | `src/game/prototype_renderer.*` | Own game GPU resources and render the current prototype scene |
 | `tests/grid_tests.cpp` | Headless grid topology and relaxation tests |
 | `tests/room_generation_tests.cpp` | Headless room connectivity, doorway, and determinism tests |
-| `tests/game_tests.cpp` | Headless arena collision, projectile movement/pool, and weapon-cadence tests |
+| `tests/game_tests.cpp` | Headless 2D collision, arena collision, projectile profile/pool, and weapon-cadence tests |
 
 ## Compact pseudocode
 

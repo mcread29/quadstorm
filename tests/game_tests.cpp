@@ -1,4 +1,5 @@
 #include "game/arena.hpp"
+#include "game/collision_2d.hpp"
 #include "game/projectile_pool.hpp"
 #include "game/weapon.hpp"
 
@@ -6,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <iostream>
+#include <limits>
 #include <string_view>
 
 namespace {
@@ -21,6 +23,33 @@ bool check(bool condition, std::string_view message)
 bool nearlyEqual(float left, float right)
 {
     return std::abs(left - right) <= 0.0001F;
+}
+
+bool sweptCircleQueriesReturnFirstContact()
+{
+    const auto hitAmount = sweepCircleAgainstCircle(
+        Vector2 { -5.0F, 0.0F }, Vector2 { 5.0F, 0.0F }, 0.5F,
+        Vector2 {}, 1.0F);
+    const auto missAmount = sweepCircleAgainstCircle(
+        Vector2 { -5.0F, 2.0F }, Vector2 { 5.0F, 2.0F }, 0.5F,
+        Vector2 {}, 1.0F);
+    const auto grazingHit = sweepCircleAgainstCircle(
+        Vector2 { -17.838455F, 11.300903F },
+        Vector2 { -53.980194F, 9.517175F }, 0.16F,
+        Vector2 { -45.974655F, 10.9235F }, 0.85F);
+    const auto initialOverlap = sweepCircleAgainstCircle(
+        Vector2 { 0.5F, 0.0F }, Vector2 { 0.5F, 0.0F }, 0.5F,
+        Vector2 {}, 0.5F);
+
+    return check(hitAmount.has_value() && nearlyEqual(*hitAmount, 0.35F),
+               "swept circles report their first contact amount")
+        && check(!missAmount.has_value(),
+            "separated swept circles do not report a hit")
+        && check(grazingHit.has_value(),
+            "long shallow circle sweeps preserve grazing contacts")
+        && check(initialOverlap.has_value()
+                && nearlyEqual(*initialOverlap, 0.0F),
+            "zero-length initial overlaps report immediate contact");
 }
 
 bool projectilesAdvanceAndInterpolate()
@@ -46,6 +75,45 @@ bool projectilesAdvanceAndInterpolate()
     return valid;
 }
 
+bool projectileProfilesControlSimulationAndCollision()
+{
+    constexpr ProjectileProfile profile {
+        .speed = 8.0F,
+        .lifetime = 0.5F,
+        .radius = 0.4F
+    };
+    constexpr std::array walls {
+        WallSegment { Vector2 { 1.5F, -2.0F }, Vector2 { 1.5F, 2.0F } }
+    };
+    ProjectilePool pool(profile);
+    bool valid = check(pool.spawn(Vector2 {}, Vector2 { 1.0F, 0.0F }),
+        "a projectile with a valid custom profile spawns");
+
+    pool.update(0.25F);
+    const Projectile& advanced = pool.projectiles().front();
+    valid &= check(nearlyEqual(advanced.position.x, 2.0F)
+            && nearlyEqual(advanced.remainingLifetime, 0.25F),
+        "projectile speed and lifetime come from its pool profile");
+
+    resolveProjectileWallCollisions(pool, walls);
+    const Projectile& collided = pool.projectiles().front();
+    valid &= check(!collided.active
+            && nearlyEqual(collided.position.x, 1.1F),
+        "wall collision uses the projectile pool profile radius");
+    return valid;
+}
+
+bool invalidProjectileProfilesCannotSpawn()
+{
+    ProjectilePool pool(ProjectileProfile {
+        .speed = std::numeric_limits<float>::infinity(),
+        .lifetime = 1.0F,
+        .radius = 0.2F
+    });
+    return check(!pool.spawn(Vector2 {}, Vector2 { 1.0F, 0.0F }),
+        "non-finite projectile profiles cannot create invalid simulation state");
+}
+
 bool poolExhaustionAndReuseAreSafe()
 {
     ProjectilePool pool;
@@ -59,7 +127,7 @@ bool poolExhaustionAndReuseAreSafe()
     valid &= check(!pool.spawn(Vector2 {}, Vector2 { 1.0F, 0.0F }),
         "pool exhaustion drops a projectile safely");
 
-    pool.update(PROJECTILE_LIFETIME);
+    pool.update(PLAYER_PROJECTILE_LIFETIME);
     valid &= check(pool.activeCount() == 0,
         "projectiles deactivate when their lifetime expires");
     valid &= check(pool.spawn(Vector2 { 7.0F, 8.0F }, Vector2 { 0.0F, 1.0F }),
@@ -187,7 +255,8 @@ bool fastProjectilesHitTheFirstWall()
     const Projectile& projectile = pool.projectiles().front();
     valid &= check(!projectile.active,
         "swept wall collision catches a fast projectile");
-    valid &= check(nearlyEqual(projectile.position.x, -PROJECTILE_RADIUS),
+    valid &= check(nearlyEqual(
+            projectile.position.x, -PLAYER_PROJECTILE_RADIUS),
         "projectile stops at the earliest wall regardless of array order");
     return valid;
 }
@@ -244,7 +313,10 @@ bool weaponUsesMuzzleAndFixedCadence()
 int main()
 {
     bool valid = true;
+    valid &= sweptCircleQueriesReturnFirstContact();
     valid &= projectilesAdvanceAndInterpolate();
+    valid &= projectileProfilesControlSimulationAndCollision();
+    valid &= invalidProjectileProfilesCannotSpawn();
     valid &= poolExhaustionAndReuseAreSafe();
     valid &= playerStopsAtWallFaces();
     valid &= playerResolvesWallEndpoints();

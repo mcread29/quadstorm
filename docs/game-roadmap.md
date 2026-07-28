@@ -66,7 +66,7 @@ The runtime now provides:
 - Four immutable wall segments enclosing the hard-coded 20-by-20 arena.
 - Iterative player circle-versus-segment collision, including endpoint contacts.
 - Velocity projection that preserves tangential movement for smooth wall sliding.
-- Swept projectile circle-versus-segment collision without tunneling, including endpoint and earliest-hit handling.
+- Reusable swept-circle collision queries for circle targets, wall faces, endpoints, and earliest-hit handling.
 - Rejection of outward-facing muzzle shots that begin beyond the closed arena loop.
 - Wall meshes whose inner faces follow the authoritative X/Z segments.
 - Headless tests for wall faces, endpoints, corners, sliding, fast projectiles, and outside-muzzle rejection.
@@ -78,7 +78,7 @@ Acceptance check: movement remains smooth along corners and walls, and neither p
 ### Milestone 5: first enemy
 
 - Add one enemy that moves toward or around the player.
-- Add one readable enemy projectile pattern.
+- Add one readable enemy projectile pattern using a separate profile-driven projectile pool.
 - Add player health, damage, invulnerability timing, death, and restart.
 - Add minimal combat audio and effects.
 

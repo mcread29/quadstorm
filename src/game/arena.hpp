@@ -1,5 +1,6 @@
 #pragma once
 
+#include "collision_2d.hpp"
 #include "player.hpp"
 #include "projectile_pool.hpp"
 
@@ -8,10 +9,7 @@
 #include <array>
 #include <span>
 
-struct WallSegment {
-    Vector2 start {};
-    Vector2 end {};
-};
+using WallSegment = Segment2D;
 
 inline constexpr float ARENA_HALF_EXTENT = 10.0F;
 inline constexpr std::array<WallSegment, 4> ARENA_WALLS {

@@ -375,13 +375,13 @@ Callers should check `getRoomCount()` before constructing gameplay state.
 
 ## Test organization
 
-CTest currently builds three headless test executables: two for generation and one for the separate `stalberg_game` arena/projectile/weapon modules. Target collision and rendering currently rely on graphical smoke runs; target headless tests were explicitly deferred for Milestone 3.
+CTest currently builds three headless test executables: two for generation and one for the separate `stalberg_game` collision/arena/projectile/weapon modules. Target collision and rendering currently rely on graphical smoke runs; target headless tests were explicitly deferred for Milestone 3.
 
 | Test | Coverage |
 |---|---|
 | `stalberg_grid_tests` | Base mesh topology, repeatability, dual geometry, and relaxation |
 | `stalberg_room_generation_tests` | Adapter contract, all room methods, physical metadata, circulation, roles, scoring, and edge cases |
-| `stalberg_game_tests` | Player wall faces/endpoints/corners/sliding, swept projectile-wall hits, outside-muzzle rejection, projectile movement/interpolation, pool reuse, muzzle position, and fixed fire cadence |
+| `stalberg_game_tests` | Swept-circle queries, player wall faces/endpoints/corners/sliding, swept projectile-wall hits, outside-muzzle rejection, profile-driven projectile movement/collision, pool reuse, muzzle position, and fixed fire cadence |
 
 Run:
 

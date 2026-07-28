@@ -79,6 +79,7 @@ enable_project_warnings(stalberg_grid)
 
 add_executable(stalberg_game
     src/game/arena.cpp
+    src/game/collision_2d.cpp
     src/game/game_camera.cpp
     src/game/game_input.cpp
     src/game/main.cpp
@@ -109,6 +110,7 @@ if(BUILD_TESTING)
     add_executable(stalberg_game_tests
         tests/game_tests.cpp
         src/game/arena.cpp
+        src/game/collision_2d.cpp
         src/game/projectile_pool.cpp
         src/game/weapon.cpp
     )

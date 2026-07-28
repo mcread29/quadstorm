@@ -16,12 +16,30 @@ float lerp(float start, float end, float amount)
     return start + (end - start) * amount;
 }
 
+bool isValid(ProjectileProfile profile)
+{
+    return std::isfinite(profile.speed)
+        && std::isfinite(profile.lifetime)
+        && std::isfinite(profile.radius)
+        && profile.speed > 0.0F
+        && profile.lifetime > 0.0F
+        && profile.radius >= 0.0F;
+}
+
 } // namespace
+
+ProjectilePool::ProjectilePool(ProjectileProfile profile)
+    : projectileProfile(profile)
+{
+}
 
 bool ProjectilePool::spawn(Vector2 position, Vector2 direction)
 {
     const float directionLength = length(direction);
-    if (directionLength <= MINIMUM_DIRECTION_LENGTH) {
+    if (!std::isfinite(position.x) || !std::isfinite(position.y)
+        || !std::isfinite(directionLength)
+        || directionLength <= MINIMUM_DIRECTION_LENGTH
+        || !isValid(projectileProfile)) {
         return false;
     }
 
@@ -33,10 +51,10 @@ bool ProjectilePool::spawn(Vector2 position, Vector2 direction)
         projectile.position = position;
         projectile.previousPosition = position;
         projectile.velocity = Vector2 {
-            direction.x / directionLength * PROJECTILE_SPEED,
-            direction.y / directionLength * PROJECTILE_SPEED
+            direction.x / directionLength * projectileProfile.speed,
+            direction.y / directionLength * projectileProfile.speed
         };
-        projectile.remainingLifetime = PROJECTILE_LIFETIME;
+        projectile.remainingLifetime = projectileProfile.lifetime;
         projectile.active = true;
         return true;
     }
