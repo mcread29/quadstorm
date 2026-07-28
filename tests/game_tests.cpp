@@ -246,6 +246,68 @@ bool playerSlidesAlongWalls()
             "sliding preserves tangential velocity");
 }
 
+bool playerDashMovesQuicklyAndRespectsCooldown()
+{
+    constexpr float fixedStep = 1.0F / 120.0F;
+    Player player;
+    PlayerInput input;
+    input.movement = Vector2 { 1.0F, 0.0F };
+    input.dashPressed = true;
+
+    updatePlayer(player, input, fixedStep);
+    bool valid = check(nearlyEqual(
+                           player.position.x, PLAYER_DASH_SPEED * fixedStep)
+            && nearlyEqual(player.velocity.x, PLAYER_DASH_SPEED)
+            && player.dashRemaining > 0.0F
+            && nearlyEqual(
+                player.dashCooldownRemaining, PLAYER_DASH_COOLDOWN),
+        "dash starts immediately at dash speed");
+
+    const float firstDashRemaining = player.dashRemaining;
+    updatePlayer(player, input, fixedStep);
+    valid &= check(player.dashRemaining < firstDashRemaining,
+        "dash input cannot restart an active dash");
+
+    input.dashPressed = false;
+    const int recoverySteps = static_cast<int>(
+        PLAYER_DASH_COOLDOWN / fixedStep) + 2;
+    for (int step = 0; step < recoverySteps; ++step) {
+        updatePlayer(player, input, fixedStep);
+    }
+    input.movement = Vector2 { 0.0F, 1.0F };
+    input.dashPressed = true;
+    updatePlayer(player, input, fixedStep);
+    valid &= check(player.dashRemaining > 0.0F
+            && nearlyEqual(player.dashDirection.x, 0.0F)
+            && nearlyEqual(player.dashDirection.y, 1.0F),
+        "dash becomes available again after its cooldown");
+    return valid;
+}
+
+bool playerDashRespectsWallCollision()
+{
+    constexpr float fixedStep = 1.0F / 120.0F;
+    constexpr std::array walls {
+        WallSegment { Vector2 { 1.0F, -5.0F }, Vector2 { 1.0F, 5.0F } }
+    };
+    Player player;
+    PlayerInput input;
+    input.movement = Vector2 { 1.0F, 0.0F };
+    input.dashPressed = true;
+
+    for (int step = 0; step < 30; ++step) {
+        const Vector2 previousPosition { player.position.x, player.position.z };
+        updatePlayer(player, input, fixedStep);
+        resolvePlayerWallCollisions(player, previousPosition, walls);
+        input.dashPressed = false;
+    }
+
+    return check(nearlyEqual(player.position.x, 1.0F - PLAYER_RADIUS),
+               "dash cannot carry the player through a wall")
+        && check(player.velocity.x <= 0.0001F,
+            "dash wall contact removes velocity into the wall");
+}
+
 bool reusableCombatUpdatesACallerOwnedPlayer()
 {
     constexpr std::array walls {
@@ -622,6 +684,8 @@ int main()
     valid &= playerResolvesWallEndpoints();
     valid &= playerResolvesCornersIteratively();
     valid &= playerSlidesAlongWalls();
+    valid &= playerDashMovesQuicklyAndRespectsCooldown();
+    valid &= playerDashRespectsWallCollision();
     valid &= reusableCombatUpdatesACallerOwnedPlayer();
     valid &= encounterUsesSuppliedWallGeometry();
     valid &= projectileWallEndpointsAreSolid();

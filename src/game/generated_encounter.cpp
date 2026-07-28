@@ -57,6 +57,29 @@ bool hasWallClearance(const GeneratedLevel& level, Vector2 position)
         });
 }
 
+void updateGeneratedPlayerWeapon(CombatState& combat,
+    const LevelSession& session, const PlayerInput& input, float stepTime)
+{
+    if (!isPlayerAlive(session.player())) {
+        return;
+    }
+
+    updateWeapon(combat.weapon, combat.playerProjectiles,
+        session.player(), input.fireHeld, stepTime, session.activeWalls());
+    combat.playerProjectiles.update(stepTime);
+    resolveProjectileWallCollisions(
+        combat.playerProjectiles, session.activeWalls());
+    combat.playerProjectiles.retireExpired();
+}
+
+void beginGeneratedCombat(CombatState& combat, Vector2 enemyPosition)
+{
+    combat.enemy = Enemy {};
+    combat.enemy.position = enemyPosition;
+    combat.enemy.previousPosition = enemyPosition;
+    combat.enemyProjectiles = ProjectilePool { ENEMY_PROJECTILE_PROFILE };
+}
+
 } // namespace
 
 CombatState* GeneratedEncounterCoordinator::activeCombat()
@@ -144,7 +167,6 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
             && coordinator.roomId.has_value()) {
             const int room = *coordinator.roomId;
             if (session.clearEncounter(room)) {
-                coordinator.combatState.playerProjectiles = ProjectilePool {};
                 coordinator.combatState.enemyProjectiles
                     = ProjectilePool { ENEMY_PROJECTILE_PROFILE };
                 coordinator.fighting = false;
@@ -155,6 +177,8 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
     }
 
     result.levelSession = session.update(input, stepTime);
+    updateGeneratedPlayerWeapon(
+        coordinator.combatState, session, input, stepTime);
     if (!result.levelSession.enteredRoom.has_value()) {
         return result;
     }
@@ -196,7 +220,7 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
     };
     resolvePlayerWallCollisions(
         session.player(), lockedPosition, session.activeWalls());
-    resetCombat(coordinator.combatState, *spawn);
+    beginGeneratedCombat(coordinator.combatState, *spawn);
     coordinator.roomId = room;
     coordinator.fighting = true;
     result.encounterStarted = true;

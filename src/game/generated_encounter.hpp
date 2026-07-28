@@ -22,6 +22,10 @@ public:
     CombatState* activeCombat();
     const CombatState* activeCombat() const;
     const CombatState* combatForRoom(std::optional<int> room) const;
+    const ProjectilePool& playerProjectiles() const
+    {
+        return combatState.playerProjectiles;
+    }
 
 private:
     friend void resetGeneratedEncounter(GeneratedEncounterCoordinator&);

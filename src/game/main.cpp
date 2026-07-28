@@ -56,6 +56,7 @@ public:
         if (input.toggleViewPressed) {
             combatArenaActive = !combatArenaActive;
             restartQueued = false;
+            dashQueued = false;
             accumulatedTime = 0.0F;
             input.hasAimPoint = false;
             if (combatArenaActive) {
@@ -70,7 +71,9 @@ public:
         }
 
         restartQueued |= input.restartPressed;
+        dashQueued |= input.dashPressed;
         input.restartPressed = restartQueued;
+        input.dashPressed = dashQueued;
         if (input.hasAimPoint) {
             aimPoint = input.aimPoint;
         }
@@ -83,7 +86,9 @@ public:
                 updateGeneratedLevel(input);
             }
             restartQueued = false;
+            dashQueued = false;
             input.restartPressed = false;
+            input.dashPressed = false;
             accumulatedTime -= FIXED_STEP_TIME;
         }
 
@@ -102,7 +107,7 @@ public:
                 previousGeneratedPlayer, levelSession.player(),
                 interpolationAmount);
             renderer.drawGenerated(renderCamera, renderPlayer, aimPoint,
-                level, levelSession,
+                level, levelSession, generatedEncounter.playerProjectiles(),
                 generatedEncounter.combatForRoom(levelSession.currentRoom()),
                 generatedEncounter.floorIsComplete(), interpolationAmount,
                 showDebug);
@@ -126,6 +131,7 @@ private:
     Vector3 aimPoint;
     float accumulatedTime = 0.0F;
     bool restartQueued = false;
+    bool dashQueued = false;
 
     void updateCombatArena(const PlayerInput& input)
     {
@@ -187,7 +193,14 @@ void runWebFrame(void* context)
 
 int main()
 {
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
+    auto windowFlags = FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT;
+#if !defined(PLATFORM_WEB)
+    windowFlags |= FLAG_WINDOW_RESIZABLE;
+#endif
+    // Web keeps a fixed 16:10 framebuffer and lets CSS scale it uniformly.
+    // Raylib's resizable web path instead adopts the browser aspect ratio,
+    // which diverges from the letterboxed canvas and offsets mouse input.
+    SetConfigFlags(windowFlags);
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Stalberg game prototype");
 
     std::unique_ptr<GameApplication> application;

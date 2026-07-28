@@ -1,144 +1,207 @@
 # Game Roadmap
 
-This document tracks the path from the procedural-generation demo to a top-down 2.5D roguelite bullet hell. The immediate rule is to finish one small, playable capability at a time instead of expanding every system in parallel.
+This document tracks the evolution of the procedural-generation demo into a top-down 2.5D round-based horde shooter. The finished game is built around one persistent, learnable map per match: the player survives escalating waves, earns currency, opens routes, powers strange machinery, discovers hidden quests, acquires transformative weapons, and reaches a final confrontation or extraction.
 
-For the current implementation state and continuation instructions, see [`game-handoff.md`](game-handoff.md).
+Bullet-hell combat remains part of the identity, but as punctuation rather than the entire game. Most enemies create a moving crowd that the player must route through the map; ranged enemies, elites, objectives, and bosses introduce readable projectile patterns that disrupt comfortable strategies.
 
-## Product direction
+For the current implementation boundary and technical invariants, see [`game-handoff.md`](game-handoff.md).
 
-- Render a three-dimensional world with a tilted orthographic camera.
-- Keep authoritative gameplay on the horizontal XZ plane; world Y represents visual height.
-- Use mouse and keyboard twin-stick controls first, with controller support later.
-- Preserve `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` as the procedural level compiler.
-- Build and validate combat in a simple test plane before consuming generated levels.
-- Keep the simulation deterministic enough for seeded runs and reproducible debugging.
+## Game concept
 
-## Current status
+### Player fantasy
 
-### Milestone 1: movement prototype — complete
+The player enters a dormant geometric fortress with a basic weapon and limited access to the map. Each round wakes more of the structure and sends a larger, more varied horde through its rooms. Fighting generates the currency needed to open gates, activate devices, improve weapons, and take tactical risks.
 
-The `stalberg_game` executable currently provides:
+The map is both an arena and a machine. Its routes, chambers, symbols, powered thresholds, and hidden mechanisms become understandable over repeated attempts. A successful match is not only about surviving damage; it is about learning how the place works, choosing an efficient route through it, assembling enough power to face its final threat, and deciding whether to extract or continue into endless waves.
 
-- A flat XZ ground plane.
-- A sphere player with accelerated, normalized WASD movement.
-- Camera-relative controls.
-- Mouse aiming through screen-ray/ground-plane intersection.
-- A 45-degree elevation, 45-degree heading orthographic follow camera.
-- A directional diffuse-light shader.
-- A lightweight projected player shadow.
-- A fixed 120 Hz simulation with interpolated rendering.
-- Cached ground, player, and shadow meshes.
+### Core pillars
 
-Acceptance check: the player can move smoothly in every direction, aim independently, and remain readable under the follow camera.
+#### Crowd movement
 
-### Milestone 2: projectile firing — complete
+- Movement, aiming, and firing remain independent twin-stick actions.
+- A short, responsive dash gives the player an intentional way through closing gaps.
+- Common enemies form crowds that can be gathered, redirected, split at doorways, and punished with area attacks.
+- Wide rooms support circular training routes; connectors and narrow doors create dangerous chokepoints.
+- Collision, navigation, and telegraphs remain readable under the tilted orthographic camera.
 
-The runtime now provides:
+#### Pressure and release
 
-- Left-mouse held firing with a fixed ten-shot-per-second cadence.
-- A 192-slot preallocated projectile pool with safe dropped shots on exhaustion.
-- Muzzle spawning from the player's facing marker.
-- Fixed-step projectile movement, lifetime expiry, and stable-slot reuse.
-- Previous/current projectile positions for render interpolation and later swept collision.
-- Lit projectile meshes with a simple motion trail.
-- Headless tests for projectile movement/interpolation, lifetime expiry, pool exhaustion/reuse, muzzle spawning, and weapon cadence.
+- Combat is organized into explicit rounds.
+- Each round moves through build-up, peak pressure, cleanup, and respite rather than sustaining maximum intensity continuously.
+- Intermissions provide time to explore, spend currency, read clues, and prepare devices.
+- Objectives can deliberately interrupt the normal rhythm with holdouts, escorts, traps, or special enemy compositions.
+- Players can accelerate quiet periods when they are ready for the next round.
 
-Acceptance check: the player can move and aim while holding fire; projectile spacing and speed remain stable at different render rates, and expired projectiles reuse pool capacity without allocation.
+#### A map that opens over time
 
-### Milestone 3: target and hit feedback — complete
+- The match takes place on one persistent generated layout rather than a sequence of disposable floors.
+- Doorway thresholds become visible gates with sealed, purchasable, open, and objective-locked states.
+- Currency creates a recurring choice between opening safer or more profitable routes and buying immediate combat power.
+- Start, Hub, Combat, Connector, Reward, and Exit rooms become recognizable gameplay landmarks.
+- Power activation changes navigation, lighting, available services, enemy access, and the state of the central Hub.
 
-The runtime now provides:
+#### Discovery and Easter eggs
 
-- One stationary five-health target with a 2D circle collider.
-- Swept projectile-segment collision including both target and projectile radii.
-- Single-hit projectile deactivation and damage.
-- A target hit flash, expanding impact cue, defeat state, and automatic reset.
-- HUD diagnostics for target health, active projectile count, speed, radius, and fire rate.
+- Every map has a readable main objective that can be understood from environmental feedback.
+- Optional side quests are more cryptic and reward observation, experimentation, and community discovery.
+- Puzzle actions reuse the game's physical verbs: fight near a device, hold a zone, shoot a distant target, ricochet through a marked angle, lure an elite, carry a component, or activate mechanisms in a discovered order.
+- Every successful step gives persistent visual and audio confirmation.
+- Secrets reward distinctive weapons, shortcuts, challenge waves, alternate finales, audiovisual changes, or unusual combat modifiers rather than minor stat increases alone.
 
-Headless target-collision tests were explicitly deferred for this milestone; existing projectile and weapon tests continue to pass.
+#### Bullet hell as escalation
 
-Acceptance check: fast projectiles cannot tunnel through the target, and hits feel unambiguous.
+- The base horde is dominated by contact pressure and movement denial, not projectile spam.
+- Ranged enemies add aimed spreads that force the player to leave established routes.
+- Elites use strongly telegraphed attacks with deliberate safe gaps.
+- Boss phases temporarily reshape safe space with radial patterns, sweeping lanes, hazards, and summoned crowds.
+- Wonder weapons let the player answer density with effects such as ricochets, piercing, chain lightning, gravity, freezing, or explosive propagation.
 
-### Milestone 4: arena boundaries — complete
+## Match structure
 
-The runtime now provides:
+A complete match follows this arc:
 
-- Four immutable wall segments enclosing the hard-coded 20-by-20 arena.
-- Iterative player circle-versus-segment collision, including endpoint contacts.
-- Velocity projection that preserves tangential movement for smooth wall sliding.
-- Reusable swept-circle collision queries for circle targets, wall faces, endpoints, and earliest-hit handling.
-- Rejection of outward-facing muzzle shots that begin beyond the closed arena loop.
-- Wall meshes whose inner faces follow the authoritative X/Z segments.
-- Headless tests for wall faces, endpoints, corners, sliding, fast projectiles, and outside-muzzle rejection.
+1. **Awakening** — The player begins in the Start region, learns the current map's immediate routes, and survives the first rounds with basic equipment.
+2. **Expansion** — Kills fund permanent gate openings. The player chooses which branches, arenas, services, and clues to expose first.
+3. **Power** — Distributed Grid Anchors are activated through combat holdouts. Each one powers a local benefit and visibly changes the central Hub.
+4. **Investigation** — Powered rooms reveal the main quest, optional sequences, hidden targets, components, and unusual interactions.
+5. **Transformation** — Weapon upgrades, perks, traps, and quest rewards allow the player to control denser crowds and specialized enemies.
+6. **Confrontation** — A late round introduces the map's Warden or boss and resolves the main objective under peak pressure.
+7. **Extraction or descent** — The player can secure a completed match or continue into increasingly hostile endless rounds for score and mastery.
 
-Acceptance check: movement remains smooth along corners and walls, and neither player nor projectiles escape the arena.
+Death ends the current match and restores the map, economy, devices, enemies, and quest state to a deterministic starting condition.
 
-### Milestone 5: first enemy — complete
+## Map and quest model
 
-The hard-coded arena now provides:
+The generator remains the spatial compiler, but shipped maps should be learnable. The intended content model is a set of curated and validated generated seeds, each paired with a map recipe that assigns landmarks, devices, clue families, enemy access, and finale behavior to semantic room roles. Geometry can remain irregular and generated without randomizing away the relationships that make a mystery solvable.
 
-- One 20-health deterministic enemy that circles the player while correcting toward a readable preferred range.
-- Swept player-projectile collision against the moving enemy, with hit feedback and a victory state.
-- A slow three-shot fan pattern backed by a separate profile-driven projectile pool.
-- Swept hostile-projectile collision against arena walls and the player circle.
-- Five player health, damage invulnerability, hit/death feedback, and explicit `R` restart.
-- A deterministic post-defeat or post-victory encounter reset, procedural combat tones, and headless combat tests.
+A representative map recipe is **The Grid Engine**:
 
-Acceptance check: the arena supports a repeatable combat encounter with readable hostile fire, swept damage in both directions, clear defeat/victory states, and deterministic restart.
+- Three Grid Anchors occupy separated Combat rooms.
+- Activating an anchor begins a local holdout and powers a nearby service or shortcut.
+- Each anchor reveals a persistent glyph and tone.
+- Powering all anchors wakes the machine in the Hub, enables the primary weapon forge, and arms the finale.
+- The Hub contains clues connecting the glyphs to an optional activation or shooting sequence.
+- Solving that sequence opens a Reward chamber containing a geometry-driven wonder weapon, such as a projectile that gains power after ricocheting from a wall.
+- The final Warden uses the powered doorway network and projectile patterns, making the player's accumulated map knowledge relevant to the fight.
+
+Main objectives should remain achievable without external instructions. Side Easter eggs may be obscure, but they must be internally consistent and provide enough feedback for players to form and test hypotheses.
+
+## Enemy ecology
+
+The horde is composed from roles that change how the player uses space:
+
+- **Drifters** are numerous melee pursuers that form the body of a train.
+- **Runners** are fragile, fast interceptors that close open gaps and punish straight-line retreat.
+- **Bulwarks** are slow bodies that split crowds, absorb frontal fire, and make chokepoints less reliable.
+- **Casters** preserve the current ranged-combat lineage by firing readable patterns through or around the crowd.
+- **Saboteurs** pressure powered objectives, traps, or open routes and force movement across the map.
+- **Wardens** are periodic elites with telegraphed attacks and map-specific interactions.
+- **Bosses** combine crowd control, projectile patterns, objective states, and environmental hazards rather than acting as isolated health bars.
+
+Enemy composition, spawn direction, and pacing vary by round, but the simulation remains deterministic for a given map and match seed.
+
+## Economy and power
+
+The economy exists to create route and timing decisions, not to produce several interchangeable currencies.
+
+- Defeating enemies awards the primary match currency.
+- Gates, weapon upgrades, perks, traps, ammunition services, trials, and objective devices compete for that currency.
+- Permanent gate openings alter both player movement and enemy navigation.
+- Fixed-location services reward map knowledge; selected rewards may move among authored candidate locations.
+- Temporary power-ups create urgent movement decisions during a wave.
+- Perks and weapon transformations change behavior—dash recovery, piercing, crowd control, ricochet, area damage, or emergency escape—not only damage percentages.
+
+The map should remain survivable without finding every secret, while knowledge and execution let experienced players reach power earlier and take on harder optional content.
+
+## Current foundation
+
+### Milestones 1–5: combat prototype — complete
+
+The hard-coded regression arena establishes:
+
+- Camera-relative movement and mouse aiming on the XZ gameplay plane.
+- A tilted orthographic follow camera and fixed 120 Hz simulation with interpolation.
+- Pooled player and enemy projectiles with swept collision.
+- Player, target, enemy, health, damage, invulnerability, defeat, victory, and restart state.
+- Arena-wall collision, smooth wall sliding, blocked-muzzle handling, effects, audio, and headless combat coverage.
+
+Acceptance check: the regression arena supports deterministic movement, firing, damage exchange, terminal states, and restart without projectile tunneling or wall escape.
 
 ### Milestone 6: generated level runtime — complete
 
-The game runtime now provides:
+The runtime packages the relaxed grid, exact dual geometry, room graph, room layout, floor triangles, walls, doorway thresholds, Start spawn, and door-aware navigation in an immutable `GeneratedLevel`. A mutable `LevelSession` owns the generated player, room lifecycle, active walls, and doorway locks.
 
-- One immutable `GeneratedLevel` package retaining `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout`.
-- Exact assigned dual-cell floor triangulation in a cached GPU mesh.
-- Closed wall geometry on floor/void boundaries and unauthorized cross-room contacts.
-- Retained exact doorway threshold segments for dynamic collision and rendering.
-- Open wall and navigation edges only for exact doorway cell pairs published by `RoomLayout`.
-- Separate mutable `LevelSession` state for traversal, room lifecycle/location, dynamic doorway locking, active walls, and reset.
-- Encounter updates parameterized by wall geometry while preserving the hard-coded arena overload.
-- A Start-room spawn selected from the room's highest-clearance cell.
-- A generated traversal view by default and the preserved hard-coded combat regression arena behind `F1`.
-- Headless tests for artifact alignment, floor area, wall/door authorization, doorway clearance, Start spawning, and complete door-aware floor reachability.
+Acceptance check: the player can traverse every authorized part of a generated level without crossing closed contacts or leaving the exact floor.
 
-Acceptance check: the player can traverse a generated level through every authorized doorway without crossing closed contacts or leaving the floor.
+### Milestone 7: generated encounters — complete
 
-### Milestone 7: encounters and room progression — complete
+The generated runtime activates one deterministic enemy in entered Combat and Hub rooms, locks incident thresholds during combat, reopens them on clear, preserves player health, handles defeat/reset, and marks the current floor complete on entering Exit. The hard-coded arena remains available through **F1** as a regression path.
 
-The generated runtime now provides:
+Acceptance check: a generated floor can be entered at Start, cleared room by room, and completed at Exit with collision, navigation, rendering, and room lifecycle kept synchronized.
 
-- Reusable caller-owned-player `CombatState` updates, with `Encounter` preserved as the deterministic hard-coded regression wrapper.
-- One deterministic encounter in entered `Combat` and `Hub` rooms using filtered generator spawn candidates.
-- Room transitions through entered, locked, fighting, and cleared states.
-- Exact retained doorway thresholds that close for collision, rendering, and traversal during combat and reopen on enemy defeat.
-- Generated combat rendering, audio events, player defeat/reset, and persistent authoritative player health.
-- Exit entry that marks the floor complete without introducing floor transitions or run state.
+## Planned milestones
 
-Acceptance check: a generated floor can be entered at Start, cleared room by room, and completed at Exit.
+### Milestone 8: horde combat — in progress
 
-## Next milestone
+- Player foundation complete: a short cooldown-based dash and always-available generated-map firing now work during traversal and encounters.
+- Replace the single generated enemy with a stable collection of simultaneous enemies.
+- Add crowd pursuit, pathfinding through the published room graph, local separation, and deterministic spawn control.
+- Add crowd-readable hit, death, and threat feedback.
+- Introduce Drifter, Runner, and Caster roles.
+- Organize combat into rounds with build-up, peak, cleanup, and intermission states.
 
-### Milestone 8: roguelite run
+Acceptance check: generated rooms and connectors support readable crowd movement, deliberate dodging, and escalating round pressure without enemies crossing closed geometry.
 
-- Compose multiple floors into one seeded run.
-- Add reward choices and a small build-modifier system.
-- Split random streams for topology, encounters, placement, rewards, and cosmetics.
-- Add difficulty escalation, a boss, death, victory, and immediate restart.
+### Milestone 9: persistent map progression
 
-Acceptance check: the game supports a complete short run with meaningful build variation.
+- Keep one generated map active for the complete match.
+- Turn doorway thresholds into purchasable gates whose state affects collision and navigation for players and enemies.
+- Add the primary match currency, fixed services, traps, and combat upgrades.
+- Interpret room roles as persistent horde-map landmarks rather than one-time room-clear encounters.
+- Let waves and enemies move across every currently opened part of the map.
 
-## Deferred systems
+Acceptance check: spending, route choice, and gate state materially change both survival strategy and enemy flow throughout a match.
 
-Do not build these until a milestone requires them:
+### Milestone 10: the living map
 
+- Add distributed Grid Anchors, powered-room state, and a central Hub machine.
+- Add readable objective prompts through world animation, lighting, symbols, and audio.
+- Add holdouts and other combat-driven interactions that alter the map.
+- Add a main quest, optional side Easter eggs, and persistent quest feedback.
+- Add the first wonder weapon whose behavior uses the map's irregular geometry.
+
+Acceptance check: players can understand and complete the main objective from in-game evidence, while optional secrets reward deeper observation and experimentation.
+
+### Milestone 11: complete match arc
+
+- Expand round composition across common enemies, specials, elites, and challenge waves.
+- Add a Warden or boss that combines horde pressure, projectile patterns, and powered map mechanics.
+- Add extraction, victory, endless continuation, score, death, and deterministic restart.
+- Balance map expansion, economy, quest timing, and combat power across the full match.
+
+Acceptance check: the game supports a complete round-based horde match with a beginning, expanding tactical possibilities, discoverable objectives, a finale, and a reason to replay the same map with greater knowledge.
+
+### Milestone 12: maps, mastery, and presentation
+
+- Pair curated generated seeds with distinct map recipes, themes, quests, enemy mixes, and wonder weapons.
+- Add alternate routes, optional challenges, hidden audiovisual events, and multiple finale conditions.
+- Complete controller support, accessibility options, visual telegraphs, combat audio, and map-state presentation.
+- Evaluate cooperative play only after the solo simulation, content, and readability remain strong at full match scale.
+
+Acceptance check: each shipped map is recognizable, learnable, replayable, and mechanically distinct while preserving the shared horde, economy, quest, and combat rules.
+
+## Deferred or excluded systems
+
+- Multi-floor roguelite progression; the intended match is built around one persistent map.
 - ECS or generic scene graph.
-- Scripting language for projectile patterns.
-- General-purpose asset manager.
-- Meta-progression and permanent unlock trees.
+- A general-purpose scripting language before map and quest rules require one.
+- General-purpose asset management unrelated to shipped content.
+- Permanent stat-grind meta-progression as a substitute for map knowledge or combat mastery.
 - Save-anywhere support.
 - Real-time shadow maps.
-- Infinite/chunked procedural levels.
-- Network or replay protocol guarantees.
+- Infinite or chunked procedural terrain.
+- Competitive multiplayer.
+- Network and replay protocol guarantees before the solo match is complete.
 
 ## Engineering gates
 

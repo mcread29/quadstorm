@@ -7,12 +7,16 @@ inline constexpr float PLAYER_FACING_MARKER_DISTANCE = PLAYER_RADIUS + 0.65F;
 inline constexpr int PLAYER_MAX_HEALTH = 5;
 inline constexpr float PLAYER_INVULNERABILITY_DURATION = 0.8F;
 inline constexpr float PLAYER_HIT_FLASH_DURATION = 0.18F;
+inline constexpr float PLAYER_DASH_SPEED = 18.0F;
+inline constexpr float PLAYER_DASH_DURATION = 0.18F;
+inline constexpr float PLAYER_DASH_COOLDOWN = 0.8F;
 
 struct PlayerInput {
     Vector2 movement {};
     Vector3 aimPoint {};
     bool hasAimPoint = false;
     bool fireHeld = false;
+    bool dashPressed = false;
     bool restartPressed = false;
     bool toggleViewPressed = false;
 };
@@ -24,6 +28,9 @@ struct Player {
     int health = PLAYER_MAX_HEALTH;
     float invulnerabilityRemaining = 0.0F;
     float hitFlashRemaining = 0.0F;
+    Vector2 dashDirection {};
+    float dashRemaining = 0.0F;
+    float dashCooldownRemaining = 0.0F;
 };
 
 enum class PlayerDamageResult {

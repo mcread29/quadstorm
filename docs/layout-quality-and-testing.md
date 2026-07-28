@@ -375,14 +375,15 @@ Callers should check `getRoomCount()` before constructing gameplay state.
 
 ## Test organization
 
-CTest currently builds four headless test executables: two for generation, one for generated-level runtime packaging/geometry/navigation, and one for `stalberg_game` collision, arena, projectile, weapon, enemy, player-damage, and encounter modules. Stationary-target collision, audio, and rendering currently rely on graphical smoke or manual runs; target headless tests were explicitly deferred for Milestone 3.
+CTest currently builds five headless test executables: two for generation, one for renderer-cache geometry, one for generated-level runtime packaging/geometry/navigation/encounters, and one for `stalberg_game` dash, collision, arena, projectile, weapon, enemy, player-damage, and encounter modules. Stationary-target collision, audio, browser presentation, and full runtime rendering currently rely on graphical smoke or manual runs; target headless tests were explicitly deferred for Milestone 3.
 
 | Test | Coverage |
 |---|---|
 | `stalberg_grid_tests` | Base mesh topology, repeatability, dual geometry, and relaxation |
 | `stalberg_room_generation_tests` | Adapter contract, all room methods, physical metadata, circulation, roles, scoring, and edge cases |
-| `stalberg_generated_level_tests` | Retained artifact alignment, exact floor area, authorized walls/doors, doorway clearance, dynamic lock collision/navigation, lifecycle/reset, Start spawn, and reachability |
-| `stalberg_game_tests` | Injected encounter walls, swept-circle queries, player wall faces/endpoints/corners/sliding, swept projectile-wall hits, outside-muzzle rejection, profile-separated pool ownership/reuse, muzzle position, fixed fire cadence, deterministic enemy movement/patterns, moving-enemy damage/defeat, player damage/invulnerability/death, interpolation freeze, and post-death/post-victory restart |
+| `stalberg_grid_renderer_cache_tests` | Cached dual-grid and room-overlay geometry, bounds, colors, and draw-command alignment |
+| `stalberg_generated_level_tests` | Retained artifact alignment, exact floor area, authorized walls/doors, doorway clearance, dynamic lock collision/navigation, lifecycle/reset, traversal firing and projectile reset/preservation, Start spawn, and reachability |
+| `stalberg_game_tests` | Injected encounter walls, swept-circle queries, player wall faces/endpoints/corners/sliding, dash activation/cooldown/wall collision, swept projectile-wall hits, outside-muzzle rejection, profile-separated pool ownership/reuse, muzzle position, fixed fire cadence, deterministic enemy movement/patterns, moving-enemy damage/defeat, player damage/invulnerability/death, interpolation freeze, and post-death/post-victory restart |
 
 Run:
 

@@ -14,6 +14,7 @@ PlayerInput readPlayerInput(const Camera3D& camera)
     input.hasAimPoint = groundPointAtScreenPosition(
         camera, GetMousePosition(), input.aimPoint);
     input.fireHeld = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+    input.dashPressed = IsKeyPressed(KEY_SPACE);
     input.restartPressed = IsKeyPressed(KEY_R);
     input.toggleViewPressed = IsKeyPressed(KEY_F1);
     return input;

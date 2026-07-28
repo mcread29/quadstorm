@@ -38,6 +38,43 @@ void updatePlayer(Player& player, const PlayerInput& input, float stepTime)
 {
     if (!isPlayerAlive(player)) {
         player.velocity = Vector2 {};
+        player.dashRemaining = 0.0F;
+        return;
+    }
+
+    if (input.hasAimPoint) {
+        const Vector2 aimDirection {
+            input.aimPoint.x - player.position.x,
+            input.aimPoint.z - player.position.z
+        };
+        if (length(aimDirection) > 0.05F) {
+            player.facing = normalized(aimDirection);
+        }
+    }
+
+    player.dashCooldownRemaining = std::max(
+        0.0F, player.dashCooldownRemaining - stepTime);
+    if (input.dashPressed && player.dashRemaining <= 0.0F
+        && player.dashCooldownRemaining <= 0.0F) {
+        const Vector2 movementDirection = normalized(input.movement);
+        player.dashDirection = length(movementDirection) > 0.0F
+            ? movementDirection
+            : player.facing;
+        if (length(player.dashDirection) > 0.0F) {
+            player.dashRemaining = PLAYER_DASH_DURATION;
+            player.dashCooldownRemaining = PLAYER_DASH_COOLDOWN;
+        }
+    }
+
+    if (player.dashRemaining > 0.0F) {
+        player.velocity = Vector2 {
+            player.dashDirection.x * PLAYER_DASH_SPEED,
+            player.dashDirection.y * PLAYER_DASH_SPEED
+        };
+        player.position.x += player.velocity.x * stepTime;
+        player.position.z += player.velocity.y * stepTime;
+        player.dashRemaining = std::max(
+            0.0F, player.dashRemaining - stepTime);
         return;
     }
 
@@ -53,18 +90,6 @@ void updatePlayer(Player& player, const PlayerInput& input, float stepTime)
 
     player.position.x += player.velocity.x * stepTime;
     player.position.z += player.velocity.y * stepTime;
-
-    if (!input.hasAimPoint) {
-        return;
-    }
-
-    const Vector2 aimDirection {
-        input.aimPoint.x - player.position.x,
-        input.aimPoint.z - player.position.z
-    };
-    if (length(aimDirection) > 0.05F) {
-        player.facing = normalized(aimDirection);
-    }
 }
 
 void updatePlayerEffects(Player& player, float stepTime)
@@ -117,6 +142,7 @@ PlayerDamageResult updatePlayerDamage(Player& player,
         if (player.health <= 0) {
             player.health = 0;
             player.velocity = Vector2 {};
+            player.dashRemaining = 0.0F;
             result = PlayerDamageResult::died;
             break;
         }

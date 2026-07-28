@@ -359,7 +359,7 @@ Connected entrances are not `Doorway` objects. They do not include an exterior s
 
 ## Gameplay consumption
 
-> Runtime status: `stalberg_game` consumes the complete generation chain through an immutable `GeneratedLevel` package, renders exact assigned dual-cell floors, retains exact doorway threshold segments, publishes door-aware navigation, and spawns the player in Start. A separate mutable `LevelSession` owns the authoritative generated player, room lifecycle/location, and doorway collision/traversal locks. `GeneratedEncounterCoordinator` filters the published tactical candidates, activates one deterministic enemy in entered `Combat` and `Hub` rooms, closes every incident threshold while fighting, reopens them on clear, freezes locked combat on player defeat, and marks the floor complete at Exit. Reusable `CombatState` updates operate on a caller-owned player and injected walls; the hard-coded first-enemy arena remains available through `F1` as its regression wrapper. Milestone 7 is complete; see [`game-roadmap.md`](game-roadmap.md) and [`game-handoff.md`](game-handoff.md) for the next run-level boundary.
+> Runtime status: `stalberg_game` consumes the complete generation chain through an immutable `GeneratedLevel` package, renders exact assigned dual-cell floors, retains exact doorway threshold segments, publishes door-aware navigation, and spawns the player in Start. A separate mutable `LevelSession` owns the authoritative generated player, room lifecycle/location, and doorway collision/traversal locks. `GeneratedEncounterCoordinator` keeps generated-player firing active during traversal, preserves in-flight shots when combat starts, filters the published tactical candidates, activates one deterministic enemy in entered `Combat` and `Hub` rooms, closes every incident threshold while fighting, reopens them on clear, freezes locked combat on player defeat, and marks the floor complete at Exit. The intended round-based horde game keeps one generated map active for a complete match: doorway thresholds become purchasable and objective-lockable gates, room roles become persistent map landmarks, enemy spawn candidates feed deterministic waves, and cover and geometry support crowd routing, machinery, quests, Easter eggs, wonder weapons, and a finale. Reusable `CombatState` updates and the hard-coded `F1` arena remain regression foundations; see [`game-roadmap.md`](game-roadmap.md) for the complete game concept and [`game-handoff.md`](game-handoff.md) for the current boundary.
 
 ### Walkability
 
@@ -385,13 +385,14 @@ height      → world Y
 
 ### Tactical metadata
 
-Cover and spawn vectors are candidate sets, not final placements. A content pass should still apply:
+Cover and spawn vectors are candidate sets, not final placements. A horde-map content pass should still apply:
 
-- Agent radius and local occupancy.
-- Line of sight.
-- Minimum path distance from the player.
-- Encounter role and enemy composition.
-- Cover spacing and orientation.
+- Agent radius, local occupancy, and simultaneous-enemy limits.
+- Line of sight and whether a spawn is visible to the player.
+- Path distance through the current permanent-gate and temporary-lock state.
+- Round phase, enemy role, composition, and spawn direction.
+- Distance from powered devices, quest interactions, and intermission services.
+- Cover spacing, orientation, crowd flow, and telegraph readability.
 - Door swing, lock, or threshold exclusion zones.
 - Explicit filtering around `getConnectedEntrances()` when exterior entrance thresholds also need cover/spawn exclusion.
 

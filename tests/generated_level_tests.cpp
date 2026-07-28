@@ -5,6 +5,7 @@
 #include "game/player.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <iostream>
@@ -274,6 +275,62 @@ bool sessionOwnsLifecycleAndDynamicDoorWalls(const GeneratedLevel& level)
     return valid;
 }
 
+bool generatedTraversalAllowsPlayerFire(const GeneratedLevel& level)
+{
+    LevelSession session(level);
+    GeneratedEncounterCoordinator coordinator;
+    const Vector2 playerPosition {
+        session.player().position.x,
+        session.player().position.z
+    };
+    constexpr std::array directions {
+        Vector2 { 1.0F, 0.0F },
+        Vector2 { -1.0F, 0.0F },
+        Vector2 { 0.0F, 1.0F },
+        Vector2 { 0.0F, -1.0F }
+    };
+
+    PlayerInput input;
+    input.fireHeld = true;
+    bool foundOpenMuzzle = false;
+    for (const Vector2 direction : directions) {
+        const Vector2 muzzle {
+            playerPosition.x + direction.x * WEAPON_MUZZLE_DISTANCE,
+            playerPosition.y + direction.y * WEAPON_MUZZLE_DISTANCE
+        };
+        if (earliestCircleSegmentHit(playerPosition, muzzle,
+                coordinator.playerProjectiles().profile().radius,
+                session.activeWalls())
+                .has_value()) {
+            continue;
+        }
+        input.hasAimPoint = true;
+        input.aimPoint = Vector3 {
+            playerPosition.x + direction.x * 10.0F,
+            0.0F,
+            playerPosition.y + direction.y * 10.0F
+        };
+        foundOpenMuzzle = true;
+        break;
+    }
+
+    bool valid = check(foundOpenMuzzle,
+        "generated Start spawn has an open firing direction");
+    const GeneratedEncounterStepResult fired = updateGeneratedEncounter(
+        coordinator, session, level, input, 1.0F / 120.0F);
+    valid &= check(!fired.encounterStarted && !coordinator.isFighting()
+            && coordinator.playerProjectiles().activeCount() == 1,
+        "the generated player can fire outside an active encounter");
+
+    PlayerInput resetInput;
+    resetInput.restartPressed = true;
+    updateGeneratedEncounter(
+        coordinator, session, level, resetInput, 1.0F / 120.0F);
+    valid &= check(coordinator.playerProjectiles().activeCount() == 0,
+        "generated restart clears traversal-fired projectiles");
+    return valid;
+}
+
 bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
 {
     std::optional<int> encounterRoom;
@@ -340,8 +397,14 @@ bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
         playerPosition->x, PLAYER_RADIUS, playerPosition->y
     };
     session.player().health = PLAYER_MAX_HEALTH - 1;
+    PlayerInput entryInput;
+    entryInput.hasAimPoint = true;
+    entryInput.aimPoint = Vector3 {
+        enemyPosition->x, 0.0F, enemyPosition->y
+    };
+    entryInput.fireHeld = true;
     const GeneratedEncounterStepResult entered = updateGeneratedEncounter(
-        coordinator, session, level, PlayerInput {}, 1.0F / 120.0F);
+        coordinator, session, level, entryInput, 1.0F / 120.0F);
     valid &= check(entered.encounterStarted
             && coordinator.isFighting()
             && coordinator.encounterRoom() == encounterRoom
@@ -365,8 +428,9 @@ bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
     const CombatState* startedCombat = coordinator.activeCombat();
     valid &= check(startedCombat != nullptr
             && samePoint(startedCombat->enemy.position, *enemyPosition)
-            && session.player().health == PLAYER_MAX_HEALTH - 1,
-        "generated combat uses the session player and selected enemy spawn");
+            && session.player().health == PLAYER_MAX_HEALTH - 1
+            && coordinator.playerProjectiles().activeCount() == 1,
+        "generated combat preserves the session player and traversal-fired shots");
 
     CombatState* combat = coordinator.activeCombat();
     if (combat == nullptr) {
@@ -535,6 +599,7 @@ int main()
     valid &= wallsHaveStableCanonicalOrder(level);
     valid &= wallsCloseEveryUnauthorizedDualBoundary(level);
     valid &= sessionOwnsLifecycleAndDynamicDoorWalls(level);
+    valid &= generatedTraversalAllowsPlayerFire(level);
     valid &= generatedCombatLocksClearsAndReopensRoom(level);
     valid &= spawnAndNavigationReachAllFloor(level);
     return valid ? 0 : 1;

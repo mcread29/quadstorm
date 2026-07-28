@@ -13,12 +13,12 @@ As a separate pass, the room generator consumes a neutral cell graph with physic
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
-The repository also contains the first six runtime milestones of a top-down 2.5D roguelite bullet hell. The `stalberg_game` executable now starts on an exact generated floor with closed boundary walls, published-door-only room traversal, door-aware navigation, and a Start-room player spawn. The deterministic first-enemy encounter remains available as a focused regression arena through **F1**, including pooled projectiles, swept collision, health, damage, invulnerability, death, victory, restart, effects, and generated combat audio. Generated-room encounters and progression are the next milestone.
+The repository also contains the first seven runtime milestones and the player foundation for milestone 8 of a top-down 2.5D round-based horde shooter. The finished game is intended to take place on one persistent, learnable generated map per match: players survive escalating waves, earn currency, open routes, power strange machinery, solve a readable main quest, uncover optional Easter eggs, acquire geometry-driven wonder weapons, and reach a boss or extraction. Most enemies create crowd pressure, while ranged enemies, elites, objectives, and bosses introduce readable bullet-hell patterns. The current `stalberg_game` executable provides exact generated-floor traversal, always-available player firing, a short cooldown-based dash, and deterministic single-enemy room encounters; the focused regression arena remains available through **F1**.
 
 ## Documentation
 
-- [`docs/game-roadmap.md`](docs/game-roadmap.md) — ordered milestones from the movement prototype through a complete roguelite run.
-- [`docs/game-handoff.md`](docs/game-handoff.md) — current runtime architecture, decisions, limitations, validation, and exact next work.
+- [`docs/game-roadmap.md`](docs/game-roadmap.md) — complete horde-shooter concept, match structure, and milestones.
+- [`docs/game-handoff.md`](docs/game-handoff.md) — current runtime architecture, decisions, limitations, and intended horde-mode boundary.
 - [`docs/demo-and-algorithm.md`](docs/demo-and-algorithm.md) — base mesh mathematics, topology, relaxation, rendering, and source map.
 - [`docs/room-generation-model.md`](docs/room-generation-model.md) — neutral physical input, output API, roles, doorways, and gameplay integration contract.
 - [`docs/shooter-level-generation.md`](docs/shooter-level-generation.md) — complete graph-first arena, route, corridor, entrance, doorway, and tactical-annotation pipeline.
@@ -55,34 +55,32 @@ cmake --build build-web --target stalberg_game -j
 python3 -m http.server 8000 --directory build-web
 ```
 
-Open `http://localhost:8000/stalberg_game.html`. The web target uses an
-Emscripten browser main loop and WebGL-compatible shaders; the native grid
-diagnostic and native test executables are intentionally excluded from the web
-configuration. Combat audio is currently disabled on web because raylib 5.5's
+Open `http://localhost:8000/stalberg_game.html`. The web target keeps a fixed 16:10 framebuffer and scales it uniformly with CSS so letterboxing, rendering, and mouse coordinates remain aligned across browser sizes. It uses an Emscripten browser main loop and WebGL-compatible shaders; the native grid diagnostic and native test executables are intentionally excluded from the web configuration. Combat audio is currently disabled on web because raylib 5.5's
 ScriptProcessor backend cannot be initialized safely before a browser user
 gesture; native builds retain audio.
 
 The runtime starts in generated traversal mode. `GeneratedLevel` retains the relaxed source grid, exact dual geometry, neutral room graph, shooter layout, and exact doorway threshold segments together. Assigned dual polygons become a cached floor mesh; floor/void edges and unauthorized cross-room contacts become walls; only exact published doorway cell pairs remain open. Mutable player, room-lifecycle, lock, and active-wall state lives separately in `LevelSession`. The player spawns at a high-clearance cell in Start and can move through the matching door-aware navigation graph without leaving the floor.
 
-Press **F1** for the intentionally small combat regression arena. Use **WASD** to move, the **mouse** to aim, and hold the **left mouse button** to fire. A stationary target and a 20-health enemy exercise pooled projectiles, swept relative-motion collision, player health, invulnerability, defeat, victory, and deterministic restart. A 45-degree tilted orthographic camera follows the active player, simulation runs at a fixed 120 Hz, and rendering interpolates simulation state.
+Use **WASD** to move, **Space** to dash, the **mouse** to aim, and hold the **left mouse button** to fire anywhere on the generated map. Press **F1** for the intentionally small combat regression arena, where the same player controls exercise a stationary target, a 20-health enemy, pooled projectiles, swept relative-motion collision, player health, invulnerability, defeat, victory, and deterministic restart. A 45-degree tilted orthographic camera follows the active player, simulation runs at a fixed 120 Hz, and rendering interpolates simulation state.
 
 Debug builds apply debugger-friendly optimization to the game runtime and bundled raylib so interactive frame pacing remains representative while symbols and assertions stay enabled. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized stepping is required.
 
-Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Generation, generated-level runtime/session behavior, and combat simulation have dedicated headless test executables. Runtime tests include dynamic doorway locking, collision-wall rebuilding, navigation blocking, reset behavior, and custom encounter wall injection.
+Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Generation, generated-level runtime/session behavior, and combat simulation have dedicated headless test executables. Runtime tests include dash cooldown and wall collision, traversal firing and in-flight-shot preservation, dynamic doorway locking, collision-wall rebuilding, navigation blocking, reset behavior, and custom encounter wall injection.
 
 ## Game prototype controls
 
 | Input | Action |
 |---|---|
 | WASD | Move relative to the camera |
+| Space | Dash in the movement direction, or facing direction while stationary |
 | Mouse | Aim on the ground plane |
-| Hold left mouse button | Fire in the combat regression arena |
+| Hold left mouse button | Fire on the generated map or in the combat regression arena |
 | R | Reset to Start, or restart after combat defeat/victory |
 | F1 | Toggle generated traversal / combat regression arena |
 | F3 | Toggle rendering/gameplay diagnostics |
 | Escape/window close | Exit |
 
-Generated traversal and generated-room encounters share the reusable game core. `LevelSession` owns the authoritative player and room lifecycle, and atomic encounter transitions keep room state, doorway locks, and active collision walls synchronized through combat, clearing, and progression toward Exit.
+Generated traversal and generated-room encounters share the reusable game core. `LevelSession` owns the authoritative player and room lifecycle, while `GeneratedEncounterCoordinator` keeps the generated weapon and player projectiles active during traversal and preserves them across encounter activation and clearing. Atomic encounter transitions keep room state, doorway locks, and active collision walls synchronized through combat, clearing, and progression toward Exit. The intended horde mode will reinterpret the same exact doorway thresholds as persistent gates, the room roles as map landmarks, and the navigation graph as the shared movement contract for crowds crossing every opened part of the map.
 
 ## Generator demo controls
 

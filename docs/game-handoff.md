@@ -2,9 +2,11 @@
 
 This is the continuation guide for the `stalberg_game` runtime. Read [`game-roadmap.md`](game-roadmap.md) for the milestone sequence and the generator documents for procedural-level contracts.
 
-## Current objective
+## Product destination
 
-Milestone 7, generated-room encounters and floor progression, is complete. The next objective is **Milestone 8: a short roguelite run**. Plan the run boundary before adding content: preserve `GeneratedLevel` as immutable floor data, keep `LevelSession` and `GeneratedEncounterCoordinator` as per-floor mutable state, split deterministic random streams for floors/encounters/rewards, and introduce the smallest multi-floor owner that can advance after Exit, reset after defeat, and retain only explicit run-level player/build state. Add rewards and upgrades incrementally; do not jump to meta-progression, an ECS, a generic asset manager, or save-anywhere support.
+Milestone 7, generated-room encounters and floor progression, is complete. Milestone 8 is underway: the player dash and always-available generated-map firing are complete, while enemy collections, crowd movement, and rounds remain next. The destination is a **round-based horde shooter built around one persistent, learnable generated map per match**. The player survives escalating crowds, earns currency, buys routes through exact doorway thresholds, powers distributed machinery, improves weapons, solves a readable main objective, discovers optional Easter eggs, and reaches a boss or extraction. Common enemies create contact pressure and crowd-routing problems; ranged enemies, elites, objectives, and bosses introduce readable bullet-hell patterns.
+
+The procedural map is not a disposable floor in a multi-floor run. Its room roles become persistent landmarks, its doorway graph becomes an economy-controlled network for player and enemy movement, and its irregular geometry becomes part of combat and puzzle solving. Shipped maps should pair curated, validated generated seeds with authored map recipes so players can learn routes and clues across repeated attempts without losing the Stålberg geometry.
 
 ## Current behavior
 
@@ -21,15 +23,16 @@ Controls:
 | Input | Action |
 |---|---|
 | WASD | Camera-relative movement |
+| Space | Dash in the movement direction, or facing direction while stationary |
 | Mouse | Aim on the XZ ground plane |
-| Hold left mouse button | Fire during generated-room or regression-arena combat |
+| Hold left mouse button | Fire anywhere on the generated map or in the regression arena |
 | R | Reset to Start, or restart after combat defeat/victory |
 | F1 | Toggle generated floor / combat regression arena |
 | Escape/window close | Exit |
 
 The runtime starts in the generated floor. It builds and retains a relaxed grid, exact dual geometry, neutral room graph, shooter layout, and doorway threshold segments in one immutable `GeneratedLevel`; renders every assigned dual-cell polygon in a cached floor mesh; walls floor/void boundaries and unauthorized room contacts; and omits only exact published doorway pairs. Mutable player, current-room, room-lifecycle, doorway-lock, and active-collision-wall state lives in `LevelSession`.
 
-`GeneratedEncounterCoordinator` reacts when the session enters dormant `Combat` or `Hub` rooms. It deterministically filters enemy-spawn candidates for room ownership, player occupancy/distance, scaled local clearance, static walls, and retained doorway thresholds; starts one enemy; locks every incident threshold; and updates reusable combat state against `LevelSession::player()` and current active walls. Enemy defeat clears the room and reopens its doors. Player defeat freezes the locked encounter until `R`; reaching Exit marks the floor complete. Reset restores the Start spawn, player health, room lifecycle, doors, encounter state, and completion state.
+`GeneratedEncounterCoordinator` keeps the generated player's weapon and projectile pool active during traversal as well as combat, with the same muzzle blocking, swept wall collision, lifetime, and reset rules in both states. It reacts when the session enters dormant `Combat` or `Hub` rooms, deterministically filters enemy-spawn candidates for room ownership, player occupancy/distance, scaled local clearance, static walls, and retained doorway thresholds; starts one enemy without discarding shots already in flight; locks every incident threshold; and updates reusable combat state against `LevelSession::player()` and current active walls. Enemy defeat clears the room and reopens its doors. Player defeat freezes the locked encounter until `R`; reaching Exit marks the floor complete. Reset restores the Start spawn, player health, room lifecycle, doors, weapon/projectile state, encounter state, and completion state.
 
 `F1` switches to the preserved hard-coded 20-by-20 combat regression arena. That path still contains the stationary target, deterministic hostile orb, separate projectile pools, swept wall and damage collision, defeat/victory freeze, restart, effects, HUD, and procedural tones described by the first-enemy milestone.
 
@@ -56,10 +59,11 @@ LevelSession
     └── performs generated traversal fixed updates and reset
 
 GeneratedEncounterCoordinator
+    ├── owns persistent generated-player weapon + projectile state
+    ├── advances firing and shots during traversal and combat
     ├── reacts to Combat/Hub entry and Exit entry
     ├── selects one deterministic filtered enemy spawn
-    ├── drives lock → fighting → cleared and floor completion
-    └── calls updateCombat() with LevelSession::player() + active walls
+    └── drives lock → fighting → cleared and floor completion
 
 PlayerInput + active wall span ──→ updateCombat() ──→ caller-owned Player ──→ wall resolution
       │                 │                └── health/invulnerability/death
@@ -86,14 +90,14 @@ CombatStepResult / EncounterStepResult ──→ CombatAudio
 | `src/game/main.cpp` | Window lifetime, generated/combat view switching, 120 Hz accumulator, interpolation, audio-event forwarding, and composition |
 | `src/game/generated_level.hpp/.cpp` | Immutable generator artifact package, exact floor triangles, closed walls, retained doorway thresholds, navigation, and Start spawn |
 | `src/game/level_session.hpp/.cpp` | Mutable generated traversal, authoritative generated player, room lifecycle/location, doorway locking, active walls, effect timers, and reset |
-| `src/game/generated_encounter.hpp/.cpp` | Generated-room activation, deterministic spawn filtering, combat/door lifecycle, defeat/reset, and Exit completion |
+| `src/game/generated_encounter.hpp/.cpp` | Persistent generated-player firing, generated-room activation, deterministic spawn filtering, combat/door lifecycle, defeat/reset, and Exit completion |
 | `src/game/combat.hpp/.cpp` | Reusable caller-owned-player fixed-step combat state/update order and injected wall geometry |
 | `src/game/encounter.hpp/.cpp` | Hard-coded regression wrapper, optional target integration, and deterministic whole-encounter reset |
 | `src/game/enemy.hpp/.cpp` | Deterministic orbit movement, fan cadence, health/damage, and hostile projectile profile |
 | `src/game/combat_audio.hpp/.cpp` | Audio-device ownership and generated combat tones |
 | `src/game/arena.hpp/.cpp` | Immutable arena segments, reusable circle collision/sliding, and projectile-wall resolution |
 | `src/game/collision_2d.hpp/.cpp` | Reusable closest-point, swept-circle, segment, earliest-hit, and closed-loop containment queries |
-| `src/game/player.hpp/.cpp` | Player/Input state, movement, facing, health/damage/invulnerability, and interpolation |
+| `src/game/player.hpp/.cpp` | Player/Input state, movement, cooldown-based dash, facing, health/damage/invulnerability, and interpolation |
 | `src/game/weapon.hpp/.cpp` | Fire cadence and muzzle spawning |
 | `src/game/projectile_pool.hpp/.cpp` | Profile-driven preallocated projectile slots, fixed-step movement/lifetime, reuse, and interpolation |
 | `src/game/target.hpp/.cpp` | Target health/reset state and swept projectile-versus-circle collision |
@@ -101,8 +105,8 @@ CombatStepResult / EncounterStepResult ──→ CombatAudio
 | `src/game/game_input.hpp/.cpp` | All current polling of raylib keyboard and mouse input |
 | `src/game/prototype_renderer.hpp/.cpp` | GPU resource ownership and all prototype drawing |
 | `src/game/directional_shader.hpp` | Embedded GLSL and shared directional-light vector |
-| `tests/generated_level_tests.cpp` | Artifact alignment, exact floor area, wall/door authorization, spawn filtering, generated encounter locking/clearing/defeat/reset/Exit, Start spawn, and reachability coverage |
-| `tests/game_tests.cpp` | Headless 2D/arena collision, caller-owned combat, projectile ownership/profile/pool, blocked muzzles, weapon, enemy determinism/damage/defeat, player damage/death, interpolation freeze, victory, and restart coverage |
+| `tests/generated_level_tests.cpp` | Artifact alignment, exact floor area, wall/door authorization, traversal firing/preservation, spawn filtering, generated encounter locking/clearing/defeat/reset/Exit, Start spawn, and reachability coverage |
+| `tests/game_tests.cpp` | Headless dash/collision, caller-owned combat, projectile ownership/profile/pool, blocked muzzles, weapon, enemy determinism/damage/defeat, player damage/death, interpolation freeze, victory, and restart coverage |
 | `CMakeLists.txt` | Runtime/test source lists, raylib linkage, warnings, and Debug runtime optimization |
 
 The renderer's destructor unloads models before unloading the shared lighting shader. `CombatAudio` unloads sounds before closing its audio device. Both presentation owners must be destroyed before `CloseWindow()`, which is why they live inside an inner scope in `main.cpp`.
@@ -124,7 +128,9 @@ The camera uses orthographic projection with both a 45-degree elevation and diag
 
 ### Timing
 
-Simulation advances in fixed `1/120` second steps. Rendering interpolates between the previous and current player, enemy, camera, and projectile states. New gameplay behavior—especially weapon cooldowns, projectile movement, collision, and enemy logic—belongs in the fixed update loop, not the render path.
+Simulation advances in fixed `1/120` second steps. Rendering interpolates between the previous and current player, enemy, camera, and projectile states. New gameplay behavior—especially dash state, weapon cooldowns, projectile movement, collision, and enemy logic—belongs in the fixed update loop, not the render path.
+
+The player dash moves at 18 world units/second for 0.18 seconds and has a 0.8-second activation cooldown. It uses the camera-relative movement direction, falling back to the current aim-facing direction while stationary. Dash does not grant invulnerability and continues to use the standard circle-versus-wall collision and sliding path. Space is an edge input latched until a fixed step consumes it.
 
 Frame time is clamped to 50 ms before entering the accumulator to avoid an unbounded catch-up spiral after pauses or debugger stops.
 
@@ -143,7 +149,9 @@ The current projectile profiles are:
 
 The player muzzle is 1.3 world units from the player center. The enemy emits three directions at 0 and ±14 degrees from its current player-facing direction.
 
-Every fixed projectile update copies `position` to `previousPosition` before advancing. `updateCombat()` updates the caller-owned player, resolves player-wall contacts, attempts player firing, advances player projectiles, resolves wall hits, advances/resolves the enemy, resolves enemy then optional regression-target hits, emits and advances hostile shots, resolves their wall hits, and finally resolves player damage. Wall-aware weapon and enemy-pattern overloads reject a muzzle path blocked by injected geometry while still consuming cooldown. A newly spawned projectile therefore has a valid muzzle-to-first-step segment immediately. Preserve that segment and keep wall collision before enemy/target/player collision; do not replace swept collision with a current-position overlap test.
+Every fixed projectile update copies `position` to `previousPosition` before advancing. `updateCombat()` updates the caller-owned player, resolves player-wall contacts, attempts player firing, advances player projectiles, resolves wall hits, advances/resolves the enemy, resolves enemy then optional regression-target hits, emits and advances hostile shots, resolves their wall hits, and finally resolves player damage. Outside an active generated encounter, `updateGeneratedPlayerWeapon()` performs the same fire → advance → wall collision → retirement sequence. Encounter activation resets only the enemy and hostile projectile state; generated-player weapon cooldown and active shots survive the transition. Clearing an encounter likewise clears hostile shots without discarding player shots.
+
+Wall-aware weapon and enemy-pattern overloads reject a muzzle path blocked by injected geometry while still consuming cooldown. A newly spawned projectile therefore has a valid muzzle-to-first-step segment immediately. Preserve that segment and keep wall collision before enemy/target/player collision; do not replace swept collision with a current-position overlap test.
 
 ### Target contract
 
@@ -159,7 +167,7 @@ The player has five health. Hostile collision uses projectile motion relative to
 
 ### Player ownership boundary
 
-There are two deliberate player owners in mutually exclusive runtime views: `LevelSession` owns the generated-floor player, while the preserved regression `Encounter` owns its arena player. `CombatState` owns only weapon, enemy, and projectile state; `updateCombat()` accepts a caller-owned `Player&` and injected walls. `Encounter` publicly extends that state and wraps it with its regression player, target, and whole-state restart semantics. Generated combat passes `LevelSession::player()` directly. Do not copy or synchronize players when adding run state: decide explicitly which player fields transfer between floors and keep one authoritative player per active floor.
+There are two deliberate player owners in mutually exclusive runtime views: `LevelSession` owns the generated-floor player, while the preserved regression `Encounter` owns its arena player. `CombatState` owns only weapon, enemy, and projectile state; `updateCombat()` accepts a caller-owned `Player&` and injected walls. `Encounter` publicly extends that state and wraps it with its regression player, target, and whole-state restart semantics. Generated combat passes `LevelSession::player()` directly. The future horde, economy, device, and quest systems must continue to operate on the one authoritative `LevelSession` player rather than copying or synchronizing parallel player state.
 
 ### Arena contract
 
@@ -169,38 +177,70 @@ Projectile collision uses the shared `collision_2d` queries to treat each projec
 
 ### Input boundary
 
-`updatePlayer()`, `updateCombat()`, and `updateEncounter()` must not call `IsKeyDown()`, `GetMousePosition()`, or other input APIs. Extend `PlayerInput`, then populate it in `readPlayerInput()`. Restart is an edge input and `main.cpp` latches it until one fixed step consumes it. This keeps simulation code testable and leaves room for controller or replay input.
+`updatePlayer()`, `updateCombat()`, and `updateEncounter()` must not call `IsKeyDown()`, `GetMousePosition()`, or other input APIs. Extend `PlayerInput`, then populate it in `readPlayerInput()`. Restart and dash are edge inputs, and `main.cpp` latches each until one fixed step consumes it. This keeps simulation code testable and leaves room for controller or replay input.
 
 ### Rendering boundary
 
 Gameplay code does not own raylib `Model`, `Shader`, or `Sound` handles. `PrototypeRenderer` owns temporary runtime graphics resources, while `CombatAudio` owns the audio device and generated sounds. Projectiles expose stable simulation state to presentation modules rather than issuing draw or audio calls from simulation code.
 
+The web build keeps raylib's framebuffer fixed at 1280 by 800 and lets `web/shell.html` scale that 16:10 canvas uniformly within the viewport. Do not enable `FLAG_WINDOW_RESIZABLE` on web: raylib otherwise sizes the framebuffer to the browser aspect ratio while CSS letterboxes the canvas, stretching the image and making GLFW mouse coordinates disagree with `GetScreenWidth()` and `GetScreenHeight()`.
+
 ### Procedural generation boundary
 
 The game target links the generator libraries only through `GeneratedLevel`. The package retains `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` together because exact floor polygons and doorway segments are not all present in `RoomLayout` alone. It also recovers and retains one `DoorwayThreshold` segment per published doorway. Its public API is read-only after construction.
 
-Within one room, neighboring assigned cells are traversable. Across rooms, immutable navigation uses only exact cell pairs published by `RoomLayout::getDoorways()`; physical contact between regions is never automatically traversable. `LevelSession` owns mutable lock state and adds locked threshold segments to both its active collision walls and traversal checks. Connected exterior entrance cells remain enclosed because Exit completion does not yet transition to another floor.
+Within one room, neighboring assigned cells are traversable. Across rooms, immutable navigation uses only exact cell pairs published by `RoomLayout::getDoorways()`; physical contact between regions is never automatically traversable. `LevelSession` owns mutable lock state and adds locked threshold segments to both its active collision walls and traversal checks. Connected exterior entrance cells remain enclosed because Exit completion currently ends the generated floor.
 
-## Next implementation: minimal run boundary
+## Next implementation slice: stable enemy collection
 
-Design and implement the smallest Milestone 8 slice without weakening the completed floor runtime:
+Replace the generated coordinator's one-enemy assumption without weakening the completed player foundation:
 
-1. Add an explicit run owner above `GeneratedLevel`, `LevelSession`, and `GeneratedEncounterCoordinator`; do not move per-floor doorway, room, or combat state into it.
-2. Define which player/build fields persist between floors and construct each new floor/session deterministically instead of mutating immutable generated artifacts.
-3. Split random streams for floor generation, encounter placement, rewards, and cosmetics so adding one random draw cannot silently change topology.
-4. Advance to a second generated floor after `floorIsComplete()` and restore a fresh run deterministically after defeat/restart.
-5. Add one small reward choice only after floor advancement and reset semantics are covered headlessly.
+1. Separate or promote the generated player's persistent `Weapon` and player `ProjectilePool` state so it is not structurally tied to a single `Enemy` inside `CombatState`.
+2. Add a stable generated enemy collection with deterministic identities, spawn order, update order, and whole-match reset behavior. Do not introduce an ECS.
+3. Resolve each player projectile against the earliest enemy hit in its sweep, using stable enemy identity as the tie-breaker, so collection order cannot produce ambiguous damage.
+4. Keep encounter doors locked until every spawned enemy is defeated; defeat, reset, in-flight player shots, hostile-shot cleanup, and room clearing must retain their current atomic behavior.
+5. Cover simultaneous enemies, deterministic repeats, projectile target selection, all-enemies-clear transitions, dash collision, and closed-wall containment headlessly before adding round pacing.
 
-Keep the `F1` hard-coded arena as the focused combat regression path. Do not add meta-progression, save-anywhere support, an ECS, a scripting system, or a generic asset manager.
+Acceptance check: several generated enemies can coexist and be defeated deterministically in one locked room while the player can move, dash, and fire continuously without crossing walls or losing shots at encounter transitions.
+
+After that slice, add navigation through the published room/door graph, local separation, deterministic spawn pacing, Drifter/Runner/Caster roles, and the buildup → peak → cleanup → intermission round director.
+
+## Intended horde-mode boundary
+
+The completed game keeps `GeneratedLevel` immutable and layers the persistent match on top of it:
+
+```text
+GeneratedLevel
+    └── exact map, room roles, doorway thresholds, navigation, spawn candidates
+
+Horde match state
+    ├── authoritative LevelSession player and active collision walls
+    ├── round director: buildup → peak → cleanup → intermission
+    ├── stable enemy collection and deterministic spawn schedule
+    ├── map progression: currency, gates, services, traps, and powered rooms
+    ├── map quest: Grid Anchors, Hub machine, clues, secrets, and finale
+    └── terminal state: death, extraction, victory, or endless continuation
+```
+
+Doorway thresholds need states that distinguish sealed or purchasable gates, permanently opened routes, and temporary objective locks. Every state change must update rendering, collision, player traversal, and enemy navigation together. Waves operate across all currently opened rooms rather than treating each room as an isolated one-enemy encounter.
+
+The published room roles provide map semantics: Start is the opening survival area, Hub owns the central machine, Combat rooms host training routes and holdouts, Connectors become chokepoints and trap sites, Reward rooms contain services or secrets, and Exit becomes the finale or extraction site. Curated generated seeds should be paired with authored map recipes that assign devices, clue families, enemy access, and wonder-weapon behavior without hard-coding world coordinates.
+
+Common enemies should create crowd pressure through pursuit and interception. The existing deterministic orb enemy and projectile systems establish the ranged language for Casters, elites, and bosses. Bullet patterns must remain identifiable exceptions inside the horde rather than becoming undifferentiated projectile noise.
+
+Main quest steps should communicate state through world geometry, animation, lighting, symbols, and audio. Optional Easter eggs can demand deeper observation, but every accepted action must produce persistent feedback. Puzzle verbs should remain physical and combat-linked: hold a zone, defeat enemies near a device, shoot or ricochet into targets, carry a component, lure an elite, or activate a discovered sequence.
+
+Keep the `F1` hard-coded arena as the focused combat regression path. The destination does not require multi-floor progression, an ECS, a generic asset manager, save-anywhere support, or a general scripting system.
 
 ## Known limitations
 
-- Each generated `Combat` or `Hub` room contains one deterministic enemy; there are no spawn waves, encounter timer, or generated target. The stationary target remains regression-arena-only.
-- Exit marks the current floor complete, but there is no multi-floor run owner, reward choice, upgrade/build state, or meta-progression yet.
+- Each generated `Combat` or `Hub` room contains one deterministic enemy; there is no enemy collection, crowd navigation, wave director, spawn pacing, or generated target. The player dash and always-available generated-map firing are complete, while the stationary target remains regression-arena-only.
+- Every published doorway starts open and can only be temporarily encounter-locked; there are no purchasable gates, match currency, powered rooms, services, traps, quests, Easter eggs, wonder weapons, boss, extraction, or endless rounds yet.
+- Exit currently marks the generated floor complete instead of acting as a finale or extraction site.
 - Lighting is diffuse-only and the player shadow is a projected decal rather than general occlusion.
 - The combat regression ground and debug grid cover a finite 80-by-80 area.
 - Gameplay constants are compiled into their owning modules.
-- Generated-level tests cover retained artifact alignment, exact assigned-floor area, wall/door authorization, doorway clearance, deterministic spawn filtering, Start behavior, complete door-aware reachability, generated encounter activation/locking/clearing/defeat/reset/Exit completion, session lifecycle, and dynamic doorway collision/navigation locking. Combat tests cover caller-owned combat, injected encounter walls, reusable swept-circle queries, profile-driven projectile movement/lifetime/radius, pool ownership/exhaustion/reuse, blocked and valid muzzle spawning, fire cadence, deterministic enemy behavior, enemy damage/defeat/victory restart, player damage/invulnerability/death/restart, player-wall faces/endpoints/corners/sliding, projectile wall faces/endpoints/earliest hits, and outside-muzzle rejection. Target collision, free player movement, audio, and rendering lack dedicated tests.
+- Generated-level tests cover retained artifact alignment, exact assigned-floor area, wall/door authorization, doorway clearance, deterministic spawn filtering, traversal firing and in-flight-shot preservation, Start behavior, complete door-aware reachability, generated encounter activation/locking/clearing/defeat/reset/Exit completion, session lifecycle, and dynamic doorway collision/navigation locking. Combat tests cover caller-owned combat, injected encounter walls, reusable swept-circle queries, dash activation/cooldown/wall collision, profile-driven projectile movement/lifetime/radius, pool ownership/exhaustion/reuse, blocked and valid muzzle spawning, fire cadence, deterministic enemy behavior, enemy damage/defeat/victory restart, player damage/invulnerability/death/restart, player-wall faces/endpoints/corners/sliding, projectile wall faces/endpoints/earliest hits, and outside-muzzle rejection. Target collision, free player movement, audio, and rendering lack dedicated tests.
 - Debug runtime builds use debugger-friendly optimization (`-Og` with GCC/Clang or `/O1` with MSVC) for `stalberg_game` and a bundled raylib while retaining debug symbols and assertions. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized instruction-by-instruction stepping is required. Use a separate Release build when profiling performance.
 
 ## Validation and debugging

@@ -42,10 +42,9 @@
 
     #canvas {
       display: block;
-      width: 100vw;
-      height: 62.5vw;
-      max-width: 160vh;
-      max-height: 100vh;
+      width: min(100vw, 160vh);
+      height: auto;
+      aspect-ratio: 8 / 5;
       border: 0;
       outline: 0;
       background: #142027;
@@ -204,6 +203,7 @@
 
   <aside id="controls">
     <span><strong>WASD</strong> move</span>
+    <span><strong>Space</strong> dash</span>
     <span><strong>Mouse</strong> aim</span>
     <span><strong>Click</strong> fire</span>
     <span><strong>F1</strong> arena</span>

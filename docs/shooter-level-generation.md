@@ -4,7 +4,7 @@ This document describes the default `RoomGenerationMethod::ShooterLayout` pipeli
 
 For the input/output types and physical geometry contract, see [`room-generation-model.md`](room-generation-model.md). For candidate validation, scoring, deterministic retries, and tests, see [`layout-quality-and-testing.md`](layout-quality-and-testing.md).
 
-The `stalberg_game` runtime consumes shooter layouts through an immutable package retaining the source grid, dual geometry, neutral room graph, layout, and exact doorway threshold segments. It renders exact assigned floors, closes unauthorized contacts, opens published doorway pairs, builds matching navigation, and spawns the player in Start. A mutable `LevelSession` owns the authoritative generated player and dynamically locks retained thresholds for collision and traversal. `GeneratedEncounterCoordinator` uses filtered `enemySpawnCandidates` to activate one deterministic enemy in entered `Combat` and `Hub` rooms, locks every incident doorway while fighting, reopens them on clear, and marks the floor complete at Exit. Caller-owned `CombatState` updates use the session player and active generated walls; the hard-coded enemy arena remains available through `F1` as a regression wrapper. Runtime milestones are tracked in [`game-roadmap.md`](game-roadmap.md), and [`game-handoff.md`](game-handoff.md) records the current implementation boundary.
+The `stalberg_game` runtime consumes shooter layouts through an immutable package retaining the source grid, dual geometry, neutral room graph, layout, and exact doorway threshold segments. It renders exact assigned floors, closes unauthorized contacts, opens published doorway pairs, builds matching navigation, and spawns the player in Start. A mutable `LevelSession` owns the authoritative generated player and dynamically locks retained thresholds for collision and traversal. `GeneratedEncounterCoordinator` keeps generated-player firing active during traversal, preserves in-flight shots across encounter activation, uses filtered `enemySpawnCandidates` to activate one deterministic enemy in entered `Combat` and `Hub` rooms, locks every incident doorway while fighting, reopens them on clear, and marks the floor complete at Exit. The intended game reinterprets the same layout as one persistent round-based horde map: published thresholds become purchasable gates, rooms become learnable landmarks and objective sites, and the navigation graph governs crowds moving across opened routes. Runtime milestones are tracked in [`game-roadmap.md`](game-roadmap.md), and [`game-handoff.md`](game-handoff.md) records the current implementation boundary.
 
 ## Goals
 
@@ -21,6 +21,23 @@ The shooter method is designed for a 3D twin-stick game whose simulation remains
 - Stable gameplay metadata for navigation, spawning, cover, and encounter systems.
 
 The generator works over the irregular dual-cell graph produced by the Stålberg grid. It does not require square tiles or a regular Cartesian grid.
+
+### Horde-map interpretation
+
+The generated mission graph is spatial structure, not a mandate for one-time room clearing. In the intended game:
+
+| Generated role | Persistent horde-map responsibility |
+|---|---|
+| `Start` | Opening survival area and match reset location |
+| `Hub` | Central machine, map-state display, and quest convergence |
+| `Combat` | Crowd-training arena, Grid Anchor, holdout, or elite site |
+| `Connector` | Chokepoint, purchasable route, trap site, or dangerous shortcut |
+| `Reward` | Perk, weapon service, quest component, or hidden chamber |
+| `Exit` | Warden arena, extraction, or alternate finale |
+
+Only published doorways may become gates. Opening a gate changes the legal route network for the player and every navigating enemy; incidental physical contacts remain walls. Wide arenas, loops, and multiple approaches support crowd routing, while connectors create controlled pressure and meaningful spending choices.
+
+Shipped maps should use curated, validated generated seeds paired with authored map recipes. A recipe assigns devices, clue families, enemy access, services, and finale behavior to semantic rooms and candidate cells rather than fixed world coordinates. This keeps each map learnable and its mysteries coherent while preserving generated geometry.
 
 ## Seed compatibility
 

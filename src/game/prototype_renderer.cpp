@@ -301,8 +301,9 @@ PrototypeRenderer::~PrototypeRenderer()
 
 void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     const Player& player, Vector3 aimPoint, const GeneratedLevel& level,
-    const LevelSession& session, const CombatState* combat,
-    bool floorComplete, float interpolationAmount, bool showDebug) const
+    const LevelSession& session, const ProjectilePool& playerProjectiles,
+    const CombatState* combat, bool floorComplete,
+    float interpolationAmount, bool showDebug) const
 {
     BeginDrawing();
     ClearBackground(GENERATED_BACKGROUND);
@@ -315,11 +316,11 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     drawLockedDoorways(level, session);
     DrawSphere(Vector3 { aimPoint.x, 0.06F, aimPoint.z }, 0.12F,
         Color { 205, 242, 236, 210 });
+    drawProjectiles(camera, playerProjectiles,
+        interpolationAmount, PLAYER_RADIUS,
+        Color { 92, 225, 255, 255 }, Color { 92, 225, 255, 155 });
     if (combat != nullptr) {
         drawEnemy(combat->enemy, interpolationAmount);
-        drawProjectiles(camera, combat->playerProjectiles,
-            interpolationAmount, PLAYER_RADIUS,
-            Color { 92, 225, 255, 255 }, Color { 92, 225, 255, 155 });
         drawProjectiles(camera, combat->enemyProjectiles,
             interpolationAmount, PLAYER_RADIUS,
             Color { 255, 93, 55, 255 }, Color { 255, 153, 70, 175 });
@@ -352,7 +353,7 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
             0.08F, 6, Color { 7, 17, 24, 225 });
         DrawText("F3  HIDE DEBUG", 28, 94, 18,
             Color { 151, 193, 190, 255 });
-        DrawText("WASD move  |  mouse aim  |  hold LMB fire  |  R reset  |  F1 arena",
+        DrawText("WASD move | SPACE dash | mouse aim / LMB fire | R reset | F1 arena",
             28, 123, 16, Color { 180, 203, 200, 255 });
         DrawText(TextFormat("rooms %i  doors %i  walls %i  room %i",
                      static_cast<int>(level.roomLayout().getRoomCount()),
@@ -362,9 +363,7 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
         DrawText(TextFormat("grid %u  layout %u  quality %.1f  shots %i/%i",
                      level.grid().getSeed(), level.roomLayout().getSeed(),
                      level.roomLayout().getQualityScore(),
-                     combat != nullptr
-                         ? static_cast<int>(combat->playerProjectiles.activeCount())
-                         : 0,
+                     static_cast<int>(playerProjectiles.activeCount()),
                      combat != nullptr
                          ? static_cast<int>(combat->enemyProjectiles.activeCount())
                          : 0),
@@ -437,7 +436,7 @@ void PrototypeRenderer::drawCombat(const Camera3D& camera,
             0.08F, 6, Color { 7, 17, 24, 225 });
         DrawText("F3  HIDE DEBUG", 28, 94, 18,
             Color { 151, 193, 190, 255 });
-        DrawText("WASD move  |  mouse aim  |  hold LMB fire  |  F1 level",
+        DrawText("WASD move | SPACE dash | mouse aim / LMB fire | F1 level",
             28, 123, 16, Color { 180, 203, 200, 255 });
         DrawText(TextFormat("target %i/%i  player shots %i  hostile shots %i",
                      target.health, TARGET_MAX_HEALTH,
@@ -690,6 +689,12 @@ void PrototypeRenderer::drawPlayer(const Player& player) const
                          player.position.x, 0.024F, player.position.z },
             PLAYER_RADIUS * 1.08F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
             Color { 133, 91, 30, 150 });
+        if (player.dashRemaining > 0.0F) {
+            DrawCircle3D(Vector3 {
+                             player.position.x, 0.03F, player.position.z },
+                PLAYER_RADIUS * 1.55F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+                Color { 92, 225, 255, 130 });
+        }
     }
     DrawModel(playerModel, player.position, bodyScale, bodyColor);
     if (player.invulnerabilityRemaining > 0.0F) {
@@ -748,21 +753,33 @@ void PrototypeRenderer::drawPlayerHud(const Player& player) const
     constexpr float barWidth = 158.0F;
     const float healthAmount = std::clamp(
         static_cast<float>(player.health) / PLAYER_MAX_HEALTH, 0.0F, 1.0F);
+    const float dashAmount = 1.0F - std::clamp(
+        player.dashCooldownRemaining / PLAYER_DASH_COOLDOWN, 0.0F, 1.0F);
     const Color healthColor = player.health <= 1
         ? Color { 241, 91, 64, 255 }
         : Color { 232, 174, 65, 255 };
 
-    DrawRectangleRounded(Rectangle { 16.0F, 16.0F, panelWidth, 50.0F },
-        0.28F, 8, Color { 7, 17, 24, 225 });
-    DrawText("HEALTH", 28, 27, 17, Color { 194, 211, 208, 255 });
-    DrawRectangleRounded(Rectangle { 101.0F, 29.0F, barWidth, 16.0F },
+    DrawRectangleRounded(Rectangle { 16.0F, 16.0F, panelWidth, 64.0F },
+        0.22F, 8, Color { 7, 17, 24, 225 });
+    DrawText("HEALTH", 28, 25, 17, Color { 194, 211, 208, 255 });
+    DrawRectangleRounded(Rectangle { 101.0F, 27.0F, barWidth, 16.0F },
         0.5F, 8, Color { 29, 42, 47, 255 });
     if (healthAmount > 0.0F) {
         DrawRectangleRounded(Rectangle {
-                                 101.0F, 29.0F,
+                                 101.0F, 27.0F,
                                  barWidth * healthAmount, 16.0F },
             0.5F, 8, healthColor);
     }
-    DrawText(TextFormat("%i", std::max(player.health, 0)), 229, 48, 12,
+    DrawText(TextFormat("%i", std::max(player.health, 0)), 263, 29, 12,
         Color { 194, 211, 208, 255 });
+
+    DrawText("DASH", 28, 52, 14, Color { 194, 211, 208, 255 });
+    DrawRectangleRounded(Rectangle { 101.0F, 55.0F, barWidth, 9.0F },
+        0.5F, 8, Color { 29, 42, 47, 255 });
+    if (dashAmount > 0.0F) {
+        DrawRectangleRounded(Rectangle {
+                                 101.0F, 55.0F,
+                                 barWidth * dashAmount, 9.0F },
+            0.5F, 8, Color { 92, 225, 255, 255 });
+    }
 }

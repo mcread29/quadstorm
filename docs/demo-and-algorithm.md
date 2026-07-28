@@ -10,7 +10,7 @@ Room-generation details are split into focused documents:
 - [`shooter-level-generation.md`](shooter-level-generation.md) — complete graph-first shooter pipeline.
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It consumes the complete generation chain through immutable `GeneratedLevel` geometry and mutable `LevelSession` floor state, renders exact assigned dual-cell floors, retains lockable doorway thresholds, closes unauthorized contacts, builds matching navigation, and spawns the player in Start. `GeneratedEncounterCoordinator` now activates one deterministic enemy in entered `Combat` and `Hub` rooms, drives doorway locking and room clearing against the authoritative session player, and marks the floor complete at Exit. Reusable `CombatState` updates accept caller-owned players and injected walls, while the hard-coded deterministic arena remains available through `F1` as a separate regression wrapper.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently consumes the complete generation chain through immutable `GeneratedLevel` geometry and mutable `LevelSession` state, renders exact assigned dual-cell floors, retains lockable doorway thresholds, closes unauthorized contacts, builds matching navigation, and spawns the player in Start. The player can dash and fire throughout traversal. `GeneratedEncounterCoordinator` preserves that weapon/projectile state while activating one deterministic enemy in entered `Combat` and `Hub` rooms, driving doorway locking and room clearing against the authoritative session player, and marking the floor complete at Exit. The intended game turns one such generated layout into a persistent round-based horde map: thresholds become purchasable gates, room roles become machinery and quest landmarks, common enemies move as crowds across opened routes, and elites and bosses add readable bullet-hell patterns. The hard-coded deterministic arena remains available through `F1` as a separate regression wrapper.
 
 ## Overview
 
@@ -407,12 +407,14 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/game/main.cpp` | Run the fixed-step 2.5D traversal/combat loop and compose runtime modules |
 | `src/game/generated_level.*` | Retain generation artifacts and build exact floors, walls, doorway thresholds, navigation, and Start spawn |
 | `src/game/level_session.*` | Own mutable traversal, room lifecycle/location, dynamic doorway locks, active walls, and reset |
-| `src/game/encounter.*` | Order combat simulation against injected walls and reset the complete encounter deterministically |
+| `src/game/generated_encounter.*` | Keep generated-player firing active, preserve shots across room activation, and coordinate generated encounter locking/clearing |
+| `src/game/combat.*` | Update caller-owned players, weapons, enemies, and projectile pools against injected walls |
+| `src/game/encounter.*` | Order regression-arena combat against injected walls and reset the complete encounter deterministically |
 | `src/game/enemy.*` | Enemy movement, health, damage, fan pattern, and hostile projectile profile |
 | `src/game/combat_audio.*` | Own the audio device and generated combat tones |
 | `src/game/arena.*` | Define arena walls and resolve circle/projectile wall collision |
 | `src/game/collision_2d.*` | Reusable swept-circle, segment, earliest-hit, and containment queries |
-| `src/game/player.*` | Player movement, facing, health, damage, invulnerability, and interpolation |
+| `src/game/player.*` | Player movement, dash, facing, health, damage, invulnerability, and interpolation |
 | `src/game/weapon.*` | Fixed fire cadence and facing-marker muzzle spawning |
 | `src/game/projectile_pool.*` | Profile-driven preallocated projectile slots, movement, lifetime, reuse, and interpolation |
 | `src/game/target.*` | Target health/reset state and swept projectile-versus-circle collision |
@@ -421,8 +423,8 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/game/prototype_renderer.*` | Own game GPU resources and render the current prototype scene |
 | `tests/grid_tests.cpp` | Headless grid topology and relaxation tests |
 | `tests/room_generation_tests.cpp` | Headless room connectivity, doorway, and determinism tests |
-| `tests/generated_level_tests.cpp` | Headless runtime artifact, floor, wall/door, dynamic locking, lifecycle/reset, spawn, and navigation tests |
-| `tests/game_tests.cpp` | Headless 2D/arena collision, projectile ownership/profile/pool, weapon cadence, enemy determinism/damage, player damage/invulnerability, death, victory, and restart tests |
+| `tests/generated_level_tests.cpp` | Headless runtime artifact, floor, wall/door, dynamic locking, lifecycle/reset, traversal firing/preservation, spawn, and navigation tests |
+| `tests/game_tests.cpp` | Headless dash/wall collision, projectile ownership/profile/pool, weapon cadence, enemy determinism/damage, player damage/invulnerability, death, victory, and restart tests |
 
 ## Compact pseudocode
 
@@ -476,13 +478,14 @@ function relaxOnce():
 
 ## Current scope and limitations
 
-The generation demo intentionally focuses on a single understandable patch. The separate game executable consumes generated layouts for exact floor rendering, closed wall collision, authorized doorway traversal, dynamic doorway locking, navigation, room lifecycle/location state, and Start spawning. It also preserves the deterministic combat regression arena with injectable walls, profile-separated projectile pools, swept combat collision, player health and invulnerability, death/victory restart, feedback, camera behavior, lighting, audio, and fixed-step timing. The project does not currently implement:
+The generation demo intentionally focuses on a single understandable patch. The separate game executable consumes generated layouts for exact floor rendering, closed wall collision, authorized doorway traversal, dynamic doorway locking, navigation, room lifecycle/location state, Start spawning, traversal firing, dashing, and deterministic generated-room encounters. It also preserves the deterministic combat regression arena with injectable walls, profile-separated projectile pools, swept combat collision, player health and invulnerability, death/victory restart, feedback, camera behavior, lighting, audio, and fixed-step timing. The project does not currently implement:
 
 - Infinite chunk generation.
 - Cross-chunk relaxation.
 - Explicit square-fitting forces.
 - Face-quality optimization after relaxation.
-- Generated-room combat states, door locking, cover placement, or encounter spawning.
+- Enemy collections, crowd navigation, wave pacing, or round phases.
+- Persistent gates, economy, services, objectives, quests, bosses, or extraction.
 - Mesh export.
 - General-purpose three-dimensional asset extrusion beyond runtime floor and wall geometry.
 
