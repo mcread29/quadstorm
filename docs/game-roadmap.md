@@ -107,6 +107,8 @@ Acceptance check: the player can traverse a generated level through every author
 
 ### Milestone 7: encounters and room progression
 
+- Separate reusable combat state/update logic from regression `Encounter` player ownership so generated combat uses the authoritative `LevelSession` player.
+- Preserve `Encounter` as a deterministic hard-coded regression wrapper.
 - Drive the prepared room states: dormant, entered, locked, fighting, cleared, rewarded.
 - Filter the generator's enemy-spawn candidates for gameplay constraints.
 - Use retained doorway thresholds to lock doors during encounters and reopen them after clearing.

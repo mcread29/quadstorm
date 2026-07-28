@@ -10,7 +10,7 @@ Room-generation details are split into focused documents:
 - [`shooter-level-generation.md`](shooter-level-generation.md) — complete graph-first shooter pipeline.
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It consumes the complete generation chain through immutable `GeneratedLevel` geometry and mutable `LevelSession` run state, renders exact assigned dual-cell floors, retains lockable doorway thresholds, closes unauthorized contacts, builds matching navigation, and spawns the player in Start. The hard-coded deterministic enemy encounter remains available through `F1` and now accepts injected wall geometry; generated-room combat is the next milestone.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It consumes the complete generation chain through immutable `GeneratedLevel` geometry and mutable `LevelSession` run state, renders exact assigned dual-cell floors, retains lockable doorway thresholds, closes unauthorized contacts, builds matching navigation, and spawns the player in Start. The hard-coded deterministic enemy encounter remains available through `F1` and accepts injected wall geometry. It still owns a separate regression player; separating reusable combat updates from that ownership is the immediate prerequisite for generated-room combat.
 
 ## Overview
 

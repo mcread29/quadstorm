@@ -4,7 +4,7 @@ This is the continuation guide for the `stalberg_game` runtime. Read [`game-road
 
 ## Current objective
 
-The generated-level runtime milestone and its encounter-preparation refactor are complete. The next objective is **Milestone 7: encounters and room progression**—activate combat after entering an arena, drive the existing room lifecycle states, lock and reopen retained doorway thresholds, and progress through the generated floor. Keep rewards, upgrades, multi-floor runs, and meta-progression out of this milestone.
+The generated-level runtime milestone and its first encounter-preparation refactor are complete. The next objective is **Milestone 7: encounters and room progression**. The immediate prerequisite is to separate reusable combat state/update logic from the regression `Encounter`'s player ownership so `LevelSession::player()` remains the sole authoritative player in generated rooms. Then activate combat after arena entry, drive the existing room lifecycle states, lock and reopen retained doorway thresholds, and progress through the floor. Keep rewards, upgrades, multi-floor runs, and meta-progression out of this milestone.
 
 ## Current behavior
 
@@ -145,6 +145,10 @@ The enemy starts at X/Z `(5, 5)`, has 20 health, moves at 2.4 units/second, circ
 
 The player has five health. Hostile collision uses projectile motion relative to the player's previous/current fixed-step positions, includes both radii, deactivates a shot on contact even during invulnerability, and removes at most one health before starting 0.8 seconds of invulnerability. At zero player health the encounter freezes in a defeat state. A post-victory or post-defeat `restartPressed` input assigns a fresh `Encounter`, clearing both pools and restoring player, weapon, target, and enemy state exactly.
 
+### Player ownership boundary
+
+There are currently two deliberate player owners in mutually exclusive runtime views: `LevelSession` owns the generated traversal player, while the preserved regression `Encounter` owns its arena player. Do not copy or synchronize those players to add generated combat. First extract reusable combat state/update logic that can operate on a caller-owned `Player&`, injected walls, and deterministic combat state. Keep the existing `Encounter` API as a regression wrapper so its restart semantics and tests remain intact. Generated-room combat must use `LevelSession`'s player directly.
+
 ### Arena contract
 
 `ARENA_WALLS` contains four ordered X/Z segments forming a square from `-10` to `10` on each axis. `updateEncounter()` now accepts an injected wall span; its three-argument regression overload forwards `ARENA_WALLS`. Player collision treats the player as a `PLAYER_RADIUS` circle, resolves contacts with four fixed passes, and projects away only velocity into each contact normal so tangential movement survives. The pre-movement player position selects the stable side of wall-face contacts.
@@ -169,18 +173,19 @@ Within one room, neighboring assigned cells are traversable. Across rooms, immut
 
 Drive the prepared generated-room lifecycle without replacing the current deterministic combat modules:
 
-- On entry to a dormant combat arena, use `LevelSession` to transition from entered to locked/fighting.
-- Close the room's retained doorway thresholds while combat is active and reopen them after clearing.
-- Select enemy positions from the room's published spawn candidates after filtering for player distance, occupancy, and doorway clearance.
-- Reuse the encounter modules with `LevelSession::activeWalls()` rather than hard-coded arena geometry.
-- Transition the room to cleared, then progress from Start toward Exit over the existing door-aware room graph.
+1. Extract reusable combat state/update logic from `Encounter` so it accepts a caller-owned `Player&` and injected walls. Preserve `Encounter` as the hard-coded regression wrapper and preserve its deterministic whole-state restart.
+2. Add a generated-room encounter coordinator that reacts to `LevelSessionStepResult::enteredRoom` for dormant `Combat` and `Hub` rooms.
+3. Filter the room's published enemy-spawn candidates for player distance, occupancy, local clearance, and doorway thresholds; initially select one deterministic enemy spawn.
+4. Transition entered → locked → fighting and close the room's retained doorway thresholds for collision, rendering, and traversal.
+5. Run the one-enemy combat state against `LevelSession::player()` and `LevelSession::activeWalls()`.
+6. On enemy defeat, transition to cleared, reopen the doors, and allow progression toward Exit.
 
 Do not add rewards/upgrades, multi-floor run state, an ECS, a generic asset manager, or inferred openings at incidental room contacts during this milestone. Keep the `F1` hard-coded arena as the focused combat regression path while generated-room state is introduced.
 
 ## Known limitations
 
 - The encounter contains only one hard-coded enemy and one stationary target; there are no spawn waves or encounter timer yet.
-- Room lifecycle and doorway-lock primitives exist, but no generated-room encounter currently drives them; there is no reward/progression system or run state yet.
+- Room lifecycle and doorway-lock primitives exist, but no generated-room encounter currently drives them. Reusable combat logic still lives inside a regression `Encounter` that owns a separate player, so player ownership must be separated before integration. There is no reward/progression system or run state yet.
 - Lighting is diffuse-only and the player shadow is a projected decal rather than general occlusion.
 - The combat regression ground and debug grid cover a finite 80-by-80 area.
 - Gameplay constants are compiled into their owning modules.

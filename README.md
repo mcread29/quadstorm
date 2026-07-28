@@ -55,7 +55,7 @@ Grid generation and room generation are independent libraries. The room library 
 | F1 | Toggle generated traversal / combat regression arena |
 | Escape/window close | Exit |
 
-The generated-level runtime and encounter-preparation refactor are complete. The next milestone drives the prepared room lifecycle and doorway locks with generated-room combat, clearing, and progression toward Exit.
+The generated-level runtime and first encounter-preparation refactor are complete. Next, reusable combat state/update logic must be separated from the regression `Encounter`'s player ownership so generated combat can use the authoritative `LevelSession` player. Milestone 7 then drives room lifecycle and doorway locks through one-enemy generated combat, clearing, and progression toward Exit.
 
 ## Generator demo controls
 
