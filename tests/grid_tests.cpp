@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <iostream>
 #include <string_view>
@@ -71,6 +72,40 @@ bool topologyIsValid(const stalberg::StalbergGrid& grid)
         }
     }
     return valid;
+}
+
+std::uint64_t topologyFingerprint(const stalberg::StalbergGrid& grid)
+{
+    std::uint64_t hash = 1469598103934665603ULL;
+    const auto mix = [&hash](std::size_t value) {
+        hash ^= static_cast<std::uint64_t>(value);
+        hash *= 1099511628211ULL;
+    };
+    mix(grid.getVertexCount());
+    for (const stalberg::Quad& quad : grid.getQuads()) {
+        for (const stalberg::VertexIndex vertex : quad) {
+            mix(vertex);
+        }
+    }
+    for (const stalberg::Edge& edge : grid.getEdges()) {
+        mix(edge.a);
+        mix(edge.b);
+    }
+    for (const auto& neighbors : grid.getNeighbors()) {
+        mix(neighbors.size());
+        for (const stalberg::VertexIndex neighbor : neighbors) {
+            mix(neighbor);
+        }
+    }
+    return hash;
+}
+
+bool canonicalTopologyFingerprintIsStable()
+{
+    stalberg::StalbergGrid grid;
+    grid.generate(6, 1);
+    return check(topologyFingerprint(grid) == 6780825136202453929ULL,
+        "canonical radius 6, seed 1 topology fingerprint is stable");
 }
 
 bool generationIsRepeatable()
@@ -144,10 +179,11 @@ int main()
 
     bool valid = true;
     valid &= check(grid.getVertexCount() > 0, "generation creates vertices");
-    valid &= check(grid.getQuadCount() == 460, "radius 6, seed 1 produces 460 quads");
+    valid &= check(grid.getQuadCount() == 458, "radius 6, seed 1 produces 458 quads");
     valid &= topologyIsValid(grid);
     valid &= dualGeometryIsUsable(grid);
     valid &= generationIsRepeatable();
+    valid &= canonicalTopologyFingerprintIsStable();
     valid &= relaxationPreservesBoundary();
 
     if (!valid) {

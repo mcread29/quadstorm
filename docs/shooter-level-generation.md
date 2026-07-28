@@ -22,6 +22,16 @@ The shooter method is designed for a 3D twin-stick game whose simulation remains
 
 The generator works over the irregular dual-cell graph produced by the Stålberg grid. It does not require square tiles or a regular Cartesian grid.
 
+## Seed compatibility
+
+Grid topology inputs are canonicalized before seeded triangle pairing: triangles,
+pairing candidates, published edges, and neighbor lists are sorted. This removes
+standard-library hash iteration order from seeded generation. It intentionally
+changes historical grid output for existing seeds (for example, radius 6 / seed
+1 now has 458 quads rather than 460), but establishes a portable canonical
+baseline protected by a topology-fingerprint regression test. Room generation
+remains deterministic relative to this new canonical grid topology.
+
 ## Complete pipeline
 
 ```text

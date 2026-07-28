@@ -1,5 +1,7 @@
 #include "collision_2d.hpp"
 
+#include "vector2_math.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -8,20 +10,9 @@ namespace {
 
 constexpr float COLLISION_EPSILON = 0.000001F;
 
-float dot(Vector2 left, Vector2 right)
-{
-    return left.x * right.x + left.y * right.y;
-}
-
-float lengthSquared(Vector2 vector)
-{
-    return dot(vector, vector);
-}
-
-Vector2 subtract(Vector2 left, Vector2 right)
-{
-    return Vector2 { left.x - right.x, left.y - right.y };
-}
+using vector2::dot;
+using vector2::lengthSquared;
+using vector2::subtract;
 
 bool isFinite(Vector2 vector)
 {

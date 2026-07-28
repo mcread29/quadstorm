@@ -33,19 +33,17 @@ public:
     std::span<const Segment2D> activeWalls() const { return collisionWalls; }
 
     bool doorwayIsLocked(std::size_t doorway) const;
-    bool canTraverse(const GeneratedLevel& level,
-        stalberg::rooms::CellIndex first,
+    bool canTraverse(stalberg::rooms::CellIndex first,
         stalberg::rooms::CellIndex second) const;
 
-private:
-    friend void resetLevelSession(LevelSession&, const GeneratedLevel&);
-    friend LevelSessionStepResult updateLevelSession(LevelSession&,
-        const GeneratedLevel&, const PlayerInput&, float);
-    friend bool lockRoom(LevelSession&, const GeneratedLevel&, int);
-    friend bool setRoomLifecycleState(LevelSession&, int, RoomLifecycleState);
-    friend bool unlockRoom(LevelSession&, const GeneratedLevel&, int,
-        RoomLifecycleState);
+    void reset();
+    LevelSessionStepResult update(const PlayerInput& input, float stepTime);
+    bool beginEncounter(int room);
+    bool clearEncounter(int room);
+    bool markRoomCleared(int room);
 
+private:
+    const GeneratedLevel* level;
     Player playerState;
     std::vector<RoomLifecycleState> states;
     std::optional<int> currentRoomId;
@@ -53,14 +51,6 @@ private:
     std::vector<bool> lockedDoorways;
     std::vector<Segment2D> collisionWalls;
 
-    void rebuildWalls(const GeneratedLevel& level);
+    bool validRoom(int room) const;
+    void rebuildWalls();
 };
-
-void resetLevelSession(LevelSession& session, const GeneratedLevel& level);
-LevelSessionStepResult updateLevelSession(LevelSession& session,
-    const GeneratedLevel& level, const PlayerInput& input, float stepTime);
-bool lockRoom(LevelSession& session, const GeneratedLevel& level, int room);
-bool setRoomLifecycleState(
-    LevelSession& session, int room, RoomLifecycleState state);
-bool unlockRoom(LevelSession& session, const GeneratedLevel& level, int room,
-    RoomLifecycleState nextState);

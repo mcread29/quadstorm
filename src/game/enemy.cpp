@@ -1,6 +1,7 @@
 #include "enemy.hpp"
 
 #include "collision_2d.hpp"
+#include "vector2_math.hpp"
 
 #include <algorithm>
 #include <array>
@@ -13,18 +14,11 @@ constexpr float ENEMY_DISTANCE_CORRECTION = 0.72F;
 constexpr float ENEMY_SPREAD_ANGLE = 14.0F * DEG2RAD;
 constexpr float ENEMY_MUZZLE_DISTANCE = ENEMY_RADIUS + 0.32F;
 
-float length(Vector2 vector)
-{
-    return std::sqrt(vector.x * vector.x + vector.y * vector.y);
-}
+using vector2::length;
 
 Vector2 normalized(Vector2 vector)
 {
-    const float magnitude = length(vector);
-    if (magnitude <= DIRECTION_EPSILON) {
-        return Vector2 {};
-    }
-    return Vector2 { vector.x / magnitude, vector.y / magnitude };
+    return vector2::normalized(vector, DIRECTION_EPSILON);
 }
 
 Vector2 rotated(Vector2 vector, float angle)

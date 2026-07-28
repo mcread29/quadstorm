@@ -2,9 +2,15 @@ cmake_minimum_required(VERSION 3.20)
 
 project(stalberg_grid LANGUAGES CXX)
 
-find_package(raylib 5.0 QUIET)
+if(EMSCRIPTEN)
+    set(PLATFORM Web CACHE STRING "raylib target platform" FORCE)
+endif()
 
-if(NOT raylib_FOUND)
+if(NOT EMSCRIPTEN)
+    find_package(raylib 5.0 QUIET)
+endif()
+
+if(EMSCRIPTEN OR NOT raylib_FOUND)
     include(FetchContent)
     set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
@@ -70,39 +76,67 @@ target_link_libraries(stalberg_room_grid_adapter
     PUBLIC stalberg_grid_generation stalberg_room_generation)
 enable_project_warnings(stalberg_room_grid_adapter)
 
-add_executable(stalberg_grid
-    src/main.cpp
-    src/grid_renderer.cpp
-)
-target_link_libraries(stalberg_grid PRIVATE stalberg_room_grid_adapter raylib)
-enable_project_warnings(stalberg_grid)
+if(NOT EMSCRIPTEN)
+    add_executable(stalberg_grid
+        src/main.cpp
+        src/grid_renderer.cpp
+    )
+    target_link_libraries(stalberg_grid PRIVATE stalberg_room_grid_adapter raylib)
+    enable_project_warnings(stalberg_grid)
+endif()
 
-add_executable(stalberg_game
+add_library(stalberg_game_core
     src/game/arena.cpp
     src/game/collision_2d.cpp
     src/game/combat.cpp
-    src/game/combat_audio.cpp
     src/game/encounter.cpp
     src/game/enemy.cpp
-    src/game/game_camera.cpp
-    src/game/game_input.cpp
     src/game/generated_encounter.cpp
     src/game/generated_level.cpp
     src/game/level_session.cpp
-    src/game/main.cpp
     src/game/player.cpp
     src/game/projectile_pool.cpp
-    src/game/prototype_renderer.cpp
     src/game/target.cpp
     src/game/weapon.cpp
 )
-target_compile_features(stalberg_game PRIVATE cxx_std_20)
-target_link_libraries(stalberg_game PRIVATE stalberg_room_grid_adapter raylib)
+target_include_directories(stalberg_game_core PUBLIC src)
+target_compile_features(stalberg_game_core PUBLIC cxx_std_20)
+target_link_libraries(stalberg_game_core
+    PUBLIC stalberg_room_grid_adapter raylib)
+enable_project_warnings(stalberg_game_core)
+enable_debug_runtime_optimization(stalberg_game_core)
+
+add_executable(stalberg_game
+    src/game/combat_audio.cpp
+    src/game/game_camera.cpp
+    src/game/game_input.cpp
+    src/game/main.cpp
+    src/game/prototype_renderer.cpp
+)
+target_link_libraries(stalberg_game PRIVATE stalberg_game_core)
 enable_project_warnings(stalberg_game)
 enable_debug_runtime_optimization(stalberg_game)
 
+if(EMSCRIPTEN)
+    target_compile_definitions(stalberg_game PRIVATE PLATFORM_WEB)
+    set_target_properties(stalberg_game PROPERTIES SUFFIX ".html")
+    target_link_options(stalberg_game PRIVATE
+        "--shell-file=${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html"
+        "-sUSE_GLFW=3"
+        "-sASYNCIFY"
+        "-sALLOW_MEMORY_GROWTH=1"
+        "-sSTACK_SIZE=4MB"
+        "-sEXIT_RUNTIME=0"
+    )
+    add_custom_command(TARGET stalberg_game POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/web/favicon.ico
+            $<TARGET_FILE_DIR:stalberg_game>/favicon.ico
+    )
+endif()
+
 include(CTest)
-if(BUILD_TESTING)
+if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(stalberg_grid_tests tests/grid_tests.cpp)
     target_link_libraries(stalberg_grid_tests PRIVATE stalberg_grid_generation)
     enable_project_warnings(stalberg_grid_tests)
@@ -114,43 +148,26 @@ if(BUILD_TESTING)
     enable_project_warnings(stalberg_room_generation_tests)
     add_test(NAME stalberg_room_generation_tests COMMAND stalberg_room_generation_tests)
 
-    add_executable(stalberg_generated_level_tests
-        tests/generated_level_tests.cpp
-        src/game/arena.cpp
-        src/game/collision_2d.cpp
-        src/game/combat.cpp
-        src/game/enemy.cpp
-        src/game/generated_encounter.cpp
-        src/game/generated_level.cpp
-        src/game/level_session.cpp
-        src/game/player.cpp
-        src/game/projectile_pool.cpp
-        src/game/target.cpp
-        src/game/weapon.cpp
+    add_executable(stalberg_grid_renderer_cache_tests
+        tests/grid_renderer_cache_tests.cpp
+        src/grid_renderer.cpp
     )
-    target_include_directories(stalberg_generated_level_tests PRIVATE src)
-    target_compile_features(stalberg_generated_level_tests PRIVATE cxx_std_20)
-    target_link_libraries(stalberg_generated_level_tests
+    target_link_libraries(stalberg_grid_renderer_cache_tests
         PRIVATE stalberg_room_grid_adapter raylib)
+    enable_project_warnings(stalberg_grid_renderer_cache_tests)
+    add_test(NAME stalberg_grid_renderer_cache_tests
+        COMMAND stalberg_grid_renderer_cache_tests)
+
+    add_executable(stalberg_generated_level_tests
+        tests/generated_level_tests.cpp)
+    target_link_libraries(stalberg_generated_level_tests
+        PRIVATE stalberg_game_core)
     enable_project_warnings(stalberg_generated_level_tests)
     add_test(NAME stalberg_generated_level_tests
         COMMAND stalberg_generated_level_tests)
 
-    add_executable(stalberg_game_tests
-        tests/game_tests.cpp
-        src/game/arena.cpp
-        src/game/collision_2d.cpp
-        src/game/combat.cpp
-        src/game/encounter.cpp
-        src/game/enemy.cpp
-        src/game/player.cpp
-        src/game/projectile_pool.cpp
-        src/game/target.cpp
-        src/game/weapon.cpp
-    )
-    target_include_directories(stalberg_game_tests PRIVATE src)
-    target_compile_features(stalberg_game_tests PRIVATE cxx_std_20)
-    target_link_libraries(stalberg_game_tests PRIVATE raylib)
+    add_executable(stalberg_game_tests tests/game_tests.cpp)
+    target_link_libraries(stalberg_game_tests PRIVATE stalberg_game_core)
     enable_project_warnings(stalberg_game_tests)
     add_test(NAME stalberg_game_tests COMMAND stalberg_game_tests)
 endif()

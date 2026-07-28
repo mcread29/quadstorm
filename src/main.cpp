@@ -120,10 +120,14 @@ int main()
         = stalberg::rooms::RoomGenerationMethod::ShooterLayout;
     bool drawCenters = true;
     generateRelaxedGrid(grid, radius, seed);
+    stalberg::GridRendererCache rendererCache;
+    rendererCache.rebuildGrid(grid);
     stalberg::rooms::RoomGenerator roomGenerator;
-    stalberg::rooms::RoomGrid roomInput = stalberg::makeRoomGrid(grid);
+    stalberg::rooms::RoomGrid roomInput
+        = stalberg::makeRoomGrid(grid, rendererCache.dualGrid());
     stalberg::rooms::RoomLayout rooms
         = roomGenerator.generate(roomInput, roomSeed, roomMethod);
+    rendererCache.rebuildRooms(rooms);
 
     Camera2D camera {};
     camera.offset = Vector2 { 640.0F, 400.0F };
@@ -159,8 +163,10 @@ int main()
 
         if (regenerateRequested) {
             generateRelaxedGrid(grid, radius, seed);
-            roomInput = stalberg::makeRoomGrid(grid);
+            rendererCache.rebuildGrid(grid);
+            roomInput = stalberg::makeRoomGrid(grid, rendererCache.dualGrid());
             rooms = roomGenerator.generate(roomInput, roomSeed, roomMethod);
+            rendererCache.rebuildRooms(rooms);
             if (refitRequested) {
                 fitCamera(camera, grid);
             }
@@ -172,6 +178,7 @@ int main()
         if (IsKeyPressed(KEY_G)) {
             ++roomSeed;
             rooms = roomGenerator.generate(roomInput, roomSeed, roomMethod);
+            rendererCache.rebuildRooms(rooms);
         }
         if (IsKeyPressed(KEY_M)) {
             switch (roomMethod) {
@@ -186,6 +193,7 @@ int main()
                 break;
             }
             rooms = roomGenerator.generate(roomInput, roomSeed, roomMethod);
+            rendererCache.rebuildRooms(rooms);
         }
 
         handleCamera(camera, grid);
@@ -196,15 +204,16 @@ int main()
         std::optional<std::size_t> hoveredCell;
         if (!mouseOverHud) {
             const Vector2 mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
-            hoveredCell = stalberg::findDualCellAtPoint(
-                grid, stalberg::Point { mouseWorld.x, mouseWorld.y });
+            hoveredCell = rendererCache.findCellAtPoint(
+                stalberg::Point { mouseWorld.x, mouseWorld.y });
         }
 
         BeginDrawing();
         ClearBackground(Color { 47, 121, 137, 255 });
 
         BeginMode2D(camera);
-        stalberg::drawGrid(grid, rooms, drawCenters, camera.zoom, hoveredCell);
+        rendererCache.draw(
+            grid, rooms, drawCenters, camera.zoom, hoveredCell);
         EndMode2D();
 
         DrawRectangle(14, 14, 440, 131, Color { 8, 31, 38, 220 });

@@ -5,7 +5,8 @@
 
 #include <span>
 
-struct Encounter : CombatState {
+struct Encounter {
+    CombatState combat {};
     Player player {};
     Target target {};
 };

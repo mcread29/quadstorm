@@ -9,6 +9,10 @@
 
 namespace stalberg::rooms {
 
+namespace detail {
+struct PreparedGenerationContext;
+}
+
 struct RoomGenerationOptions {
     RoomGenerationMethod method = RoomGenerationMethod::ShooterLayout;
     std::size_t candidateCount = 6;
@@ -27,7 +31,7 @@ public:
 
 private:
     RoomLayout generateCandidate(
-        const RoomGrid& grid,
+        const detail::PreparedGenerationContext& prepared,
         std::uint32_t requestedSeed,
         std::uint32_t variantSeed,
         RoomGenerationMethod method,

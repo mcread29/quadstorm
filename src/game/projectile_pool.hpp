@@ -33,6 +33,7 @@ public:
 
     bool spawn(Vector2 position, Vector2 direction);
     void update(float stepTime);
+    void retireExpired();
 
     auto& projectiles() { return slots; }
     const auto& projectiles() const { return slots; }

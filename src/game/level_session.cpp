@@ -6,12 +6,6 @@
 
 namespace {
 
-bool validRoom(const LevelSession& session, int room)
-{
-    return room >= 0
-        && static_cast<std::size_t>(room) < session.roomStates().size();
-}
-
 bool thresholdMatches(const DoorwayThreshold& threshold,
     stalberg::rooms::CellIndex first, stalberg::rooms::CellIndex second)
 {
@@ -21,9 +15,15 @@ bool thresholdMatches(const DoorwayThreshold& threshold,
 
 } // namespace
 
-LevelSession::LevelSession(const GeneratedLevel& level)
+LevelSession::LevelSession(const GeneratedLevel& sourceLevel)
+    : level(&sourceLevel)
 {
-    resetLevelSession(*this, level);
+    reset();
+}
+
+bool LevelSession::validRoom(int room) const
+{
+    return room >= 0 && static_cast<std::size_t>(room) < states.size();
 }
 
 bool LevelSession::doorwayIsLocked(std::size_t doorway) const
@@ -31,14 +31,13 @@ bool LevelSession::doorwayIsLocked(std::size_t doorway) const
     return doorway < lockedDoorways.size() && lockedDoorways[doorway];
 }
 
-bool LevelSession::canTraverse(const GeneratedLevel& level,
-    stalberg::rooms::CellIndex first,
+bool LevelSession::canTraverse(stalberg::rooms::CellIndex first,
     stalberg::rooms::CellIndex second) const
 {
-    if (!level.canTraverse(first, second)) {
+    if (!level->canTraverse(first, second)) {
         return false;
     }
-    for (const DoorwayThreshold& threshold : level.doorwayThresholds()) {
+    for (const DoorwayThreshold& threshold : level->doorwayThresholds()) {
         if (thresholdMatches(threshold, first, second)) {
             return !doorwayIsLocked(threshold.doorway);
         }
@@ -46,74 +45,70 @@ bool LevelSession::canTraverse(const GeneratedLevel& level,
     return true;
 }
 
-void LevelSession::rebuildWalls(const GeneratedLevel& level)
+void LevelSession::rebuildWalls()
 {
-    collisionWalls.assign(level.walls().begin(), level.walls().end());
-    for (const DoorwayThreshold& threshold : level.doorwayThresholds()) {
+    collisionWalls.assign(level->walls().begin(), level->walls().end());
+    for (const DoorwayThreshold& threshold : level->doorwayThresholds()) {
         if (doorwayIsLocked(threshold.doorway)) {
             collisionWalls.push_back(threshold.segment);
         }
     }
 }
 
-void resetLevelSession(LevelSession& session, const GeneratedLevel& level)
+void LevelSession::reset()
 {
-    session.playerState = Player {};
-    const Vector2 spawn = level.playerSpawn();
-    session.playerState.position = Vector3 { spawn.x, PLAYER_RADIUS, spawn.y };
-    session.states.assign(level.roomLayout().getRoomCount(),
+    playerState = Player {};
+    const Vector2 spawn = level->playerSpawn();
+    playerState.position = Vector3 { spawn.x, PLAYER_RADIUS, spawn.y };
+    states.assign(level->roomLayout().getRoomCount(),
         RoomLifecycleState::dormant);
-    session.lockedDoorways.assign(
-        level.doorwayThresholds().size(), false);
-    session.lockedRoomId.reset();
-    session.currentRoomId = level.roomLayout().getCellAssignment(
-        level.playerSpawnCell());
-    if (session.currentRoomId.has_value()
-        && validRoom(session, *session.currentRoomId)) {
-        session.states[static_cast<std::size_t>(*session.currentRoomId)]
+    lockedDoorways.assign(level->doorwayThresholds().size(), false);
+    lockedRoomId.reset();
+    currentRoomId = level->roomLayout().getCellAssignment(
+        level->playerSpawnCell());
+    if (currentRoomId.has_value() && validRoom(*currentRoomId)) {
+        states[static_cast<std::size_t>(*currentRoomId)]
             = RoomLifecycleState::entered;
     }
-    session.rebuildWalls(level);
+    rebuildWalls();
 }
 
-LevelSessionStepResult updateLevelSession(LevelSession& session,
-    const GeneratedLevel& level, const PlayerInput& input, float stepTime)
+LevelSessionStepResult LevelSession::update(
+    const PlayerInput& input, float stepTime)
 {
     LevelSessionStepResult result;
     if (input.restartPressed) {
-        resetLevelSession(session, level);
+        reset();
         result.reset = true;
         return result;
     }
 
     const Vector2 previousPosition {
-        session.playerState.position.x,
-        session.playerState.position.z
+        playerState.position.x,
+        playerState.position.z
     };
-    updatePlayerEffects(session.playerState, stepTime);
-    updatePlayer(session.playerState, input, stepTime);
-    resolvePlayerWallCollisions(session.playerState,
-        previousPosition, session.activeWalls());
+    updatePlayerEffects(playerState, stepTime);
+    updatePlayer(playerState, input, stepTime);
+    resolvePlayerWallCollisions(playerState, previousPosition, activeWalls());
 
-    const auto cell = level.cellAtWorldPoint(Vector2 {
-        session.playerState.position.x,
-        session.playerState.position.z
+    const auto cell = level->cellAtWorldPoint(Vector2 {
+        playerState.position.x,
+        playerState.position.z
     });
     if (!cell.has_value()) {
-        session.currentRoomId.reset();
+        currentRoomId.reset();
         return result;
     }
 
-    const int room = level.roomLayout().getCellAssignment(*cell);
-    if (!validRoom(session, room)) {
-        session.currentRoomId.reset();
+    const int room = level->roomLayout().getCellAssignment(*cell);
+    if (!validRoom(room)) {
+        currentRoomId.reset();
         return result;
     }
-    if (session.currentRoomId != room) {
-        session.currentRoomId = room;
+    if (currentRoomId != room) {
+        currentRoomId = room;
         result.enteredRoom = room;
-        RoomLifecycleState& state
-            = session.states[static_cast<std::size_t>(room)];
+        RoomLifecycleState& state = states[static_cast<std::size_t>(room)];
         if (state == RoomLifecycleState::dormant) {
             state = RoomLifecycleState::entered;
         }
@@ -121,48 +116,46 @@ LevelSessionStepResult updateLevelSession(LevelSession& session,
     return result;
 }
 
-bool lockRoom(LevelSession& session, const GeneratedLevel& level, int room)
+bool LevelSession::beginEncounter(int room)
 {
-    if (!validRoom(session, room)
-        || (session.lockedRoomId.has_value()
-            && session.lockedRoomId != room)) {
+    if (!validRoom(room) || currentRoomId != room || lockedRoomId.has_value()
+        || states[static_cast<std::size_t>(room)] != RoomLifecycleState::entered) {
         return false;
     }
 
-    session.lockedRoomId = room;
-    session.states[static_cast<std::size_t>(room)]
-        = RoomLifecycleState::locked;
-    for (const DoorwayThreshold& threshold : level.doorwayThresholds()) {
+    std::vector<bool> newLocks(lockedDoorways.size(), false);
+    for (const DoorwayThreshold& threshold : level->doorwayThresholds()) {
         if (threshold.firstRegion == room || threshold.secondRegion == room) {
-            session.lockedDoorways[threshold.doorway] = true;
+            newLocks[threshold.doorway] = true;
         }
     }
-    session.rebuildWalls(level);
+    lockedDoorways = std::move(newLocks);
+    lockedRoomId = room;
+    states[static_cast<std::size_t>(room)] = RoomLifecycleState::fighting;
+    rebuildWalls();
     return true;
 }
 
-bool setRoomLifecycleState(
-    LevelSession& session, int room, RoomLifecycleState state)
+bool LevelSession::clearEncounter(int room)
 {
-    if (!validRoom(session, room) || state == RoomLifecycleState::locked) {
+    if (!validRoom(room) || lockedRoomId != room
+        || states[static_cast<std::size_t>(room)] != RoomLifecycleState::fighting) {
         return false;
     }
-    session.states[static_cast<std::size_t>(room)] = state;
+
+    std::fill(lockedDoorways.begin(), lockedDoorways.end(), false);
+    lockedRoomId.reset();
+    states[static_cast<std::size_t>(room)] = RoomLifecycleState::cleared;
+    rebuildWalls();
     return true;
 }
 
-bool unlockRoom(LevelSession& session, const GeneratedLevel& level, int room,
-    RoomLifecycleState nextState)
+bool LevelSession::markRoomCleared(int room)
 {
-    if (!validRoom(session, room) || session.lockedRoomId != room
-        || nextState == RoomLifecycleState::locked) {
+    if (!validRoom(room) || lockedRoomId.has_value()
+        || states[static_cast<std::size_t>(room)] != RoomLifecycleState::entered) {
         return false;
     }
-
-    std::fill(session.lockedDoorways.begin(),
-        session.lockedDoorways.end(), false);
-    session.lockedRoomId.reset();
-    session.states[static_cast<std::size_t>(room)] = nextState;
-    session.rebuildWalls(level);
+    states[static_cast<std::size_t>(room)] = RoomLifecycleState::cleared;
     return true;
 }

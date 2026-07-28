@@ -1,5 +1,6 @@
 #include "grid_renderer.hpp"
 
+#include "geometry/quantized_geometry.hpp"
 #include "grid/dual_grid.hpp"
 #include "grid/stalberg_grid.hpp"
 #include "rooms/room_layout.hpp"
@@ -10,7 +11,11 @@
 #include <array>
 #include <cmath>
 #include <functional>
+#include <memory>
+#include <span>
+#include <stdexcept>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace stalberg {
@@ -107,57 +112,32 @@ consteval bool roomColorsAreUnique()
 
 static_assert(ROOM_COLORS.size() == MAX_GENERATED_ROOMS);
 static_assert(roomColorsAreUnique());
-constexpr double OUTLINE_KEY_SCALE = 1000.0;
-
 struct DualMesh {
     std::vector<Point> quadCenters;
     std::vector<std::vector<Vector2>> cells;
 };
 
-struct PointKey {
-    long long x;
-    long long y;
-
-    bool operator==(const PointKey&) const = default;
-    bool operator<(const PointKey& other) const
-    {
-        return x < other.x || (x == other.x && y < other.y);
-    }
-};
-
-struct OutlineEdge {
-    PointKey a;
-    PointKey b;
-
-    OutlineEdge(PointKey first, PointKey second)
-        : a(std::min(first, second)), b(std::max(first, second))
-    {
-    }
-
-    bool operator==(const OutlineEdge&) const = default;
-};
-
-struct PointKeyHash {
-    std::size_t operator()(PointKey point) const
-    {
-        return std::hash<long long> {}(point.x)
-            ^ (std::hash<long long> {}(point.y) << 1U);
-    }
-};
-
-struct OutlineEdgeHash {
-    std::size_t operator()(const OutlineEdge& edge) const
-    {
-        const PointKeyHash hashPoint;
-        return hashPoint(edge.a) ^ (hashPoint(edge.b) << 1U);
-    }
-};
+using PointKey = geometry::QuantizedPoint;
+using OutlineEdge = geometry::QuantizedEdge;
+using PointKeyHash = geometry::QuantizedPointHash;
+using OutlineEdgeHash = geometry::QuantizedEdgeHash;
 
 struct OutlineSegment {
     Vector2 first;
     Vector2 second;
-    std::size_t owner;
     std::size_t useCount = 1;
+};
+
+struct BoundaryNode {
+    PointKey key;
+    std::vector<std::size_t> incident;
+};
+
+struct RoomRenderData {
+    int id = EMPTY_CELL;
+    std::vector<std::size_t> cells;
+    std::vector<OutlineSegment> boundary;
+    std::vector<BoundaryNode> nodes;
 };
 
 struct RoundedSegment {
@@ -175,9 +155,8 @@ Vector2 toVector2(Point point)
     return Vector2 { point.x, point.y };
 }
 
-DualMesh buildRenderDualMesh(const StalbergGrid& grid)
+DualMesh buildRenderDualMesh(const DualGrid& source)
 {
-    const DualGrid source = buildDualGrid(grid);
     DualMesh result;
     result.quadCenters = source.quadCenters;
     result.cells.resize(source.cells.size());
@@ -192,10 +171,7 @@ DualMesh buildRenderDualMesh(const StalbergGrid& grid)
 
 PointKey pointKey(Vector2 point)
 {
-    return PointKey {
-        std::llround(static_cast<double>(point.x) * OUTLINE_KEY_SCALE),
-        std::llround(static_cast<double>(point.y) * OUTLINE_KEY_SCALE)
-    };
+    return geometry::quantizePoint(point.x, point.y);
 }
 
 Vector2 quadraticBezier(Vector2 start, Vector2 control, Vector2 end, float amount)
@@ -245,57 +221,62 @@ void drawCellFill(
     }
 }
 
-void drawConnectedCells(
-    const StalbergGrid& grid,
-    const DualMesh& dual,
-    const std::vector<bool>& generatedCells,
-    float cameraZoom,
-    Color fillColor,
-    Color outlineColor)
+RoomRenderData buildRoomRenderData(
+    int room, std::span<const int> assignments, const DualMesh& dual)
 {
-    const std::size_t cellCount = dual.cells.size();
-    const auto isGenerated = [&](std::size_t cell) {
-        return cell < generatedCells.size() && generatedCells[cell];
-    };
-
-    for (std::size_t cell = 0; cell < cellCount; ++cell) {
-        if (isGenerated(cell)) {
-            drawCellFill(grid, dual, cell, fillColor);
-        }
-    }
-
+    RoomRenderData result;
+    result.id = room;
     std::unordered_map<OutlineEdge, OutlineSegment, OutlineEdgeHash> outlines;
-    for (std::size_t cell = 0; cell < cellCount; ++cell) {
-        if (!isGenerated(cell)) {
+    for (std::size_t cell = 0; cell < assignments.size(); ++cell) {
+        if (assignments[cell] != room || cell >= dual.cells.size()) {
             continue;
         }
-
+        result.cells.push_back(cell);
         const auto& polygon = dual.cells[cell];
-        for (std::size_t i = 0; i < polygon.size(); ++i) {
-            const Vector2 first = polygon[i];
-            const Vector2 second = polygon[(i + 1) % polygon.size()];
+        for (std::size_t point = 0; point < polygon.size(); ++point) {
+            const Vector2 first = polygon[point];
+            const Vector2 second = polygon[(point + 1) % polygon.size()];
             const OutlineEdge edge(pointKey(first), pointKey(second));
             if (const auto found = outlines.find(edge); found != outlines.end()) {
                 ++found->second.useCount;
             } else {
-                outlines.emplace(edge, OutlineSegment { first, second, cell });
+                outlines.emplace(edge, OutlineSegment { first, second });
             }
         }
+    }
+
+    std::unordered_map<PointKey, std::vector<std::size_t>, PointKeyHash> nodes;
+    for (const auto& [edge, segment] : outlines) {
+        static_cast<void>(edge);
+        if (segment.useCount != 1) {
+            continue;
+        }
+        const std::size_t index = result.boundary.size();
+        result.boundary.push_back(segment);
+        nodes[pointKey(segment.first)].push_back(index);
+        nodes[pointKey(segment.second)].push_back(index);
+    }
+    result.nodes.reserve(nodes.size());
+    for (auto& [key, incident] : nodes) {
+        result.nodes.push_back(BoundaryNode { key, std::move(incident) });
+    }
+    return result;
+}
+
+void drawConnectedCells(const StalbergGrid& grid, const DualMesh& dual,
+    const RoomRenderData& room, float cameraZoom,
+    Color fillColor, Color outlineColor)
+{
+    for (const std::size_t cell : room.cells) {
+        drawCellFill(grid, dual, cell, fillColor);
     }
 
     const float zoom = std::max(cameraZoom, 0.01F);
     const float lineWidth = 1.7F / zoom;
     const float maximumCornerRadius = 7.0F / zoom;
     std::vector<RoundedSegment> boundary;
-    std::unordered_map<PointKey, std::vector<std::size_t>, PointKeyHash> nodeEdges;
-
-    for (const auto& [edge, segment] : outlines) {
-        static_cast<void>(edge);
-        if (segment.useCount != 1) {
-            continue;
-        }
-
-        const Color color = outlineColor;
+    boundary.reserve(room.boundary.size());
+    for (const OutlineSegment& segment : room.boundary) {
         const Vector2 direction {
             segment.second.x - segment.first.x,
             segment.second.y - segment.first.y
@@ -303,66 +284,51 @@ void drawConnectedCells(
         const float length = std::sqrt(
             direction.x * direction.x + direction.y * direction.y);
         if (length <= 0.0001F) {
+            boundary.push_back(RoundedSegment {});
             continue;
         }
-
         const float cornerRadius = std::min(maximumCornerRadius, length * 0.28F);
-        const Vector2 firstTrimmed {
-            segment.first.x + direction.x / length * cornerRadius,
-            segment.first.y + direction.y / length * cornerRadius
-        };
-        const Vector2 secondTrimmed {
-            segment.second.x - direction.x / length * cornerRadius,
-            segment.second.y - direction.y / length * cornerRadius
-        };
-        const PointKey firstKey = pointKey(segment.first);
-        const PointKey secondKey = pointKey(segment.second);
-        const std::size_t boundaryIndex = boundary.size();
         boundary.push_back(RoundedSegment {
-            firstKey,
-            secondKey,
+            pointKey(segment.first),
+            pointKey(segment.second),
             segment.first,
             segment.second,
-            firstTrimmed,
-            secondTrimmed,
-            color
+            Vector2 {
+                segment.first.x + direction.x / length * cornerRadius,
+                segment.first.y + direction.y / length * cornerRadius
+            },
+            Vector2 {
+                segment.second.x - direction.x / length * cornerRadius,
+                segment.second.y - direction.y / length * cornerRadius
+            },
+            outlineColor
         });
-        nodeEdges[firstKey].push_back(boundaryIndex);
-        nodeEdges[secondKey].push_back(boundaryIndex);
     }
 
     for (const RoundedSegment& segment : boundary) {
-        DrawLineEx(
-            segment.firstTrimmed, segment.secondTrimmed, lineWidth, segment.color);
+        DrawLineEx(segment.firstTrimmed, segment.secondTrimmed,
+            lineWidth, segment.color);
     }
 
-    for (const auto& [node, incident] : nodeEdges) {
+    for (const BoundaryNode& node : room.nodes) {
         const auto endpoint = [&](const RoundedSegment& segment) {
-            return segment.firstKey == node ? segment.first : segment.second;
+            return segment.firstKey == node.key ? segment.first : segment.second;
         };
         const auto trimmedEndpoint = [&](const RoundedSegment& segment) {
-            return segment.firstKey == node
+            return segment.firstKey == node.key
                 ? segment.firstTrimmed
                 : segment.secondTrimmed;
         };
-
-        if (incident.size() == 2) {
-            const RoundedSegment& first = boundary[incident[0]];
-            const RoundedSegment& second = boundary[incident[1]];
-            const Vector2 corner = endpoint(first);
-            drawQuadraticCurve(
-                trimmedEndpoint(first), corner, trimmedEndpoint(second), lineWidth, outlineColor);
-            continue;
-        }
-
-        // Point contacts and open boundaries cannot be paired unambiguously. Keep
-        // those rare junctions connected and use a round cap instead.
-        if (!incident.empty()) {
-            const Vector2 junction = endpoint(boundary[incident.front()]);
-            for (const std::size_t segmentIndex : incident) {
-                const RoundedSegment& segment = boundary[segmentIndex];
-                DrawLineEx(
-                    trimmedEndpoint(segment), junction, lineWidth, segment.color);
+        if (node.incident.size() == 2) {
+            const RoundedSegment& first = boundary[node.incident[0]];
+            const RoundedSegment& second = boundary[node.incident[1]];
+            drawQuadraticCurve(trimmedEndpoint(first), endpoint(first),
+                trimmedEndpoint(second), lineWidth, outlineColor);
+        } else if (!node.incident.empty()) {
+            const Vector2 junction = endpoint(boundary[node.incident.front()]);
+            for (const std::size_t segmentIndex : node.incident) {
+                DrawLineEx(trimmedEndpoint(boundary[segmentIndex]), junction,
+                    lineWidth, outlineColor);
             }
             DrawCircleV(junction, lineWidth * 0.5F, outlineColor);
         }
@@ -404,57 +370,97 @@ void drawOrientedCross(
 
 } // namespace
 
-std::optional<std::size_t> findDualCellAtPoint(const StalbergGrid& grid, Point point)
+struct GridRendererCache::Impl {
+    DualGrid dual;
+    DualMesh mesh;
+    std::vector<RoomRenderData> rooms;
+    bool gridReady = false;
+};
+
+GridRendererCache::GridRendererCache()
+    : impl(std::make_unique<Impl>())
 {
-    return findDualCellAtPoint(buildDualGrid(grid), point);
 }
 
-void drawGrid(
-    const StalbergGrid& grid,
-    const rooms::RoomLayout& rooms,
-    bool drawCenters,
-    float cameraZoom,
-    std::optional<std::size_t> hoveredCell)
+GridRendererCache::~GridRendererCache() = default;
+GridRendererCache::GridRendererCache(GridRendererCache&&) noexcept = default;
+GridRendererCache& GridRendererCache::operator=(GridRendererCache&&) noexcept = default;
+
+void GridRendererCache::rebuildGrid(const StalbergGrid& grid)
 {
+    impl->dual = buildDualGrid(grid);
+    impl->mesh = buildRenderDualMesh(impl->dual);
+    impl->rooms.clear();
+    impl->gridReady = true;
+}
+
+void GridRendererCache::rebuildRooms(const rooms::RoomLayout& layout)
+{
+    if (!impl->gridReady
+        || layout.getCellAssignments().size() != impl->mesh.cells.size()) {
+        throw std::invalid_argument(
+            "room render cache requires aligned grid and room artifacts");
+    }
+    impl->rooms.clear();
+    impl->rooms.reserve(layout.getRooms().size());
+    for (const GeneratedRoom& room : layout.getRooms()) {
+        impl->rooms.push_back(buildRoomRenderData(
+            room.id, layout.getCellAssignments(), impl->mesh));
+    }
+}
+
+const DualGrid& GridRendererCache::dualGrid() const
+{
+    if (!impl->gridReady) {
+        throw std::logic_error("grid render cache has not been built");
+    }
+    return impl->dual;
+}
+
+std::optional<std::size_t> GridRendererCache::findCellAtPoint(Point point) const
+{
+    if (!impl->gridReady) {
+        return std::nullopt;
+    }
+    return findDualCellAtPoint(impl->dual, point);
+}
+
+void GridRendererCache::draw(const StalbergGrid& grid,
+    const rooms::RoomLayout& layout, bool drawCenters,
+    float cameraZoom, std::optional<std::size_t> hoveredCell) const
+{
+    if (!impl->gridReady || grid.getVertexCount() != impl->mesh.cells.size()) {
+        throw std::logic_error("stale grid render cache");
+    }
     const float zoom = std::max(cameraZoom, 0.01F);
     const float lineWidth = 1.25F / zoom;
     const auto vertices = grid.getVertices();
     const auto quads = grid.getQuads();
-    const auto assignments = rooms.getCellAssignments();
-    const DualMesh dual = buildRenderDualMesh(grid);
-    std::vector<bool> regionMask(vertices.size(), false);
+    const auto assignments = layout.getCellAssignments();
 
-    for (const GeneratedRoom& room : rooms.getRooms()) {
-        for (std::size_t cell = 0; cell < assignments.size(); ++cell) {
-            regionMask[cell] = assignments[cell] == room.id;
-        }
+    for (const RoomRenderData& room : impl->rooms) {
         const Color fill = ROOM_COLORS.at(static_cast<std::size_t>(room.id));
-        drawConnectedCells(
-            grid, dual, regionMask, zoom, fill, ROOM_OUTLINE);
+        drawConnectedCells(grid, impl->mesh, room, zoom, fill, ROOM_OUTLINE);
     }
 
     if (hoveredCell && *hoveredCell < assignments.size()) {
         const int hoveredRegion = assignments[*hoveredCell];
-        if (hoveredRegion != EMPTY_CELL) {
-            for (std::size_t cell = 0; cell < assignments.size(); ++cell) {
-                if (assignments[cell] == hoveredRegion) {
-                    drawCellFill(grid, dual, cell, HOVER_FILL);
-                }
+        const auto room = std::ranges::find(
+            impl->rooms, hoveredRegion, &RoomRenderData::id);
+        if (room != impl->rooms.end()) {
+            for (const std::size_t cell : room->cells) {
+                drawCellFill(grid, impl->mesh, cell, HOVER_FILL);
             }
         }
     }
 
     for (const Edge& edge : grid.getEdges()) {
-        DrawLineEx(
-            toVector2(vertices[edge.a].position),
-            toVector2(vertices[edge.b].position),
-            lineWidth,
-            GRID_COLOR);
+        DrawLineEx(toVector2(vertices[edge.a].position),
+            toVector2(vertices[edge.b].position), lineWidth, GRID_COLOR);
     }
     for (const Vertex& vertex : vertices) {
         DrawCircleV(toVector2(vertex.position), lineWidth * 0.5F, GRID_COLOR);
     }
-
     if (!drawCenters) {
         return;
     }
@@ -462,8 +468,8 @@ void drawGrid(
     const float centerSize = 4.2F / zoom;
     const float centerLineWidth = 1.1F / zoom;
     for (std::size_t i = 0; i < quads.size(); ++i) {
-        drawOrientedCross(
-            grid, quads[i], dual.quadCenters[i], centerSize, centerLineWidth, CENTER_COLOR);
+        drawOrientedCross(grid, quads[i], impl->mesh.quadCenters[i],
+            centerSize, centerLineWidth, CENTER_COLOR);
     }
 }
 

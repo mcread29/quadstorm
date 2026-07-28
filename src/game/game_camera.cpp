@@ -1,5 +1,7 @@
 #include "game_camera.hpp"
 
+#include "vector2_math.hpp"
+
 #include <cmath>
 
 namespace {
@@ -8,24 +10,8 @@ constexpr float CAMERA_FOLLOW_SPEED = 10.0F;
 constexpr float CAMERA_HEIGHT = 17.0F;
 constexpr float CAMERA_HORIZONTAL_OFFSET = 12.0F;
 
-float length(Vector2 vector)
-{
-    return std::sqrt(vector.x * vector.x + vector.y * vector.y);
-}
-
-Vector2 normalized(Vector2 vector)
-{
-    const float magnitude = length(vector);
-    if (magnitude <= 0.0001F) {
-        return Vector2 {};
-    }
-    return Vector2 { vector.x / magnitude, vector.y / magnitude };
-}
-
-float lerp(float start, float end, float amount)
-{
-    return start + (end - start) * amount;
-}
+using vector2::lerp;
+using vector2::normalized;
 
 } // namespace
 

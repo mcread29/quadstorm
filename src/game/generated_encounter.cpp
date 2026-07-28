@@ -1,6 +1,7 @@
 #include "generated_encounter.hpp"
 
 #include "arena.hpp"
+#include "vector2_math.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -12,12 +13,7 @@ constexpr float MINIMUM_ENEMY_CLEARANCE = ENEMY_RADIUS + 0.2F;
 constexpr float MINIMUM_DOORWAY_SPAWN_DISTANCE = ENEMY_RADIUS + 0.75F;
 constexpr float MINIMUM_WALL_SPAWN_DISTANCE = ENEMY_RADIUS + 0.05F;
 
-float distanceSquared(Vector2 first, Vector2 second)
-{
-    const float x = first.x - second.x;
-    const float y = first.y - second.y;
-    return x * x + y * y;
-}
+using vector2::distanceSquared;
 
 float distanceToSegment(Vector2 point, const Segment2D& segment)
 {
@@ -136,8 +132,7 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
 {
     GeneratedEncounterStepResult result;
     if (input.restartPressed) {
-        result.levelSession = updateLevelSession(
-            session, level, input, stepTime);
+        result.levelSession = session.update(input, stepTime);
         resetGeneratedEncounter(coordinator);
         return result;
     }
@@ -148,8 +143,7 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
         if (result.combat.enemyDamage == EnemyDamageResult::died
             && coordinator.roomId.has_value()) {
             const int room = *coordinator.roomId;
-            if (unlockRoom(session, level, room,
-                    RoomLifecycleState::cleared)) {
+            if (session.clearEncounter(room)) {
                 coordinator.combatState.playerProjectiles = ProjectilePool {};
                 coordinator.combatState.enemyProjectiles
                     = ProjectilePool { ENEMY_PROJECTILE_PROFILE };
@@ -160,8 +154,7 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
         return result;
     }
 
-    result.levelSession = updateLevelSession(
-        session, level, input, stepTime);
+    result.levelSession = session.update(input, stepTime);
     if (!result.levelSession.enteredRoom.has_value()) {
         return result;
     }
@@ -174,7 +167,7 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
         return result;
     }
     if (generatedRoom->role == stalberg::rooms::RoomRole::Exit) {
-        setRoomLifecycleState(session, room, RoomLifecycleState::cleared);
+        session.markRoomCleared(room);
         coordinator.floorComplete = true;
         result.floorCompleted = true;
         return result;
@@ -189,16 +182,11 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
     };
     const auto spawn = selectGeneratedEnemySpawn(level, room, playerPosition);
     if (!spawn.has_value()) {
-        setRoomLifecycleState(session, room, RoomLifecycleState::cleared);
+        session.markRoomCleared(room);
         return result;
     }
 
-    if (!lockRoom(session, level, room)
-        || !setRoomLifecycleState(
-            session, room, RoomLifecycleState::fighting)) {
-        if (session.lockedRoom() == room) {
-            unlockRoom(session, level, room, RoomLifecycleState::entered);
-        }
+    if (!session.beginEncounter(room)) {
         return result;
     }
 

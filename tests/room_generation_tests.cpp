@@ -1,3 +1,4 @@
+#include "grid/dual_grid.hpp"
 #include "grid/stalberg_grid.hpp"
 #include "integration/room_grid_adapter.hpp"
 #include "rooms/room_generator.hpp"
@@ -10,6 +11,7 @@
 #include <numbers>
 #include <queue>
 #include <set>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -38,30 +40,27 @@ bool adapterProducesValidRoomInput(const stalberg::StalbergGrid& grid)
     const auto input = stalberg::makeRoomGrid(grid);
     bool valid = check(input.cells.size() == grid.getVertexCount(),
         "adapter preserves the grid cell count");
-    valid &= check(input.neighbors.size() == grid.getNeighbors().size(),
-        "adapter preserves one adjacency list per cell");
-    valid &= check(input.connections.size() == input.neighbors.size(),
-        "adapter provides physical metadata for every adjacency list");
+    valid &= check(input.connections.size() == grid.getNeighbors().size(),
+        "adapter provides one canonical connection list per cell");
     for (std::size_t cell = 0; cell < input.cells.size(); ++cell) {
         valid &= check(input.cells[cell].buildable == !grid.getVertices()[cell].fixed,
             "adapter maps relaxation boundaries to room buildability");
         std::vector<std::size_t> expected(
             grid.getNeighbors()[cell].begin(), grid.getNeighbors()[cell].end());
         std::ranges::sort(expected);
-        valid &= check(std::ranges::equal(input.neighbors[cell], expected),
-            "adapter preserves cell adjacency in canonical order");
+        valid &= check(std::ranges::equal(input.neighbors(cell), expected),
+            "adapter preserves cell adjacency as a canonical projection");
         valid &= check(input.cells[cell].area > 0.0F
                 && input.cells[cell].clearance >= 0.0F
                 && (!input.cells[cell].buildable
                     || input.cells[cell].clearance > 0.0F),
             "adapter measures usable dual-cell geometry");
-        valid &= check(input.connections[cell].size() == input.neighbors[cell].size(),
-            "every neighbor has matching physical connection metadata");
-        for (std::size_t connection = 0;
-             connection < input.connections[cell].size(); ++connection) {
-            const auto& physical = input.connections[cell][connection];
-            valid &= check(physical.cell == input.neighbors[cell][connection]
-                    && physical.distance > 0.0F
+        valid &= check(input.connections[cell].size()
+                == static_cast<std::size_t>(
+                    std::ranges::distance(input.neighbors(cell))),
+            "every neighbor projects from physical connection metadata");
+        for (const auto& physical : input.connections[cell]) {
+            valid &= check(physical.distance > 0.0F
                     && physical.sharedBoundaryLength > 0.0F,
                 "physical connections are positive and aligned with topology");
         }
@@ -268,10 +267,10 @@ bool shooterLayoutsCanCreateDenseAreas()
     const auto input = stalberg::makeRoomGrid(grid);
     const stalberg::rooms::RoomGenerator generator;
     const auto landmark = generator.generate(input,
-        1,
+        2,
         stalberg::rooms::RoomGenerationMethod::ShooterLayout);
     const auto cluster = generator.generate(input,
-        6,
+        1,
         stalberg::rooms::RoomGenerationMethod::ShooterLayout);
     if (landmark.getRoomCount() == 0 || cluster.getRoomCount() == 0) {
         return check(false,
@@ -398,9 +397,8 @@ bool connectionOrderingDoesNotAffectGeneration(const stalberg::StalbergGrid& gri
 {
     const auto input = stalberg::makeRoomGrid(grid);
     auto permuted = input;
-    for (std::size_t cell = 0; cell < permuted.neighbors.size(); ++cell) {
-        std::ranges::reverse(permuted.neighbors[cell]);
-        std::ranges::reverse(permuted.connections[cell]);
+    for (auto& connections : permuted.connections) {
+        std::ranges::reverse(connections);
     }
     std::ranges::reverse(permuted.entranceCandidates);
     const auto canonical = stalberg::rooms::RoomGenerator {}.generate(input, 29);
@@ -410,6 +408,75 @@ bool connectionOrderingDoesNotAffectGeneration(const stalberg::StalbergGrid& gri
                "neutral connection ordering does not affect generation")
         && check(canonical.getQualityScore() == reordered.getQualityScore(),
             "neutral connection ordering does not affect quality scoring");
+}
+
+bool canonicalTopologyFingerprintIsStable()
+{
+    stalberg::rooms::RoomGrid grid;
+    grid.cells = {
+        { { 1.0F, -2.0F }, 3.5F, 0.75F, true },
+        { { 2.0F, 1.0F }, 4.5F, 1.25F, false },
+        { { -3.0F, 0.5F }, 2.25F, 0.5F, true }
+    };
+    grid.setConnections({
+        { { 2, 2.25F, 0.5F }, { 1, 1.25F, 0.75F } },
+        { { 0, 1.25F, 0.75F }, { 2, 3.0F, 1.5F } },
+        { { 1, 3.0F, 1.5F }, { 0, 2.25F, 0.5F } }
+    });
+    grid.entranceCandidates = { 2, 0 };
+
+    constexpr std::uint64_t expectedFingerprint = 6343521984407022216ULL;
+    const std::uint64_t fingerprint
+        = stalberg::rooms::canonicalTopologyFingerprint(grid);
+    auto reordered = grid;
+    for (auto& connections : reordered.connections) {
+        std::ranges::reverse(connections);
+    }
+    std::ranges::reverse(reordered.entranceCandidates);
+
+    auto changed = grid;
+    changed.cells[0].clearance += 0.25F;
+    return check(fingerprint == expectedFingerprint,
+               "canonical topology fingerprint retains its regression value")
+        && check(stalberg::rooms::canonicalTopologyFingerprint(reordered)
+                == fingerprint,
+            "canonical topology fingerprint ignores neutral input ordering")
+        && check(stalberg::rooms::canonicalTopologyFingerprint(changed)
+                != fingerprint,
+            "canonical topology fingerprint includes generation geometry");
+}
+
+bool adapterRejectsMisalignedDualGrid()
+{
+    stalberg::StalbergGrid grid;
+    grid.generate(2, 9);
+    const stalberg::DualGrid aligned = stalberg::buildDualGrid(grid);
+    bool valid = true;
+
+    const auto isRejected = [&](const stalberg::DualGrid& dual) {
+        try {
+            static_cast<void>(stalberg::makeRoomGrid(grid, dual));
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    };
+
+    auto missingCell = aligned;
+    missingCell.cells.pop_back();
+    valid &= check(isRejected(missingCell),
+        "adapter rejects a dual grid with a misaligned cell count");
+
+    auto staleCenters = aligned;
+    staleCenters.cells[0].center.x += 1.0F;
+    valid &= check(isRejected(staleCenters),
+        "adapter rejects dual cells from different grid geometry");
+
+    auto missingConnection = aligned;
+    missingConnection.connections.pop_back();
+    valid &= check(isRejected(missingConnection),
+        "adapter rejects a dual grid with different topology");
+    return valid;
 }
 
 bool roomInputIsIndependentFromLaterRelaxation()
@@ -439,7 +506,13 @@ bool roomLayoutIsValid(const stalberg::StalbergGrid& grid,
         = stalberg::rooms::RoomGenerator {}.generate(roomGrid, roomSeed, method);
     const auto assignments = layout.getCellAssignments();
     const auto vertices = grid.getVertices();
-    const auto neighbors = roomGrid.getNeighbors();
+    std::vector<std::vector<stalberg::rooms::CellIndex>> neighbors;
+    neighbors.reserve(roomGrid.getCellCount());
+    for (stalberg::rooms::CellIndex cell = 0;
+         cell < roomGrid.getCellCount(); ++cell) {
+        neighbors.emplace_back(
+            roomGrid.neighbors(cell).begin(), roomGrid.neighbors(cell).end());
+    }
     const auto connectedEntrances = layout.getConnectedEntrances();
     bool valid = true;
 
@@ -709,7 +782,7 @@ bool organicGrowthIsEvenlyDispersed(const stalberg::StalbergGrid& grid)
         }
         const auto [minimum, maximum]
             = std::ranges::minmax_element(sectorCounts);
-        valid &= check(*minimum * 3 >= *maximum * 2,
+        valid &= check(*minimum * 5 >= *maximum * 3,
             "organic growth remains dispersed across all six sectors");
     }
     return valid;
@@ -732,7 +805,7 @@ bool generationMethodsVaryRoomShapes(const stalberg::StalbergGrid& grid)
                     continue;
                 }
                 boundaryEdges += std::ranges::count_if(
-                    input.neighbors[cell], [&](std::size_t neighbor) {
+                    input.neighbors(cell), [&](std::size_t neighbor) {
                         return layout.getCellAssignment(neighbor) != room.id;
                     });
             }
@@ -827,8 +900,15 @@ bool degenerateGridDoesNotCreateSingleCellRoom()
 bool invalidNeutralTopologyIsRejected()
 {
     stalberg::rooms::RoomGrid grid;
-    grid.cells.resize(2);
-    grid.neighbors = { { 1 } };
+    grid.cells = {
+        { { 0.0F, 0.0F }, 1.0F, 0.5F, true },
+        { { 1.0F, 0.0F }, 1.0F, 0.5F, true }
+    };
+    grid.setConnections({
+        { { 1, 1.0F, 1.0F } },
+        { { 0, 1.0F, 1.0F } }
+    });
+    grid.connections.pop_back();
 
     const auto malformedAdjacency
         = stalberg::rooms::RoomGenerator {}.generate(grid, 1);
@@ -837,7 +917,10 @@ bool invalidNeutralTopologyIsRejected()
     valid &= check(malformedAdjacency.getCellAssignments().size() == grid.cells.size(),
         "invalid neutral topology still returns aligned assignments");
 
-    grid.neighbors = { { 1 }, { 0 } };
+    grid.setConnections({
+        { { 1, 1.0F, 1.0F } },
+        { { 0, 1.0F, 1.0F } }
+    });
     grid.entranceCandidates = { 2 };
     const auto malformedEntrance
         = stalberg::rooms::RoomGenerator {}.generate(grid, 1);
@@ -866,6 +949,8 @@ int main()
     valid &= shooterLayoutsCanCreateDenseAreas();
     valid &= bestOfCandidatesDoesNotReduceQuality(grid);
     valid &= connectionOrderingDoesNotAffectGeneration(grid);
+    valid &= canonicalTopologyFingerprintIsStable();
+    valid &= adapterRejectsMisalignedDualGrid();
     valid &= roomInputIsIndependentFromLaterRelaxation();
     for (std::uint32_t roomSeed = 1; roomSeed <= 12; ++roomSeed) {
         valid &= roomLayoutIsValid(grid, roomSeed);

@@ -24,15 +24,8 @@ CombatStepResult updateCombatState(CombatState& combat, Player& player,
     std::span<const Segment2D> walls)
 {
     CombatStepResult result;
+    updatePlayerEffects(player, stepTime);
     if (!isPlayerAlive(player) || !isEnemyAlive(combat.enemy)) {
-        if (!isPlayerAlive(player)) {
-            const Vector2 playerPosition {
-                player.position.x,
-                player.position.z
-            };
-            updatePlayerDamage(player, combat.enemyProjectiles,
-                playerPosition, stepTime);
-        }
         freezeCombatInterpolation(combat);
         return result;
     }
@@ -62,6 +55,7 @@ CombatStepResult updateCombatState(CombatState& combat, Player& player,
     if (target != nullptr) {
         updateTarget(*target, combat.playerProjectiles, stepTime);
     }
+    combat.playerProjectiles.retireExpired();
     if (result.enemyDamage == EnemyDamageResult::died) {
         freezeCombatInterpolation(combat);
         return result;
@@ -73,6 +67,7 @@ CombatStepResult updateCombatState(CombatState& combat, Player& player,
     resolveProjectileWallCollisions(combat.enemyProjectiles, walls);
     result.playerDamage = updatePlayerDamage(player,
         combat.enemyProjectiles, previousPlayerPosition, stepTime);
+    combat.enemyProjectiles.retireExpired();
     if (result.playerDamage == PlayerDamageResult::died) {
         freezeCombatInterpolation(combat);
     }

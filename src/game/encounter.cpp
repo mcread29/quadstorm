@@ -19,14 +19,14 @@ EncounterStepResult updateEncounter(Encounter& encounter,
 {
     EncounterStepResult result;
     if ((!isPlayerAlive(encounter.player)
-            || !isEnemyAlive(encounter.enemy))
+            || !isEnemyAlive(encounter.combat.enemy))
         && input.restartPressed) {
         resetEncounter(encounter);
         result.restarted = true;
         return result;
     }
 
-    const CombatStepResult combatResult = updateCombat(encounter,
+    const CombatStepResult combatResult = updateCombat(encounter.combat,
         encounter.player, encounter.target, input, stepTime, walls);
     result.playerDamage = combatResult.playerDamage;
     result.enemyDamage = combatResult.enemyDamage;

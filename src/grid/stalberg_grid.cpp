@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <random>
 #include <ranges>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -168,6 +169,10 @@ std::vector<StalbergGrid::Triangle> StalbergGrid::triangulateLattice() const
         }
     }
 
+    for (Triangle& triangle : triangles) {
+        std::ranges::sort(triangle);
+    }
+    std::ranges::sort(triangles);
     return triangles;
 }
 
@@ -220,6 +225,11 @@ StalbergGrid::Faces StalbergGrid::randomlyPairTriangles(
         }
     }
 
+    // Hash-container iteration is deliberately normalized before consuming the
+    // seeded random stream so a seed identifies one topology across platforms.
+    std::ranges::sort(candidates, [](const Edge& first, const Edge& second) {
+        return std::tie(first.a, first.b) < std::tie(second.a, second.b);
+    });
     std::mt19937 random(seed);
     std::ranges::shuffle(candidates, random);
 
@@ -327,11 +337,15 @@ void StalbergGrid::rebuildTopology()
             vertices[edge.b].fixed = true;
         }
     }
+    std::ranges::sort(edges, [](const Edge& first, const Edge& second) {
+        return std::tie(first.a, first.b) < std::tie(second.a, second.b);
+    });
 
     neighbors.clear();
     neighbors.reserve(neighborSets.size());
     for (const auto& set : neighborSets) {
         neighbors.emplace_back(set.begin(), set.end());
+        std::ranges::sort(neighbors.back());
     }
 }
 

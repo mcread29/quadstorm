@@ -1,7 +1,11 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
+#include <cstdint>
+#include <ranges>
 #include <span>
+#include <utility>
 #include <vector>
 
 namespace stalberg::rooms {
@@ -28,19 +32,36 @@ struct CellConnection {
 
 struct RoomGrid {
     std::vector<Cell> cells;
-    // Kept as a lightweight topology view for graph algorithms and callers that do
-    // not need geometry. Connections carry the matching physical edge metadata.
-    std::vector<std::vector<CellIndex>> neighbors;
+    // The sorted connection lists are the only stored topology. Index-only
+    // callers use neighbors(), which is a non-owning projection of this data.
     std::vector<std::vector<CellConnection>> connections;
     std::vector<CellIndex> entranceCandidates;
 
+    void setConnections(std::vector<std::vector<CellConnection>> value)
+    {
+        for (auto& cellConnections : value) {
+            std::ranges::sort(cellConnections, {}, &CellConnection::cell);
+        }
+        connections = std::move(value);
+    }
+
+    auto neighbors(CellIndex cell) const
+    {
+        return connections[cell]
+            | std::views::transform(
+                [](const CellConnection& connection) { return connection.cell; });
+    }
+
     std::size_t getCellCount() const { return cells.size(); }
     std::span<const Cell> getCells() const { return cells; }
-    std::span<const std::vector<CellIndex>> getNeighbors() const { return neighbors; }
     std::span<const std::vector<CellConnection>> getConnections() const
     {
         return connections;
     }
 };
+
+// Includes geometry and entrance policy because both affect seeded generation.
+// Equivalent connection and entrance ordering produces the same value.
+std::uint64_t canonicalTopologyFingerprint(const RoomGrid& grid);
 
 } // namespace stalberg::rooms

@@ -1,4 +1,5 @@
 #include "game/generated_encounter.hpp"
+#include "geometry/quantized_geometry.hpp"
 #include "game/generated_level.hpp"
 #include "game/level_session.hpp"
 #include "game/player.hpp"
@@ -120,7 +121,7 @@ bool navigationOpensOnlyPublishedDoorways(const GeneratedLevel& level)
             "every published doorway is physically wider than the player");
     }
     for (CellIndex cell = 0; cell < assignments.size(); ++cell) {
-        for (const CellIndex neighbor : level.roomGrid().neighbors[cell]) {
+        for (const CellIndex neighbor : level.roomGrid().neighbors(cell)) {
             if (cell >= neighbor || assignments[cell] == stalberg::rooms::EMPTY_CELL
                 || assignments[neighbor] == stalberg::rooms::EMPTY_CELL) {
                 continue;
@@ -133,6 +134,23 @@ bool navigationOpensOnlyPublishedDoorways(const GeneratedLevel& level)
         }
     }
     return valid;
+}
+
+bool wallsHaveStableCanonicalOrder(const GeneratedLevel& level)
+{
+    std::vector<stalberg::geometry::QuantizedEdge> keys;
+    keys.reserve(level.walls().size());
+    const double sourceScale
+        = stalberg::geometry::DEFAULT_KEY_SCALE / level.worldScale();
+    for (const Segment2D& wall : level.walls()) {
+        keys.emplace_back(
+            stalberg::geometry::quantizePoint(
+                wall.start.x, wall.start.y, sourceScale),
+            stalberg::geometry::quantizePoint(
+                wall.end.x, wall.end.y, sourceScale));
+    }
+    return check(std::ranges::is_sorted(keys),
+        "runtime walls are published in canonical endpoint order");
 }
 
 bool wallsCloseEveryUnauthorizedDualBoundary(const GeneratedLevel& level)
@@ -192,37 +210,55 @@ bool sessionOwnsLifecycleAndDynamicDoorWalls(const GeneratedLevel& level)
         return check(false, "generated level provides a doorway to lock");
     }
 
-    const DoorwayThreshold& threshold = thresholds.front();
+    const int currentRoom = *session.currentRoom();
+    const auto thresholdForCurrentRoom = std::ranges::find_if(
+        thresholds, [currentRoom](const DoorwayThreshold& candidate) {
+            return candidate.firstRegion == currentRoom
+                || candidate.secondRegion == currentRoom;
+        });
+    if (thresholdForCurrentRoom == thresholds.end()) {
+        return check(false, "generated Start room provides a doorway to lock");
+    }
+    const DoorwayThreshold& threshold = *thresholdForCurrentRoom;
     valid &= check(!hasWall(session.activeWalls(),
                        threshold.segment.start, threshold.segment.end)
-            && session.canTraverse(
-                level, threshold.firstCell, threshold.secondCell),
+            && session.canTraverse(threshold.firstCell, threshold.secondCell),
         "published doorway starts open for collision and traversal");
-    valid &= check(lockRoom(session, level, threshold.firstRegion),
-        "a generated room can be locked");
+    const std::size_t openWallCount = session.activeWalls().size();
+    const int otherRoom = (currentRoom + 1)
+        % static_cast<int>(session.roomStates().size());
+    valid &= check(!session.clearEncounter(currentRoom)
+            && !session.beginEncounter(otherRoom)
+            && session.activeWalls().size() == openWallCount
+            && !session.lockedRoom().has_value(),
+        "invalid encounter transitions fail without mutating session invariants");
+    valid &= check(session.beginEncounter(currentRoom),
+        "an entered generated room can begin an encounter atomically");
     valid &= check(session.doorwayIsLocked(threshold.doorway)
             && hasWall(session.activeWalls(),
                 threshold.segment.start, threshold.segment.end)
-            && !session.canTraverse(
-                level, threshold.firstCell, threshold.secondCell),
-        "locking a room closes its published doorway geometry and navigation");
-    valid &= check(setRoomLifecycleState(session,
-                       threshold.firstRegion, RoomLifecycleState::fighting)
-            && session.lockedRoom() == threshold.firstRegion,
-        "room lifecycle can advance while its physical doors remain locked");
-    valid &= check(unlockRoom(session, level, threshold.firstRegion,
-                       RoomLifecycleState::cleared),
-        "a cleared room can reopen its doors");
+            && !session.canTraverse(threshold.firstCell, threshold.secondCell)
+            && session.roomStates()[static_cast<std::size_t>(currentRoom)]
+                == RoomLifecycleState::fighting,
+        "beginning an encounter synchronizes lifecycle, collision, and navigation");
+    const std::size_t lockedWallCount = session.activeWalls().size();
+    valid &= check(!session.beginEncounter(currentRoom)
+            && session.activeWalls().size() == lockedWallCount,
+        "a fighting room cannot be begun again or duplicate locked walls");
+    valid &= check(session.clearEncounter(currentRoom),
+        "clearing an encounter reopens its doors atomically");
     valid &= check(!session.doorwayIsLocked(threshold.doorway)
             && !hasWall(session.activeWalls(),
                 threshold.segment.start, threshold.segment.end)
-            && session.canTraverse(
-                level, threshold.firstCell, threshold.secondCell),
-        "unlocking removes threshold collision and restores traversal");
+            && session.canTraverse(threshold.firstCell, threshold.secondCell),
+        "clearing removes threshold collision and restores traversal");
+    valid &= check(!session.clearEncounter(currentRoom)
+            && session.activeWalls().size() == openWallCount,
+        "a cleared encounter cannot be cleared twice");
 
     session.player().invulnerabilityRemaining = 0.5F;
     session.player().hitFlashRemaining = 0.4F;
-    updateLevelSession(session, level, PlayerInput {}, 0.1F);
+    session.update(PlayerInput {}, 0.1F);
     valid &= check(nearlyEqual(
                        session.player().invulnerabilityRemaining, 0.4F)
             && nearlyEqual(session.player().hitFlashRemaining, 0.3F),
@@ -230,8 +266,8 @@ bool sessionOwnsLifecycleAndDynamicDoorWalls(const GeneratedLevel& level)
 
     PlayerInput resetInput;
     resetInput.restartPressed = true;
-    const LevelSessionStepResult reset = updateLevelSession(
-        session, level, resetInput, 1.0F / 120.0F);
+    const LevelSessionStepResult reset
+        = session.update(resetInput, 1.0F / 120.0F);
     valid &= check(reset.reset && !session.lockedRoom().has_value()
             && session.activeWalls().size() == level.walls().size(),
         "session reset restores lifecycle and open-door collision state");
@@ -322,7 +358,7 @@ bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
                     && hasWall(session.activeWalls(),
                         doorway.segment.start, doorway.segment.end)
                     && !session.canTraverse(
-                        level, doorway.firstCell, doorway.secondCell),
+                        doorway.firstCell, doorway.secondCell),
                 "generated combat locks every doorway incident to its room");
         }
     }
@@ -355,7 +391,7 @@ bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
             || doorway.secondRegion == *encounterRoom) {
             valid &= check(!session.doorwayIsLocked(doorway.doorway)
                     && session.canTraverse(
-                        level, doorway.firstCell, doorway.secondCell),
+                        doorway.firstCell, doorway.secondCell),
                 "cleared generated combat restores each room traversal edge");
         }
     }
@@ -496,6 +532,7 @@ int main()
     valid &= packageRetainsAlignedGeneratorArtifacts(level);
     valid &= floorsTriangulateExactlyAssignedPolygons(level);
     valid &= navigationOpensOnlyPublishedDoorways(level);
+    valid &= wallsHaveStableCanonicalOrder(level);
     valid &= wallsCloseEveryUnauthorizedDualBoundary(level);
     valid &= sessionOwnsLifecycleAndDynamicDoorWalls(level);
     valid &= generatedCombatLocksClearsAndReopensRoom(level);

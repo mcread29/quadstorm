@@ -36,6 +36,32 @@ ctest --test-dir build --output-on-failure
 ./build/stalberg_grid       # procedural-generation diagnostic demo
 ```
 
+### Web game build
+
+Install and activate the Emscripten SDK, then configure through its CMake wrapper:
+
+```sh
+git clone https://github.com/emscripten-core/emsdk.git
+cd emsdk
+./emsdk install latest
+./emsdk activate latest
+source ./emsdk_env.sh
+cd /path/to/quadstorm
+
+emcmake cmake -S . -B build-web \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_TESTING=OFF
+cmake --build build-web --target stalberg_game -j
+python3 -m http.server 8000 --directory build-web
+```
+
+Open `http://localhost:8000/stalberg_game.html`. The web target uses an
+Emscripten browser main loop and WebGL-compatible shaders; the native grid
+diagnostic and native test executables are intentionally excluded from the web
+configuration. Combat audio is currently disabled on web because raylib 5.5's
+ScriptProcessor backend cannot be initialized safely before a browser user
+gesture; native builds retain audio.
+
 The runtime starts in generated traversal mode. `GeneratedLevel` retains the relaxed source grid, exact dual geometry, neutral room graph, shooter layout, and exact doorway threshold segments together. Assigned dual polygons become a cached floor mesh; floor/void edges and unauthorized cross-room contacts become walls; only exact published doorway cell pairs remain open. Mutable player, room-lifecycle, lock, and active-wall state lives separately in `LevelSession`. The player spawns at a high-clearance cell in Start and can move through the matching door-aware navigation graph without leaving the floor.
 
 Press **F1** for the intentionally small combat regression arena. Use **WASD** to move, the **mouse** to aim, and hold the **left mouse button** to fire. A stationary target and a 20-health enemy exercise pooled projectiles, swept relative-motion collision, player health, invulnerability, defeat, victory, and deterministic restart. A 45-degree tilted orthographic camera follows the active player, simulation runs at a fixed 120 Hz, and rendering interpolates simulation state.
@@ -55,7 +81,7 @@ Grid generation and room generation are independent libraries. The room library 
 | F1 | Toggle generated traversal / combat regression arena |
 | Escape/window close | Exit |
 
-The generated-level runtime and first encounter-preparation refactor are complete. Next, reusable combat state/update logic must be separated from the regression `Encounter`'s player ownership so generated combat can use the authoritative `LevelSession` player. Milestone 7 then drives room lifecycle and doorway locks through one-enemy generated combat, clearing, and progression toward Exit.
+Generated traversal and generated-room encounters share the reusable game core. `LevelSession` owns the authoritative player and room lifecycle, and atomic encounter transitions keep room state, doorway locks, and active collision walls synchronized through combat, clearing, and progression toward Exit.
 
 ## Generator demo controls
 

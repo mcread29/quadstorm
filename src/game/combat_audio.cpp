@@ -43,6 +43,12 @@ Sound makeTone(float startFrequency, float endFrequency,
 
 CombatAudio::CombatAudio()
 {
+#if defined(PLATFORM_WEB)
+    // Browser audio must be created synchronously from a user gesture. raylib's
+    // current ScriptProcessor backend is not safe to initialize during startup,
+    // so keep web audio disabled rather than destabilizing the game loop.
+    return;
+#endif
     InitAudioDevice();
     ready = IsAudioDeviceReady();
     if (!ready) {

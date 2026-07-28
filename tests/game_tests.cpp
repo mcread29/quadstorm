@@ -106,6 +106,27 @@ bool projectileProfilesControlSimulationAndCollision()
     return valid;
 }
 
+bool projectileCollidesDuringFinalLifetimeStep()
+{
+    ProjectilePool pool(ProjectileProfile {
+        .speed = 10.0F,
+        .lifetime = 0.1F,
+        .radius = 0.1F
+    });
+    Target target;
+    target.position = Vector2 { 1.0F, 0.0F };
+    bool valid = check(pool.spawn(Vector2 {}, Vector2 { 1.0F, 0.0F }),
+        "a final-step projectile can be staged");
+    pool.update(0.1F);
+    valid &= check(pool.activeCount() == 1,
+        "lifetime expiry waits until collision processing completes");
+    updateTarget(target, pool, 0.1F);
+    pool.retireExpired();
+    valid &= check(target.health == TARGET_MAX_HEALTH - 1,
+        "a projectile can collide during its final valid timestep");
+    return valid;
+}
+
 bool invalidProjectileProfilesCannotSpawn()
 {
     ProjectilePool pool(ProjectileProfile {
@@ -131,8 +152,11 @@ bool poolExhaustionAndReuseAreSafe()
         "pool exhaustion drops a projectile safely");
 
     pool.update(PLAYER_PROJECTILE_LIFETIME);
+    valid &= check(pool.activeCount() == PROJECTILE_POOL_CAPACITY,
+        "projectiles remain collidable during their final integrated timestep");
+    pool.retireExpired();
     valid &= check(pool.activeCount() == 0,
-        "projectiles deactivate when their lifetime expires");
+        "expired projectiles retire after collision processing");
     valid &= check(pool.spawn(Vector2 { 7.0F, 8.0F }, Vector2 { 0.0F, 1.0F }),
         "an expired slot can be reused");
     valid &= check(pool.projectiles().front().active
@@ -359,20 +383,20 @@ bool enemyMovementAndPatternAreDeterministic()
 bool projectilePoolsKeepOwnershipSeparate()
 {
     Encounter encounter;
-    const bool playerSpawned = encounter.playerProjectiles.spawn(
+    const bool playerSpawned = encounter.combat.playerProjectiles.spawn(
         Vector2 {}, Vector2 { 1.0F, 0.0F });
-    const bool enemySpawned = encounter.enemyProjectiles.spawn(
+    const bool enemySpawned = encounter.combat.enemyProjectiles.spawn(
         Vector2 {}, Vector2 { 1.0F, 0.0F });
 
     return check(playerSpawned && enemySpawned,
                "both projectile owners can use their own pool")
-        && check(nearlyEqual(encounter.playerProjectiles.profile().speed,
+        && check(nearlyEqual(encounter.combat.playerProjectiles.profile().speed,
                      PLAYER_PROJECTILE_SPEED)
-                && nearlyEqual(encounter.enemyProjectiles.profile().speed,
+                && nearlyEqual(encounter.combat.enemyProjectiles.profile().speed,
                     ENEMY_PROJECTILE_SPEED),
             "projectile ownership keeps player and enemy profiles separate")
-        && check(encounter.playerProjectiles.activeCount() == 1
-                && encounter.enemyProjectiles.activeCount() == 1,
+        && check(encounter.combat.playerProjectiles.activeCount() == 1
+                && encounter.combat.enemyProjectiles.activeCount() == 1,
             "spawning for one owner does not consume the other owner's slots");
 }
 
@@ -398,23 +422,31 @@ bool playerProjectilesDamageAndDefeatEnemy()
         "relative swept collision damages a moving enemy and consumes the shot");
 
     Encounter encounter;
-    encounter.enemy.health = 1;
+    encounter.combat.enemy.health = 1;
+    encounter.player.invulnerabilityRemaining = 0.5F;
     playerProjectiles.spawn(
-        encounter.enemy.position, Vector2 { 1.0F, 0.0F });
-    encounter.playerProjectiles = playerProjectiles;
+        encounter.combat.enemy.position, Vector2 { 1.0F, 0.0F });
+    encounter.combat.playerProjectiles = playerProjectiles;
     const EncounterStepResult defeated = updateEncounter(
         encounter, PlayerInput {}, fixedStep);
     valid &= check(defeated.enemyDamage == EnemyDamageResult::died
-            && !isEnemyAlive(encounter.enemy),
+            && !isEnemyAlive(encounter.combat.enemy),
         "the enemy enters a defeated state when its final health is removed");
+    valid &= check(nearlyEqual(encounter.player.invulnerabilityRemaining,
+                       0.5F - fixedStep),
+        "player effects advance on the enemy-defeat simulation step");
+    updateEncounter(encounter, PlayerInput {}, fixedStep);
+    valid &= check(nearlyEqual(encounter.player.invulnerabilityRemaining,
+                       0.5F - fixedStep * 2.0F),
+        "player effects continue advancing after victory");
 
     PlayerInput restartInput;
     restartInput.restartPressed = true;
     const EncounterStepResult restarted = updateEncounter(
         encounter, restartInput, fixedStep);
     valid &= check(restarted.restarted
-            && encounter.enemy.health == ENEMY_MAX_HEALTH
-            && encounter.playerProjectiles.activeCount() == 0,
+            && encounter.combat.enemy.health == ENEMY_MAX_HEALTH
+            && encounter.combat.playerProjectiles.activeCount() == 0,
         "post-victory restart restores enemy health and clears shots");
     return valid;
 }
@@ -445,6 +477,7 @@ bool playerDamageRespectsInvulnerability()
     const int recoverySteps = static_cast<int>(
         PLAYER_INVULNERABILITY_DURATION / fixedStep) + 2;
     for (int step = 0; step < recoverySteps; ++step) {
+        updatePlayerEffects(player, fixedStep);
         updatePlayerDamage(
             player, hostileProjectiles, Vector2 {}, fixedStep);
     }
@@ -482,9 +515,9 @@ bool deathAndRestartResetEncounter()
     constexpr float fixedStep = 1.0F / 120.0F;
     Encounter encounter;
     encounter.player.health = 1;
-    encounter.enemyProjectiles.spawn(
+    encounter.combat.enemyProjectiles.spawn(
         Vector2 {}, Vector2 { 1.0F, 0.0F });
-    encounter.enemyProjectiles.spawn(
+    encounter.combat.enemyProjectiles.spawn(
         Vector2 { 5.0F, 0.0F }, Vector2 { 1.0F, 0.0F });
 
     const EncounterStepResult death = updateEncounter(
@@ -493,7 +526,7 @@ bool deathAndRestartResetEncounter()
             && !isPlayerAlive(encounter.player),
         "the final hit enters the defeated state");
     const Projectile& frozenProjectile
-        = encounter.enemyProjectiles.projectiles()[1];
+        = encounter.combat.enemyProjectiles.projectiles()[1];
     valid &= check(frozenProjectile.active
             && nearlyEqual(frozenProjectile.previousPosition.x,
                 frozenProjectile.position.x)
@@ -508,13 +541,13 @@ bool deathAndRestartResetEncounter()
     valid &= check(restart.restarted && isPlayerAlive(encounter.player)
             && encounter.player.health == PLAYER_MAX_HEALTH,
         "explicit restart restores player life and health");
-    valid &= check(encounter.playerProjectiles.activeCount() == 0
-            && encounter.enemyProjectiles.activeCount() == 0
-            && nearlyEqual(encounter.weapon.cooldownRemaining, 0.0F)
+    valid &= check(encounter.combat.playerProjectiles.activeCount() == 0
+            && encounter.combat.enemyProjectiles.activeCount() == 0
+            && nearlyEqual(encounter.combat.weapon.cooldownRemaining, 0.0F)
             && encounter.target.health == TARGET_MAX_HEALTH
-            && nearlyEqual(encounter.enemy.position.x, 5.0F)
-            && nearlyEqual(encounter.enemy.position.y, 5.0F)
-            && nearlyEqual(encounter.enemy.shotCooldownRemaining,
+            && nearlyEqual(encounter.combat.enemy.position.x, 5.0F)
+            && nearlyEqual(encounter.combat.enemy.position.y, 5.0F)
+            && nearlyEqual(encounter.combat.enemy.shotCooldownRemaining,
                 ENEMY_FIRST_SHOT_DELAY),
         "restart deterministically clears projectiles and combat state");
     return valid;
@@ -582,6 +615,7 @@ int main()
     valid &= sweptCircleQueriesReturnFirstContact();
     valid &= projectilesAdvanceAndInterpolate();
     valid &= projectileProfilesControlSimulationAndCollision();
+    valid &= projectileCollidesDuringFinalLifetimeStep();
     valid &= invalidProjectileProfilesCannotSpawn();
     valid &= poolExhaustionAndReuseAreSafe();
     valid &= playerStopsAtWallFaces();

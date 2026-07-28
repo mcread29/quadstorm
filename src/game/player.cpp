@@ -2,9 +2,9 @@
 
 #include "collision_2d.hpp"
 #include "projectile_pool.hpp"
+#include "vector2_math.hpp"
 
 #include <algorithm>
-#include <cmath>
 
 namespace {
 
@@ -12,19 +12,8 @@ constexpr float PLAYER_SPEED = 8.0F;
 constexpr float PLAYER_ACCELERATION = 38.0F;
 constexpr float PLAYER_DECELERATION = 46.0F;
 
-float length(Vector2 vector)
-{
-    return std::sqrt(vector.x * vector.x + vector.y * vector.y);
-}
-
-Vector2 normalized(Vector2 vector)
-{
-    const float magnitude = length(vector);
-    if (magnitude <= 0.0001F) {
-        return Vector2 {};
-    }
-    return Vector2 { vector.x / magnitude, vector.y / magnitude };
-}
+using vector2::length;
+using vector2::normalized;
 
 Vector2 moveTowards(Vector2 current, Vector2 target, float maximumChange)
 {
@@ -41,10 +30,7 @@ Vector2 moveTowards(Vector2 current, Vector2 target, float maximumChange)
     };
 }
 
-float lerp(float start, float end, float amount)
-{
-    return start + (end - start) * amount;
-}
+using vector2::lerp;
 
 } // namespace
 
@@ -93,7 +79,7 @@ PlayerDamageResult updatePlayerDamage(Player& player,
     ProjectilePool& enemyProjectiles, Vector2 previousPlayerPosition,
     float stepTime)
 {
-    updatePlayerEffects(player, stepTime);
+    static_cast<void>(stepTime);
     if (!isPlayerAlive(player)) {
         return PlayerDamageResult::none;
     }

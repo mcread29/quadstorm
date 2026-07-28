@@ -1,20 +1,16 @@
 #include "projectile_pool.hpp"
 
+#include "vector2_math.hpp"
+
+#include <algorithm>
 #include <cmath>
 
 namespace {
 
 constexpr float MINIMUM_DIRECTION_LENGTH = 0.0001F;
 
-float length(Vector2 vector)
-{
-    return std::sqrt(vector.x * vector.x + vector.y * vector.y);
-}
-
-float lerp(float start, float end, float amount)
-{
-    return start + (end - start) * amount;
-}
+using vector2::length;
+using vector2::lerp;
 
 bool isValid(ProjectileProfile profile)
 {
@@ -68,11 +64,24 @@ void ProjectilePool::update(float stepTime)
             continue;
         }
 
-        projectile.previousPosition = projectile.position;
-        projectile.position.x += projectile.velocity.x * stepTime;
-        projectile.position.y += projectile.velocity.y * stepTime;
-        projectile.remainingLifetime -= stepTime;
         if (projectile.remainingLifetime <= 0.0F) {
+            projectile.active = false;
+            continue;
+        }
+
+        projectile.previousPosition = projectile.position;
+        const float integrationTime
+            = std::min(stepTime, projectile.remainingLifetime);
+        projectile.position.x += projectile.velocity.x * integrationTime;
+        projectile.position.y += projectile.velocity.y * integrationTime;
+        projectile.remainingLifetime -= integrationTime;
+    }
+}
+
+void ProjectilePool::retireExpired()
+{
+    for (Projectile& projectile : slots) {
+        if (projectile.active && projectile.remainingLifetime <= 0.0F) {
             projectile.active = false;
         }
     }
