@@ -59,7 +59,11 @@ std::vector<rooms::CellIndex> boundarySideCenters(const StalbergGrid& grid)
 
 rooms::RoomGrid makeRoomGrid(const StalbergGrid& grid)
 {
-    const DualGrid dual = buildDualGrid(grid);
+    return makeRoomGrid(grid, buildDualGrid(grid));
+}
+
+rooms::RoomGrid makeRoomGrid(const StalbergGrid& grid, const DualGrid& dual)
+{
     rooms::RoomGrid result;
     result.cells.reserve(grid.getVertexCount());
     for (rooms::CellIndex cell = 0; cell < grid.getVertexCount(); ++cell) {

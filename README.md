@@ -13,7 +13,7 @@ As a separate pass, the room generator consumes a neutral cell graph with physic
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
-The repository also contains the first five runtime milestones of a top-down 2.5D roguelite bullet hell. The `stalberg_game` executable supports movement, aiming, fixed-cadence pooled projectile firing, swept arena collision, a resettable target, and a deterministic first-enemy encounter with health, damage, invulnerability, death, victory, restart, effects, and generated combat audio. Generated-level integration is the next milestone.
+The repository also contains the first six runtime milestones of a top-down 2.5D roguelite bullet hell. The `stalberg_game` executable now starts on an exact generated floor with closed boundary walls, published-door-only room traversal, door-aware navigation, and a Start-room player spawn. The deterministic first-enemy encounter remains available as a focused regression arena through **F1**, including pooled projectiles, swept collision, health, damage, invulnerability, death, victory, restart, effects, and generated combat audio. Generated-room encounters and progression are the next milestone.
 
 ## Documentation
 
@@ -32,15 +32,17 @@ A system raylib installation is used when available. Otherwise CMake downloads r
 cmake -S . -B build
 cmake --build build -j
 ctest --test-dir build --output-on-failure
-./build/stalberg_game       # 2.5D first-enemy combat prototype
+./build/stalberg_game       # generated 2.5D traversal + combat regression
 ./build/stalberg_grid       # procedural-generation diagnostic demo
 ```
 
-The combat prototype remains intentionally small: use **WASD** to move the sphere, the **mouse** to aim its facing marker across the XZ ground plane, and hold the **left mouse button** to fire. A stationary five-health target still provides repeatable aim practice. A separate 20-health enemy circles the player and emits a slow three-shot fan from its own projectile pool. Swept relative-motion collision lets player shots damage and defeat the moving enemy, while hostile hits remove player health and grant brief invulnerability. Player defeat or enemy defeat freezes the encounter until **R** resets every combat system. The player and both projectile pools respect the hard-coded arena walls. A 45-degree tilted orthographic camera follows the player, simulation runs at a fixed 120 Hz, and rendering interpolates player, camera, enemy, and projectile state.
+The runtime starts in generated traversal mode. `GeneratedLevel` retains the relaxed source grid, exact dual geometry, neutral room graph, and shooter layout together. Assigned dual polygons become a cached floor mesh; floor/void edges and unauthorized cross-room contacts become walls; only exact published doorway cell pairs remain open. The player spawns at a high-clearance cell in Start and can move through the matching door-aware navigation graph without leaving the floor.
+
+Press **F1** for the intentionally small combat regression arena. Use **WASD** to move, the **mouse** to aim, and hold the **left mouse button** to fire. A stationary target and a 20-health enemy exercise pooled projectiles, swept relative-motion collision, player health, invulnerability, defeat, victory, and deterministic restart. A 45-degree tilted orthographic camera follows the active player, simulation runs at a fixed 120 Hz, and rendering interpolates simulation state.
 
 Debug builds apply debugger-friendly optimization to the game runtime and bundled raylib so interactive frame pacing remains representative while symbols and assertions stay enabled. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized stepping is required.
 
-Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Each module has its own headless test executable.
+Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Generation, generated-level runtime packaging, and combat simulation have dedicated headless test executables.
 
 ## Game prototype controls
 
@@ -48,11 +50,12 @@ Grid generation and room generation are independent libraries. The room library 
 |---|---|
 | WASD | Move relative to the camera |
 | Mouse | Aim on the ground plane |
-| Hold left mouse button | Fire |
-| R after defeat or victory | Restart the encounter |
+| Hold left mouse button | Fire in the combat regression arena |
+| R | Reset to Start, or restart after combat defeat/victory |
+| F1 | Toggle generated traversal / combat regression arena |
 | Escape/window close | Exit |
 
-The first-enemy combat milestone is complete. The next milestone packages the generator artifacts for runtime use, renders exact generated floors and walls, opens only published doorway pairs, and spawns the player in the generated Start room.
+The generated-level runtime milestone is complete. The next milestone adds generated-room encounter states, door locking, combat activation, clearing, and progression toward Exit.
 
 ## Generator demo controls
 

@@ -4,7 +4,7 @@ This document describes the default `RoomGenerationMethod::ShooterLayout` pipeli
 
 For the input/output types and physical geometry contract, see [`room-generation-model.md`](room-generation-model.md). For candidate validation, scoring, deterministic retries, and tests, see [`layout-quality-and-testing.md`](layout-quality-and-testing.md).
 
-The separate `stalberg_game` runtime currently proves movement, aiming, profile-separated player/enemy projectile pools, hard-coded arena collision, a damageable deterministic enemy pattern, player health/invulnerability, death, victory, restart, effects, and audio. It does not consume these layouts yet; generated-level runtime integration is the next milestone. Runtime milestones are tracked in [`game-roadmap.md`](game-roadmap.md), and [`game-handoff.md`](game-handoff.md) records the current implementation boundary.
+The `stalberg_game` runtime now consumes shooter layouts through an immutable package retaining the source grid, dual geometry, neutral room graph, and layout. It renders exact assigned floors, closes unauthorized contacts, opens published doorway pairs, builds matching navigation, and spawns the player in Start. The hard-coded enemy arena remains available through `F1`; generated-room encounters and progression are the next milestone. Runtime milestones are tracked in [`game-roadmap.md`](game-roadmap.md), and [`game-handoff.md`](game-handoff.md) records the current implementation boundary.
 
 ## Goals
 

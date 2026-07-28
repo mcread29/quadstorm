@@ -86,27 +86,21 @@ The hard-coded arena now provides:
 
 Acceptance check: the arena supports a repeatable combat encounter with readable hostile fire, swept damage in both directions, clear defeat/victory states, and deterministic restart.
 
-## Next milestones
+### Milestone 6: generated level runtime — complete
 
-### Milestone 6: generated level runtime
+The game runtime now provides:
 
-Create an immutable runtime level package retaining the related generation artifacts:
-
-```text
-StalbergGrid
-    → DualGrid
-    → RoomGrid
-    → RoomLayout
-    → render meshes + collision + navigation + doors
-```
-
-- Triangulate assigned `DualCell` polygons into floor meshes.
-- Extrude closed dual boundaries into walls.
-- Open only doorway pairs published by `RoomLayout`.
-- Build door-aware traversal and navigation data.
-- Spawn the player in the generated start room.
+- One immutable `GeneratedLevel` package retaining `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout`.
+- Exact assigned dual-cell floor triangulation in a cached GPU mesh.
+- Closed wall geometry on floor/void boundaries and unauthorized cross-room contacts.
+- Open wall and navigation edges only for exact doorway cell pairs published by `RoomLayout`.
+- A Start-room spawn selected from the room's highest-clearance cell.
+- A generated traversal view by default and the preserved hard-coded combat regression arena behind `F1`.
+- Headless tests for artifact alignment, floor area, wall/door authorization, doorway clearance, Start spawning, and complete door-aware floor reachability.
 
 Acceptance check: the player can traverse a generated level through every authorized doorway without crossing closed contacts or leaving the floor.
+
+## Next milestones
 
 ### Milestone 7: encounters and room progression
 

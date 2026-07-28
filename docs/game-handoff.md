@@ -4,7 +4,7 @@ This is the continuation guide for the `stalberg_game` runtime. Read [`game-road
 
 ## Current objective
 
-The first-enemy milestone is complete. The next objective is **Milestone 6: generated level runtime**—retain the related generator artifacts in one immutable runtime package, render exact generated floors and walls, open only published doorway pairs, and spawn the player in the generated start room. Do not combine that work with room encounters, rewards, progression, or upgrades.
+The generated-level runtime milestone is complete. The next objective is **Milestone 7: encounters and room progression**—add room lifecycle states, activate combat after entering an arena, lock and reopen its published doors, and progress through the generated floor. Keep rewards, upgrades, multi-floor runs, and meta-progression out of this milestone.
 
 ## Current behavior
 
@@ -22,20 +22,31 @@ Controls:
 |---|---|
 | WASD | Camera-relative movement |
 | Mouse | Aim on the XZ ground plane |
-| Hold left mouse button | Fire |
-| R after defeat or victory | Restart the encounter |
+| Hold left mouse button | Fire in the combat regression arena |
+| R | Reset to Start, or restart after combat defeat/victory |
+| F1 | Toggle generated traversal / combat regression arena |
 | Escape/window close | Exit |
 
-The runtime currently renders a flat test plane enclosed by a 20-by-20 wall arena, an aimed sphere player, a mouse-ground marker, directional diffuse lighting, a projected blob shadow, pooled projectiles with motion trails, one stationary target at X/Z `(-5, -5)`, and one hostile orb. The player circle slides along wall faces and resolves corners without leaving the arena. Holding the left mouse button fires ten projectiles per second from the facing marker. Swept player projectiles stop at walls or damage the stationary target and the moving 20-health enemy. The enemy deterministically circles the player near a five-unit preferred range and emits a slow three-shot fan every 1.15 seconds. Hostile shots use a separate pool, stop at walls, and damage the five-health player through swept collision. Player defeat or enemy defeat freezes the encounter until `R` resets all simulation state. The HUD, hit/death/victory effects, and procedural tones provide minimal combat feedback.
+The runtime starts in a generated traversal view. It builds and retains a relaxed grid, exact dual geometry, neutral room graph, and shooter layout in one `GeneratedLevel`; renders every assigned dual-cell polygon in a cached floor mesh; walls floor/void boundaries and unauthorized room contacts; omits only exact published doorway pairs; and spawns the player at the highest-clearance cell in Start. The same door policy drives immutable navigation adjacency. Player collision uses the generated wall segments, and `R` resets the player to Start.
+
+`F1` switches to the preserved hard-coded 20-by-20 combat regression arena. That path still contains the stationary target, deterministic hostile orb, separate projectile pools, swept wall and damage collision, defeat/victory freeze, restart, effects, HUD, and procedural tones described by the first-enemy milestone.
 
 ## Runtime architecture
 
 ```text
 main.cpp
+    ├── constructs immutable GeneratedLevel generation + geometry data
     ├── reads PlayerInput through game_input
-    ├── advances fixed simulation state
+    ├── advances generated traversal or combat-regression fixed state
     ├── interpolates simulation state for rendering
     └── asks PrototypeRenderer to draw
+
+GeneratedLevel
+    ├── retains StalbergGrid + DualGrid + RoomGrid + RoomLayout
+    ├── triangulates every assigned exact dual polygon
+    ├── walls floor edges and unauthorized cross-region contacts
+    ├── opens exact RoomLayout doorway cell pairs
+    └── publishes Start spawn + door-aware navigation
 
 PlayerInput ──→ updateEncounter() ──→ Player ──→ arena wall resolution
       │                 │                └── health/invulnerability/death
@@ -48,6 +59,7 @@ PlayerInput ──→ updateEncounter() ──→ Player ──→ arena wall re
 Player ──→ updateGameCamera() ──→ Camera3D
 Camera3D + keyboard/mouse ──→ readPlayerInput()
 
+Camera3D + GeneratedLevel + interpolated player ──→ PrototypeRenderer
 Camera3D + Arena + interpolated combat state ──→ PrototypeRenderer
 EncounterStepResult ──→ CombatAudio
 ```
@@ -56,7 +68,8 @@ EncounterStepResult ──→ CombatAudio
 
 | Path | Responsibility |
 |---|---|
-| `src/game/main.cpp` | Window lifetime, 120 Hz accumulator, interpolation, audio-event forwarding, and composition |
+| `src/game/main.cpp` | Window lifetime, generated/combat view switching, 120 Hz accumulator, interpolation, audio-event forwarding, and composition |
+| `src/game/generated_level.hpp/.cpp` | Immutable generator artifact package, exact floor triangles, authorized walls, door-aware navigation, and Start spawn |
 | `src/game/encounter.hpp/.cpp` | Fixed-step combat update order and deterministic whole-encounter reset |
 | `src/game/enemy.hpp/.cpp` | Deterministic orbit movement, fan cadence, health/damage, and hostile projectile profile |
 | `src/game/combat_audio.hpp/.cpp` | Audio-device ownership and generated combat tones |
@@ -70,6 +83,7 @@ EncounterStepResult ──→ CombatAudio
 | `src/game/game_input.hpp/.cpp` | All current polling of raylib keyboard and mouse input |
 | `src/game/prototype_renderer.hpp/.cpp` | GPU resource ownership and all prototype drawing |
 | `src/game/directional_shader.hpp` | Embedded GLSL and shared directional-light vector |
+| `tests/generated_level_tests.cpp` | Artifact alignment, exact floor area, wall/door authorization, doorway clearance, Start spawn, and door-aware reachability coverage |
 | `tests/game_tests.cpp` | Headless 2D/arena collision, projectile ownership/profile/pool, weapon, enemy determinism/damage/defeat, player damage/death, interpolation freeze, victory, and restart coverage |
 | `CMakeLists.txt` | Runtime/test source lists, raylib linkage, warnings, and Debug runtime optimization |
 
@@ -141,31 +155,30 @@ Gameplay code does not own raylib `Model`, `Shader`, or `Sound` handles. `Protot
 
 ### Procedural generation boundary
 
-The game target does not yet link the generator libraries. Integrate them through the generated-level runtime package, which must retain `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` together because exact floor polygons and doorway segments are not all present in `RoomLayout` alone.
+The game target links the generator libraries only through `GeneratedLevel`. The package retains `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` together because exact floor polygons and doorway segments are not all present in `RoomLayout` alone. Its public API is read-only after construction.
 
-Cross-room movement must eventually open only exact doorway cell pairs published by `RoomLayout`; physical contact between regions is not automatically traversable.
+Within one room, neighboring assigned cells are traversable. Across rooms, both wall openings and navigation use only exact cell pairs published by `RoomLayout::getDoorways()`; physical contact between regions is never automatically traversable. Connected exterior entrance cells remain enclosed because Milestone 6 has no floor-transition system.
 
-## Next implementation: generated level runtime
+## Next implementation: room encounters and progression
 
-Create an immutable runtime level package that retains `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` together. Triangulate exact assigned `DualCell` floor polygons, extrude closed dual boundaries into walls, open only exact doorway cell pairs published by `RoomLayout`, build door-aware traversal/navigation data, and spawn the player in the generated start room.
+Add a small generated-room lifecycle without replacing the current deterministic combat modules:
 
-Do not add room encounter states, progression, rewards, upgrades, an ECS, or a generic asset manager during this milestone. Preserve the hard-coded combat arena as a focused regression path until generated floor rendering and collision are independently validated.
+- Track room states such as dormant, entered, locked, fighting, cleared, and rewarded.
+- Detect player entry through `GeneratedLevel` cell/region lookup.
+- Close the current room's published doorway thresholds during combat and reopen them after clearing.
+- Select enemy positions from the room's published spawn candidates after filtering for player distance, occupancy, and doorway clearance.
+- Progress from Start toward Exit over the existing door-aware room graph.
 
-Acceptance criteria:
-
-- Generated floors match exact assigned dual-cell polygons without gaps or unauthorized bridges.
-- Wall collision follows closed boundaries and opens only published doorway pairs.
-- The player spawns in Start and can traverse every authorized doorway without leaving the floor.
-- Existing generator tests, hard-coded combat tests, build, and graphical smoke checks pass.
+Do not add rewards/upgrades, multi-floor run state, an ECS, a generic asset manager, or inferred openings at incidental room contacts during this milestone. Keep the `F1` hard-coded arena as the focused combat regression path while generated-room state is introduced.
 
 ## Known limitations
 
 - The encounter contains only one hard-coded enemy and one stationary target; there are no spawn waves or encounter timer yet.
-- There is no generated-level rendering, room encounter state, reward/progression system, or run state yet.
+- There is no generated-room encounter state, door locking, reward/progression system, or run state yet.
 - Lighting is diffuse-only and the player shadow is a projected decal rather than general occlusion.
-- The ground and debug grid cover a finite 80-by-80 area.
+- The combat regression ground and debug grid cover a finite 80-by-80 area.
 - Gameplay constants are compiled into their owning modules.
-- Headless game tests currently cover reusable swept-circle queries, profile-driven projectile movement/lifetime/radius, pool ownership/exhaustion/reuse, muzzle spawning, fire cadence, deterministic enemy behavior, enemy damage/defeat/victory restart, player damage/invulnerability/death/restart, player-wall faces/endpoints/corners/sliding, projectile wall faces/endpoints/earliest hits, and outside-muzzle rejection. Target collision, free player movement, audio, and rendering lack dedicated tests.
+- Generated-level tests cover retained artifact alignment, exact assigned-floor area, wall/door authorization, doorway clearance, Start spawning, and complete door-aware reachability. Combat tests cover reusable swept-circle queries, profile-driven projectile movement/lifetime/radius, pool ownership/exhaustion/reuse, muzzle spawning, fire cadence, deterministic enemy behavior, enemy damage/defeat/victory restart, player damage/invulnerability/death/restart, player-wall faces/endpoints/corners/sliding, projectile wall faces/endpoints/earliest hits, and outside-muzzle rejection. Target collision, free player movement, audio, and rendering lack dedicated tests.
 - Debug runtime builds use debugger-friendly optimization (`-Og` with GCC/Clang or `/O1` with MSVC) for `stalberg_game` and a bundled raylib while retaining debug symbols and assertions. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized instruction-by-instruction stepping is required. Use a separate Release build when profiling performance.
 
 ## Validation and debugging

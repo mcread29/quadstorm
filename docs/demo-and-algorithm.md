@@ -10,7 +10,7 @@ Room-generation details are split into focused documents:
 - [`shooter-level-generation.md`](shooter-level-generation.md) — complete graph-first shooter pipeline.
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently implements movement, aiming, two profile-driven projectile pools, hard-coded arena collision, a resettable target, and a deterministic damageable enemy encounter with player health, invulnerability, death, victory, restart, effects, and audio. It does not yet consume generated layouts; that integration is the next milestone.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It now consumes the complete generation chain through `GeneratedLevel`, renders exact assigned dual-cell floors, closes unauthorized contacts, opens only published doorway pairs, builds matching navigation, and spawns the player in Start. The hard-coded deterministic enemy encounter remains available through `F1`; generated-room encounters and progression are the next milestone.
 
 ## Overview
 
@@ -404,7 +404,8 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/integration/room_grid_adapter.cpp` | Translate `StalbergGrid` and select its hex-boundary entrances |
 | `src/grid_renderer.cpp` / `drawGrid()` | Render room fills, connected rounded boundaries, and dual centers |
 | `src/main.cpp` | Compose generation modules, process controls, update, and render the diagnostic demo |
-| `src/game/main.cpp` | Run the fixed-step 2.5D prototype loop and compose runtime modules |
+| `src/game/main.cpp` | Run the fixed-step 2.5D traversal/combat loop and compose runtime modules |
+| `src/game/generated_level.*` | Retain generation artifacts and build exact floors, authorized walls, navigation, and Start spawn |
 | `src/game/encounter.*` | Order combat simulation and reset the complete encounter deterministically |
 | `src/game/enemy.*` | Enemy movement, health, damage, fan pattern, and hostile projectile profile |
 | `src/game/combat_audio.*` | Own the audio device and generated combat tones |
@@ -419,6 +420,7 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/game/prototype_renderer.*` | Own game GPU resources and render the current prototype scene |
 | `tests/grid_tests.cpp` | Headless grid topology and relaxation tests |
 | `tests/room_generation_tests.cpp` | Headless room connectivity, doorway, and determinism tests |
+| `tests/generated_level_tests.cpp` | Headless runtime artifact, floor, wall/door, spawn, and navigation tests |
 | `tests/game_tests.cpp` | Headless 2D/arena collision, projectile ownership/profile/pool, weapon cadence, enemy determinism/damage, player damage/invulnerability, death, victory, and restart tests |
 
 ## Compact pseudocode
@@ -473,14 +475,14 @@ function relaxOnce():
 
 ## Current scope and limitations
 
-The generation demo intentionally focuses on a single understandable patch. The separate game executable currently proves movement, aiming, profile-separated player/enemy projectile firing, swept arena and combat collision, a damageable moving enemy, player health and invulnerability, deterministic death/victory restart, combat feedback, camera behavior, lighting, audio, and fixed-step timing. It does not yet consume generated layouts. The generator does not currently implement:
+The generation demo intentionally focuses on a single understandable patch. The separate game executable now consumes generated layouts for exact floor rendering, closed wall collision, authorized doorway traversal, navigation, and Start spawning. It also preserves the deterministic combat regression arena with profile-separated projectile pools, swept combat collision, player health and invulnerability, death/victory restart, feedback, camera behavior, lighting, audio, and fixed-step timing. The project does not currently implement:
 
 - Infinite chunk generation.
 - Cross-chunk relaxation.
 - Explicit square-fitting forces.
 - Face-quality optimization after relaxation.
-- Shooter combat, collision, cover placement, or encounter spawning.
+- Generated-room combat states, door locking, cover placement, or encounter spawning.
 - Mesh export.
-- Three-dimensional extrusion.
+- General-purpose three-dimensional asset extrusion beyond runtime floor and wall geometry.
 
 An infinite version would generate compatible hexagonal chunks with deterministic seeds, preserve shared boundary topology, and relax either a larger neighborhood or overlapping chunks so seams remain smooth.

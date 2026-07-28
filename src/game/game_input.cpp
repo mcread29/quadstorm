@@ -15,5 +15,6 @@ PlayerInput readPlayerInput(const Camera3D& camera)
         camera, GetMousePosition(), input.aimPoint);
     input.fireHeld = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     input.restartPressed = IsKeyPressed(KEY_R);
+    input.toggleViewPressed = IsKeyPressed(KEY_F1);
     return input;
 }

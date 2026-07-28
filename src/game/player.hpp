@@ -14,6 +14,7 @@ struct PlayerInput {
     bool hasAimPoint = false;
     bool fireHeld = false;
     bool restartPressed = false;
+    bool toggleViewPressed = false;
 };
 
 struct Player {

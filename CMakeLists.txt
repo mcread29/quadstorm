@@ -85,6 +85,7 @@ add_executable(stalberg_game
     src/game/enemy.cpp
     src/game/game_camera.cpp
     src/game/game_input.cpp
+    src/game/generated_level.cpp
     src/game/main.cpp
     src/game/player.cpp
     src/game/projectile_pool.cpp
@@ -93,7 +94,7 @@ add_executable(stalberg_game
     src/game/weapon.cpp
 )
 target_compile_features(stalberg_game PRIVATE cxx_std_20)
-target_link_libraries(stalberg_game PRIVATE raylib)
+target_link_libraries(stalberg_game PRIVATE stalberg_room_grid_adapter raylib)
 enable_project_warnings(stalberg_game)
 enable_debug_runtime_optimization(stalberg_game)
 
@@ -109,6 +110,18 @@ if(BUILD_TESTING)
         PRIVATE stalberg_room_grid_adapter)
     enable_project_warnings(stalberg_room_generation_tests)
     add_test(NAME stalberg_room_generation_tests COMMAND stalberg_room_generation_tests)
+
+    add_executable(stalberg_generated_level_tests
+        tests/generated_level_tests.cpp
+        src/game/generated_level.cpp
+    )
+    target_include_directories(stalberg_generated_level_tests PRIVATE src)
+    target_compile_features(stalberg_generated_level_tests PRIVATE cxx_std_20)
+    target_link_libraries(stalberg_generated_level_tests
+        PRIVATE stalberg_room_grid_adapter raylib)
+    enable_project_warnings(stalberg_generated_level_tests)
+    add_test(NAME stalberg_generated_level_tests
+        COMMAND stalberg_generated_level_tests)
 
     add_executable(stalberg_game_tests
         tests/game_tests.cpp
