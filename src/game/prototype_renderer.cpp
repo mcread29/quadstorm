@@ -1,5 +1,6 @@
 #include "prototype_renderer.hpp"
 
+#include "arena.hpp"
 #include "directional_shader.hpp"
 
 #include <cmath>
@@ -34,6 +35,7 @@ Shader loadDirectionalShader()
 PrototypeRenderer::PrototypeRenderer()
     : lightingShader(loadDirectionalShader())
     , groundModel(LoadModelFromMesh(GenMeshPlane(80.0F, 80.0F, 1, 1)))
+    , wallModel(LoadModelFromMesh(GenMeshCube(1.0F, 2.0F, 0.18F)))
     , playerModel(LoadModelFromMesh(GenMeshSphere(PLAYER_RADIUS, 16, 24)))
     , projectileModel(LoadModelFromMesh(
           GenMeshSphere(PROJECTILE_RADIUS, 8, 12)))
@@ -42,6 +44,7 @@ PrototypeRenderer::PrototypeRenderer()
           GenMeshCylinder(PLAYER_RADIUS * 1.05F, 0.01F, 32)))
 {
     groundModel.materials[0].shader = lightingShader;
+    wallModel.materials[0].shader = lightingShader;
     playerModel.materials[0].shader = lightingShader;
     projectileModel.materials[0].shader = lightingShader;
     targetModel.materials[0].shader = lightingShader;
@@ -53,6 +56,7 @@ PrototypeRenderer::~PrototypeRenderer()
     UnloadModel(targetModel);
     UnloadModel(projectileModel);
     UnloadModel(playerModel);
+    UnloadModel(wallModel);
     UnloadModel(groundModel);
     UnloadShader(lightingShader);
 }
@@ -68,6 +72,7 @@ void PrototypeRenderer::draw(const Camera3D& camera, const Player& player,
     DrawModel(groundModel, Vector3 { 0.0F, -0.015F, 0.0F }, 1.0F,
         Color { 64, 104, 105, 255 });
     DrawGrid(80, 1.0F);
+    drawArena();
     drawPlayerShadow(player);
     DrawSphere(Vector3 { aimPoint.x, 0.06F, aimPoint.z }, 0.12F,
         Color { 225, 241, 232, 210 });
@@ -77,7 +82,8 @@ void PrototypeRenderer::draw(const Camera3D& camera, const Player& player,
     EndMode3D();
 
     DrawRectangle(16, 16, 530, 108, Color { 8, 25, 30, 220 });
-    DrawText("TARGET PRACTICE", 28, 27, 22, Color { 225, 241, 232, 255 });
+    DrawText("WALLED TARGET PRACTICE", 28, 27, 22,
+        Color { 225, 241, 232, 255 });
     DrawText("WASD move  |  mouse aim  |  hold LMB fire", 28, 60, 17,
         Color { 151, 193, 190, 255 });
     if (target.health > 0) {
@@ -94,6 +100,40 @@ void PrototypeRenderer::draw(const Camera3D& camera, const Player& player,
     DrawFPS(GetScreenWidth() - 96, 20);
 
     EndDrawing();
+}
+
+void PrototypeRenderer::drawArena() const
+{
+    constexpr float wallHeight = 2.0F;
+    constexpr float wallThickness = 0.18F;
+    constexpr Color wallColor { 94, 116, 120, 255 };
+
+    for (const WallSegment& wall : ARENA_WALLS) {
+        const Vector2 direction {
+            wall.end.x - wall.start.x,
+            wall.end.y - wall.start.y
+        };
+        const float wallLength = std::sqrt(
+            direction.x * direction.x + direction.y * direction.y);
+        if (wallLength <= 0.0001F) {
+            continue;
+        }
+
+        const Vector2 outwardNormal {
+            direction.y / wallLength,
+            -direction.x / wallLength
+        };
+        const Vector3 center {
+            (wall.start.x + wall.end.x) * 0.5F
+                + outwardNormal.x * wallThickness * 0.5F,
+            wallHeight * 0.5F,
+            (wall.start.y + wall.end.y) * 0.5F
+                + outwardNormal.y * wallThickness * 0.5F
+        };
+        const float angle = -std::atan2(direction.y, direction.x) * RAD2DEG;
+        DrawModelEx(wallModel, center, Vector3 { 0.0F, 1.0F, 0.0F }, angle,
+            Vector3 { wallLength, 1.0F, 1.0F }, wallColor);
+    }
 }
 
 void PrototypeRenderer::drawPlayerShadow(const Player& player) const

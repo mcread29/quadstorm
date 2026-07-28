@@ -1,3 +1,4 @@
+#include "arena.hpp"
 #include "game_camera.hpp"
 #include "game_input.hpp"
 #include "player.hpp"
@@ -49,10 +50,17 @@ int main()
             while (accumulatedTime >= FIXED_STEP_TIME) {
                 previousPlayer = player;
                 previousCamera = camera;
+                const Vector2 previousPlayerPosition {
+                    player.position.x,
+                    player.position.z
+                };
                 updatePlayer(player, input, FIXED_STEP_TIME);
+                resolvePlayerWallCollisions(
+                    player, previousPlayerPosition, ARENA_WALLS);
                 updateWeapon(weapon, projectiles, player,
                     input.fireHeld, FIXED_STEP_TIME);
                 projectiles.update(FIXED_STEP_TIME);
+                resolveProjectileWallCollisions(projectiles, ARENA_WALLS);
                 updateTarget(target, projectiles, FIXED_STEP_TIME);
                 updateGameCamera(camera, player, FIXED_STEP_TIME);
                 accumulatedTime -= FIXED_STEP_TIME;

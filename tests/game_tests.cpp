@@ -1,6 +1,8 @@
+#include "game/arena.hpp"
 #include "game/projectile_pool.hpp"
 #include "game/weapon.hpp"
 
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <iostream>
@@ -69,6 +71,148 @@ bool poolExhaustionAndReuseAreSafe()
     return valid;
 }
 
+bool playerStopsAtWallFaces()
+{
+    constexpr std::array walls {
+        WallSegment { Vector2 { 0.0F, -5.0F }, Vector2 { 0.0F, 5.0F } }
+    };
+    Player player;
+    player.position = Vector3 { -0.4F, PLAYER_RADIUS, 0.0F };
+    player.velocity = Vector2 { 2.0F, 0.0F };
+
+    resolvePlayerWallCollisions(player, Vector2 { -1.0F, 0.0F }, walls);
+
+    return check(nearlyEqual(player.position.x, -PLAYER_RADIUS),
+               "player circle is pushed out of a wall face")
+        && check(nearlyEqual(player.velocity.x, 0.0F),
+            "wall face removes velocity into the contact");
+}
+
+bool playerResolvesWallEndpoints()
+{
+    constexpr std::array walls {
+        WallSegment { Vector2 { 0.0F, 0.0F }, Vector2 { 3.0F, 0.0F } }
+    };
+    Player player;
+    player.position = Vector3 { -0.3F, PLAYER_RADIUS, -0.3F };
+    player.velocity = Vector2 { 1.0F, 0.0F };
+
+    resolvePlayerWallCollisions(player, Vector2 { -1.0F, -1.0F }, walls);
+
+    const float endpointDistance = std::sqrt(
+        player.position.x * player.position.x
+        + player.position.z * player.position.z);
+    const Vector2 endpointNormal {
+        player.position.x / endpointDistance,
+        player.position.z / endpointDistance
+    };
+    return check(nearlyEqual(endpointDistance, PLAYER_RADIUS),
+               "player circle is pushed out of a wall endpoint")
+        && check(nearlyEqual(player.velocity.x * endpointNormal.x
+                    + player.velocity.y * endpointNormal.y,
+                   0.0F),
+            "endpoint contact removes only inward velocity");
+}
+
+bool playerResolvesCornersIteratively()
+{
+    constexpr std::array walls {
+        WallSegment { Vector2 { 0.0F, -5.0F }, Vector2 { 0.0F, 5.0F } },
+        WallSegment { Vector2 { -5.0F, 0.0F }, Vector2 { 5.0F, 0.0F } }
+    };
+    Player player;
+    player.position = Vector3 { -0.4F, PLAYER_RADIUS, -0.4F };
+    player.velocity = Vector2 { 2.0F, 2.0F };
+
+    resolvePlayerWallCollisions(player, Vector2 { -1.0F, -1.0F }, walls);
+
+    return check(nearlyEqual(player.position.x, -PLAYER_RADIUS)
+            && nearlyEqual(player.position.z, -PLAYER_RADIUS),
+               "iterative contacts push the player out of a corner")
+        && check(nearlyEqual(player.velocity.x, 0.0F)
+                && nearlyEqual(player.velocity.y, 0.0F),
+            "corner contacts remove velocity into both walls");
+}
+
+bool playerSlidesAlongWalls()
+{
+    constexpr std::array walls {
+        WallSegment { Vector2 { 0.0F, -5.0F }, Vector2 { 0.0F, 5.0F } }
+    };
+    Player player;
+    player.position = Vector3 { -0.4F, PLAYER_RADIUS, 0.2F };
+    player.velocity = Vector2 { 2.0F, 3.0F };
+
+    resolvePlayerWallCollisions(player, Vector2 { -1.0F, 0.0F }, walls);
+
+    return check(nearlyEqual(player.velocity.x, 0.0F),
+               "sliding removes velocity into the wall")
+        && check(nearlyEqual(player.velocity.y, 3.0F),
+            "sliding preserves tangential velocity");
+}
+
+bool projectileWallEndpointsAreSolid()
+{
+    constexpr std::array walls {
+        WallSegment { Vector2 { 0.0F, -2.0F }, Vector2 { 0.0F, 2.0F } }
+    };
+    ProjectilePool pool;
+    bool valid = check(pool.spawn(
+                           Vector2 { -5.0F, 2.1F }, Vector2 { 1.0F, 0.0F }),
+        "endpoint-collision projectile spawns");
+    pool.update(0.5F);
+    resolveProjectileWallCollisions(pool, walls);
+
+    const Projectile& projectile = pool.projectiles().front();
+    valid &= check(!projectile.active,
+        "swept wall collision includes endpoint circles");
+    valid &= check(projectile.position.x < 0.0F,
+        "endpoint collision clips to the near side of contact");
+    return valid;
+}
+
+bool fastProjectilesHitTheFirstWall()
+{
+    constexpr std::array walls {
+        WallSegment { Vector2 { 2.0F, -2.0F }, Vector2 { 2.0F, 2.0F } },
+        WallSegment { Vector2 { 0.0F, -2.0F }, Vector2 { 0.0F, 2.0F } }
+    };
+    ProjectilePool pool;
+    bool valid = check(pool.spawn(
+                           Vector2 { -5.0F, 0.0F }, Vector2 { 1.0F, 0.0F }),
+        "fast wall-collision projectile spawns");
+    pool.update(0.5F);
+    resolveProjectileWallCollisions(pool, walls);
+
+    const Projectile& projectile = pool.projectiles().front();
+    valid &= check(!projectile.active,
+        "swept wall collision catches a fast projectile");
+    valid &= check(nearlyEqual(projectile.position.x, -PROJECTILE_RADIUS),
+        "projectile stops at the earliest wall regardless of array order");
+    return valid;
+}
+
+bool outwardMuzzleProjectilesDoNotEscape()
+{
+    constexpr float fixedStep = 1.0F / 120.0F;
+    Player player;
+    player.position = Vector3 {
+        ARENA_HALF_EXTENT - PLAYER_RADIUS,
+        PLAYER_RADIUS,
+        0.0F
+    };
+    player.facing = Vector2 { 1.0F, 0.0F };
+    Weapon weapon;
+    ProjectilePool pool;
+
+    updateWeapon(weapon, pool, player, true, fixedStep);
+    pool.update(fixedStep);
+    resolveProjectileWallCollisions(pool, ARENA_WALLS);
+
+    return check(pool.activeCount() == 0,
+        "a muzzle beyond the closed arena cannot emit an escaping projectile");
+}
+
 bool weaponUsesMuzzleAndFixedCadence()
 {
     constexpr float fixedStep = 1.0F / 120.0F;
@@ -102,6 +246,13 @@ int main()
     bool valid = true;
     valid &= projectilesAdvanceAndInterpolate();
     valid &= poolExhaustionAndReuseAreSafe();
+    valid &= playerStopsAtWallFaces();
+    valid &= playerResolvesWallEndpoints();
+    valid &= playerResolvesCornersIteratively();
+    valid &= playerSlidesAlongWalls();
+    valid &= projectileWallEndpointsAreSolid();
+    valid &= fastProjectilesHitTheFirstWall();
+    valid &= outwardMuzzleProjectilesDoNotEscape();
     valid &= weaponUsesMuzzleAndFixedCadence();
     return valid ? 0 : 1;
 }

@@ -36,7 +36,7 @@ ctest --test-dir build --output-on-failure
 ./build/stalberg_grid       # procedural-generation diagnostic demo
 ```
 
-The target-practice prototype is intentionally small: use **WASD** to move the sphere, the **mouse** to aim its facing marker across the XZ ground plane, and hold the **left mouse button** to fire. A five-health target flashes on swept projectile hits, shows a defeat cue, and resets after one second. A 45-degree tilted orthographic camera follows the player. Simulation runs at a fixed 120 Hz; rendering interpolates player, camera, and projectile state. Firing uses a preallocated stable-slot pool and does not allocate per shot.
+The target-practice prototype is intentionally small: use **WASD** to move the sphere, the **mouse** to aim its facing marker across the XZ ground plane, and hold the **left mouse button** to fire. A five-health target flashes on swept projectile hits, shows a defeat cue, and resets after one second. The player slides along the hard-coded arena walls, and swept projectiles stop at wall faces and endpoints. A 45-degree tilted orthographic camera follows the player. Simulation runs at a fixed 120 Hz; rendering interpolates player, camera, and projectile state. Firing uses a preallocated stable-slot pool and does not allocate per shot.
 
 Debug builds apply debugger-friendly optimization to the game runtime and bundled raylib so interactive frame pacing remains representative while symbols and assertions stay enabled. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized stepping is required.
 
@@ -51,7 +51,7 @@ Grid generation and room generation are independent libraries. The room library 
 | Hold left mouse button | Fire |
 | Escape/window close | Exit |
 
-Target collision and hit feedback are complete. The next milestone adds hard-coded arena walls, player collision/sliding, and projectile-wall collision.
+Arena collision and wall rendering are complete. The next milestone adds the first enemy, an enemy projectile pattern, and player health, damage, death, and restart.
 
 ## Generator demo controls
 

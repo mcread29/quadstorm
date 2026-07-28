@@ -19,6 +19,7 @@ public:
         float interpolationAmount) const;
 
 private:
+    void drawArena() const;
     void drawPlayerShadow(const Player& player) const;
     void drawPlayer(const Player& player) const;
     void drawProjectiles(const ProjectilePool& projectiles,
@@ -27,6 +28,7 @@ private:
 
     Shader lightingShader {};
     Model groundModel {};
+    Model wallModel {};
     Model playerModel {};
     Model projectileModel {};
     Model targetModel {};

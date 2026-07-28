@@ -59,16 +59,21 @@ Headless target-collision tests were explicitly deferred for this milestone; exi
 
 Acceptance check: fast projectiles cannot tunnel through the target, and hits feel unambiguous.
 
-## Next milestones
+### Milestone 4: arena boundaries — complete
 
-### Milestone 4: arena boundaries
+The runtime now provides:
 
-- Add simple wall segments around a hard-coded arena.
-- Add player circle-versus-segment collision and sliding.
-- Add projectile collision with walls.
-- Keep exact 2D collision authoritative; 3D meshes remain visual.
+- Four immutable wall segments enclosing the hard-coded 20-by-20 arena.
+- Iterative player circle-versus-segment collision, including endpoint contacts.
+- Velocity projection that preserves tangential movement for smooth wall sliding.
+- Swept projectile circle-versus-segment collision without tunneling, including endpoint and earliest-hit handling.
+- Rejection of outward-facing muzzle shots that begin beyond the closed arena loop.
+- Wall meshes whose inner faces follow the authoritative X/Z segments.
+- Headless tests for wall faces, endpoints, corners, sliding, fast projectiles, and outside-muzzle rejection.
 
 Acceptance check: movement remains smooth along corners and walls, and neither player nor projectiles escape the arena.
+
+## Next milestones
 
 ### Milestone 5: first enemy
 

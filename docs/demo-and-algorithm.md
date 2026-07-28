@@ -10,7 +10,7 @@ Room-generation details are split into focused documents:
 - [`shooter-level-generation.md`](shooter-level-generation.md) — complete graph-first shooter pipeline.
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently implements movement, aiming, pooled projectile firing, and a resettable swept-collision target on a flat test plane; it does not yet consume generated layouts.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently implements movement, aiming, pooled projectile firing, a resettable swept-collision target, and hard-coded arena walls with player sliding and swept projectile collision; it does not yet consume generated layouts.
 
 ## Overview
 
@@ -405,6 +405,7 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/grid_renderer.cpp` / `drawGrid()` | Render room fills, connected rounded boundaries, and dual centers |
 | `src/main.cpp` | Compose generation modules, process controls, update, and render the diagnostic demo |
 | `src/game/main.cpp` | Run the fixed-step 2.5D prototype loop and compose runtime modules |
+| `src/game/arena.*` | Define arena walls and resolve player/projectile wall collision |
 | `src/game/player.*` | Player movement, facing, and interpolated render state |
 | `src/game/weapon.*` | Fixed fire cadence and facing-marker muzzle spawning |
 | `src/game/projectile_pool.*` | Preallocated projectile slots, movement, lifetime, reuse, and interpolation |
@@ -414,7 +415,7 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/game/prototype_renderer.*` | Own game GPU resources and render the current prototype scene |
 | `tests/grid_tests.cpp` | Headless grid topology and relaxation tests |
 | `tests/room_generation_tests.cpp` | Headless room connectivity, doorway, and determinism tests |
-| `tests/game_tests.cpp` | Headless projectile movement, interpolation, pool, and weapon-cadence tests |
+| `tests/game_tests.cpp` | Headless arena collision, projectile movement/pool, and weapon-cadence tests |
 
 ## Compact pseudocode
 
