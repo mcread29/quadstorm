@@ -129,7 +129,8 @@ PrototypeRenderer::~PrototypeRenderer()
 }
 
 void PrototypeRenderer::drawGenerated(const Camera3D& camera,
-    const Player& player, Vector3 aimPoint, const GeneratedLevel& level) const
+    const Player& player, Vector3 aimPoint, const GeneratedLevel& level,
+    const LevelSession& session) const
 {
     BeginDrawing();
     ClearBackground(Color { 20, 31, 38, 255 });
@@ -137,7 +138,7 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     BeginMode3D(camera);
     DrawModel(generatedFloorModel, Vector3 { 0.0F, -0.01F, 0.0F }, 1.0F,
         WHITE);
-    drawWalls(level.walls());
+    drawWalls(session.activeWalls());
     drawPlayerShadow(player);
     DrawSphere(Vector3 { aimPoint.x, 0.06F, aimPoint.z }, 0.12F,
         Color { 225, 241, 232, 210 });
@@ -158,7 +159,7 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     DrawText(TextFormat("Rooms %i  |  doors %i  |  walls %i  |  room %i",
                  static_cast<int>(level.roomLayout().getRoomCount()),
                  static_cast<int>(level.roomLayout().getDoorways().size()),
-                 static_cast<int>(level.walls().size()), currentRegion),
+                 static_cast<int>(session.activeWalls().size()), currentRegion),
         28, 91, 17, Color { 255, 231, 145, 255 });
     DrawText(TextFormat("Grid seed %u  |  room seed %u  |  quality %.1f",
                  level.grid().getSeed(), level.roomLayout().getSeed(),

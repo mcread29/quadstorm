@@ -36,13 +36,13 @@ ctest --test-dir build --output-on-failure
 ./build/stalberg_grid       # procedural-generation diagnostic demo
 ```
 
-The runtime starts in generated traversal mode. `GeneratedLevel` retains the relaxed source grid, exact dual geometry, neutral room graph, and shooter layout together. Assigned dual polygons become a cached floor mesh; floor/void edges and unauthorized cross-room contacts become walls; only exact published doorway cell pairs remain open. The player spawns at a high-clearance cell in Start and can move through the matching door-aware navigation graph without leaving the floor.
+The runtime starts in generated traversal mode. `GeneratedLevel` retains the relaxed source grid, exact dual geometry, neutral room graph, shooter layout, and exact doorway threshold segments together. Assigned dual polygons become a cached floor mesh; floor/void edges and unauthorized cross-room contacts become walls; only exact published doorway cell pairs remain open. Mutable player, room-lifecycle, lock, and active-wall state lives separately in `LevelSession`. The player spawns at a high-clearance cell in Start and can move through the matching door-aware navigation graph without leaving the floor.
 
 Press **F1** for the intentionally small combat regression arena. Use **WASD** to move, the **mouse** to aim, and hold the **left mouse button** to fire. A stationary target and a 20-health enemy exercise pooled projectiles, swept relative-motion collision, player health, invulnerability, defeat, victory, and deterministic restart. A 45-degree tilted orthographic camera follows the active player, simulation runs at a fixed 120 Hz, and rendering interpolates simulation state.
 
 Debug builds apply debugger-friendly optimization to the game runtime and bundled raylib so interactive frame pacing remains representative while symbols and assertions stay enabled. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized stepping is required.
 
-Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Generation, generated-level runtime packaging, and combat simulation have dedicated headless test executables.
+Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Generation, generated-level runtime/session behavior, and combat simulation have dedicated headless test executables. Runtime tests include dynamic doorway locking, collision-wall rebuilding, navigation blocking, reset behavior, and custom encounter wall injection.
 
 ## Game prototype controls
 
@@ -55,7 +55,7 @@ Grid generation and room generation are independent libraries. The room library 
 | F1 | Toggle generated traversal / combat regression arena |
 | Escape/window close | Exit |
 
-The generated-level runtime milestone is complete. The next milestone adds generated-room encounter states, door locking, combat activation, clearing, and progression toward Exit.
+The generated-level runtime and encounter-preparation refactor are complete. The next milestone drives the prepared room lifecycle and doorway locks with generated-room combat, clearing, and progression toward Exit.
 
 ## Generator demo controls
 

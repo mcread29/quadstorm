@@ -2,6 +2,7 @@
 
 #include "enemy.hpp"
 #include "generated_level.hpp"
+#include "level_session.hpp"
 #include "player.hpp"
 #include "projectile_pool.hpp"
 #include "target.hpp"
@@ -17,7 +18,8 @@ public:
     PrototypeRenderer& operator=(const PrototypeRenderer&) = delete;
 
     void drawGenerated(const Camera3D& camera, const Player& player,
-        Vector3 aimPoint, const GeneratedLevel& level) const;
+        Vector3 aimPoint, const GeneratedLevel& level,
+        const LevelSession& session) const;
     void drawCombat(const Camera3D& camera, const Player& player,
         Vector3 aimPoint, const ProjectilePool& playerProjectiles,
         const Target& target, const Enemy& enemy,

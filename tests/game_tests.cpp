@@ -221,6 +221,24 @@ bool playerSlidesAlongWalls()
             "sliding preserves tangential velocity");
 }
 
+bool encounterUsesSuppliedWallGeometry()
+{
+    constexpr std::array walls {
+        WallSegment { Vector2 { 1.0F, -5.0F }, Vector2 { 1.0F, 5.0F } }
+    };
+    Encounter encounter;
+    PlayerInput input;
+    input.movement = Vector2 { 1.0F, 0.0F };
+
+    updateEncounter(encounter, input, 0.1F, walls);
+
+    return check(nearlyEqual(encounter.player.position.x,
+                     1.0F - PLAYER_RADIUS),
+               "encounter player collision uses supplied wall geometry")
+        && check(nearlyEqual(encounter.player.velocity.x, 0.0F),
+            "supplied encounter wall removes inward player velocity");
+}
+
 bool projectileWallEndpointsAreSolid()
 {
     constexpr std::array walls {
@@ -520,6 +538,7 @@ int main()
     valid &= playerResolvesWallEndpoints();
     valid &= playerResolvesCornersIteratively();
     valid &= playerSlidesAlongWalls();
+    valid &= encounterUsesSuppliedWallGeometry();
     valid &= projectileWallEndpointsAreSolid();
     valid &= fastProjectilesHitTheFirstWall();
     valid &= outwardMuzzleProjectilesDoNotEscape();

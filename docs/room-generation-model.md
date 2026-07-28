@@ -359,7 +359,7 @@ Connected entrances are not `Doorway` objects. They do not include an exterior s
 
 ## Gameplay consumption
 
-> Runtime status: `stalberg_game` now consumes the complete generation chain through an immutable `GeneratedLevel` package, renders exact assigned dual-cell floors and authorized wall openings, publishes door-aware navigation, and spawns the player in Start. The hard-coded first-enemy arena remains available through `F1` as a combat regression path. Generated-room encounters and progression are the next runtime milestone (Milestone 7 in [`game-roadmap.md`](game-roadmap.md)). See [`game-handoff.md`](game-handoff.md) for current architecture and integration constraints.
+> Runtime status: `stalberg_game` consumes the complete generation chain through an immutable `GeneratedLevel` package, renders exact assigned dual-cell floors, retains exact doorway threshold segments, publishes door-aware navigation, and spawns the player in Start. A separate mutable `LevelSession` owns room lifecycle/location and can lock or reopen doorway collision and traversal together. The hard-coded first-enemy arena remains available through `F1` as a combat regression path, and encounter updates now accept injected walls. Generated-room combat is the next runtime milestone (Milestone 7 in [`game-roadmap.md`](game-roadmap.md)). See [`game-handoff.md`](game-handoff.md) for current architecture and integration constraints.
 
 ### Walkability
 

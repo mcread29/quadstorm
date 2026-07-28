@@ -10,7 +10,7 @@ Room-generation details are split into focused documents:
 - [`shooter-level-generation.md`](shooter-level-generation.md) — complete graph-first shooter pipeline.
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It now consumes the complete generation chain through `GeneratedLevel`, renders exact assigned dual-cell floors, closes unauthorized contacts, opens only published doorway pairs, builds matching navigation, and spawns the player in Start. The hard-coded deterministic enemy encounter remains available through `F1`; generated-room encounters and progression are the next milestone.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It consumes the complete generation chain through immutable `GeneratedLevel` geometry and mutable `LevelSession` run state, renders exact assigned dual-cell floors, retains lockable doorway thresholds, closes unauthorized contacts, builds matching navigation, and spawns the player in Start. The hard-coded deterministic enemy encounter remains available through `F1` and now accepts injected wall geometry; generated-room combat is the next milestone.
 
 ## Overview
 
@@ -405,8 +405,9 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/grid_renderer.cpp` / `drawGrid()` | Render room fills, connected rounded boundaries, and dual centers |
 | `src/main.cpp` | Compose generation modules, process controls, update, and render the diagnostic demo |
 | `src/game/main.cpp` | Run the fixed-step 2.5D traversal/combat loop and compose runtime modules |
-| `src/game/generated_level.*` | Retain generation artifacts and build exact floors, authorized walls, navigation, and Start spawn |
-| `src/game/encounter.*` | Order combat simulation and reset the complete encounter deterministically |
+| `src/game/generated_level.*` | Retain generation artifacts and build exact floors, walls, doorway thresholds, navigation, and Start spawn |
+| `src/game/level_session.*` | Own mutable traversal, room lifecycle/location, dynamic doorway locks, active walls, and reset |
+| `src/game/encounter.*` | Order combat simulation against injected walls and reset the complete encounter deterministically |
 | `src/game/enemy.*` | Enemy movement, health, damage, fan pattern, and hostile projectile profile |
 | `src/game/combat_audio.*` | Own the audio device and generated combat tones |
 | `src/game/arena.*` | Define arena walls and resolve circle/projectile wall collision |
@@ -420,7 +421,7 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/game/prototype_renderer.*` | Own game GPU resources and render the current prototype scene |
 | `tests/grid_tests.cpp` | Headless grid topology and relaxation tests |
 | `tests/room_generation_tests.cpp` | Headless room connectivity, doorway, and determinism tests |
-| `tests/generated_level_tests.cpp` | Headless runtime artifact, floor, wall/door, spawn, and navigation tests |
+| `tests/generated_level_tests.cpp` | Headless runtime artifact, floor, wall/door, dynamic locking, lifecycle/reset, spawn, and navigation tests |
 | `tests/game_tests.cpp` | Headless 2D/arena collision, projectile ownership/profile/pool, weapon cadence, enemy determinism/damage, player damage/invulnerability, death, victory, and restart tests |
 
 ## Compact pseudocode
@@ -475,7 +476,7 @@ function relaxOnce():
 
 ## Current scope and limitations
 
-The generation demo intentionally focuses on a single understandable patch. The separate game executable now consumes generated layouts for exact floor rendering, closed wall collision, authorized doorway traversal, navigation, and Start spawning. It also preserves the deterministic combat regression arena with profile-separated projectile pools, swept combat collision, player health and invulnerability, death/victory restart, feedback, camera behavior, lighting, audio, and fixed-step timing. The project does not currently implement:
+The generation demo intentionally focuses on a single understandable patch. The separate game executable consumes generated layouts for exact floor rendering, closed wall collision, authorized doorway traversal, dynamic doorway locking, navigation, room lifecycle/location state, and Start spawning. It also preserves the deterministic combat regression arena with injectable walls, profile-separated projectile pools, swept combat collision, player health and invulnerability, death/victory restart, feedback, camera behavior, lighting, audio, and fixed-step timing. The project does not currently implement:
 
 - Infinite chunk generation.
 - Cross-chunk relaxation.

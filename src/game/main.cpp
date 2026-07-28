@@ -4,6 +4,7 @@
 #include "game_camera.hpp"
 #include "game_input.hpp"
 #include "generated_level.hpp"
+#include "level_session.hpp"
 #include "prototype_renderer.hpp"
 
 #include "raylib.h"
@@ -19,13 +20,6 @@ constexpr int WINDOW_WIDTH = 1280;
 constexpr int WINDOW_HEIGHT = 800;
 constexpr float FIXED_STEP_TIME = 1.0F / 120.0F;
 constexpr float MAX_FRAME_TIME = 0.05F;
-
-void placePlayerAtGeneratedSpawn(Player& player, const GeneratedLevel& level)
-{
-    player = Player {};
-    const Vector2 spawn = level.playerSpawn();
-    player.position = Vector3 { spawn.x, PLAYER_RADIUS, spawn.y };
-}
 
 } // namespace
 
@@ -47,19 +41,18 @@ int main()
         PrototypeRenderer renderer(level);
         CombatAudio combatAudio;
         Encounter encounter;
-        Player generatedPlayer;
-        placePlayerAtGeneratedSpawn(generatedPlayer, level);
-        Player previousGeneratedPlayer = generatedPlayer;
+        LevelSession levelSession(level);
+        Player previousGeneratedPlayer = levelSession.player();
         Player previousCombatPlayer = encounter.player;
         bool combatArenaActive = false;
 
-        Camera3D camera = makeGameCamera(generatedPlayer);
+        Camera3D camera = makeGameCamera(levelSession.player());
         Camera3D previousCamera = camera;
         Camera3D renderCamera = camera;
         Vector3 aimPoint {
-            generatedPlayer.position.x - 3.0F,
+            levelSession.player().position.x - 3.0F,
             0.0F,
-            generatedPlayer.position.z - 3.0F
+            levelSession.player().position.z - 3.0F
         };
         float accumulatedTime = 0.0F;
         bool restartQueued = false;
@@ -78,8 +71,8 @@ int main()
                     previousCombatPlayer = encounter.player;
                     camera = makeGameCamera(encounter.player);
                 } else {
-                    previousGeneratedPlayer = generatedPlayer;
-                    camera = makeGameCamera(generatedPlayer);
+                    previousGeneratedPlayer = levelSession.player();
+                    camera = makeGameCamera(levelSession.player());
                 }
                 previousCamera = camera;
                 renderCamera = camera;
@@ -96,7 +89,7 @@ int main()
                 if (combatArenaActive) {
                     previousCombatPlayer = encounter.player;
                     const EncounterStepResult result = updateEncounter(
-                        encounter, input, FIXED_STEP_TIME);
+                        encounter, input, FIXED_STEP_TIME, ARENA_WALLS);
                     if (result.restarted) {
                         previousCombatPlayer = encounter.player;
                         camera = makeGameCamera(encounter.player);
@@ -111,23 +104,17 @@ int main()
                     combatAudio.playPlayerDamage(result.playerDamage);
                     combatAudio.playEnemyDamage(result.enemyDamage);
                 } else {
-                    previousGeneratedPlayer = generatedPlayer;
-                    if (input.restartPressed) {
-                        placePlayerAtGeneratedSpawn(generatedPlayer, level);
-                        previousGeneratedPlayer = generatedPlayer;
-                        camera = makeGameCamera(generatedPlayer);
+                    previousGeneratedPlayer = levelSession.player();
+                    const LevelSessionStepResult result = updateLevelSession(
+                        levelSession, level, input, FIXED_STEP_TIME);
+                    if (result.reset) {
+                        previousGeneratedPlayer = levelSession.player();
+                        camera = makeGameCamera(levelSession.player());
                         previousCamera = camera;
                         combatAudio.playRestart();
                     } else {
-                        const Vector2 previousPosition {
-                            generatedPlayer.position.x,
-                            generatedPlayer.position.z
-                        };
-                        updatePlayer(generatedPlayer, input, FIXED_STEP_TIME);
-                        resolvePlayerWallCollisions(generatedPlayer,
-                            previousPosition, level.walls());
                         updateGameCamera(
-                            camera, generatedPlayer, FIXED_STEP_TIME);
+                            camera, levelSession.player(), FIXED_STEP_TIME);
                     }
                 }
 
@@ -149,10 +136,10 @@ int main()
                     interpolationAmount);
             } else {
                 const Player renderPlayer = interpolatePlayer(
-                    previousGeneratedPlayer, generatedPlayer,
+                    previousGeneratedPlayer, levelSession.player(),
                     interpolationAmount);
-                renderer.drawGenerated(
-                    renderCamera, renderPlayer, aimPoint, level);
+                renderer.drawGenerated(renderCamera, renderPlayer, aimPoint,
+                    level, levelSession);
             }
         }
     }

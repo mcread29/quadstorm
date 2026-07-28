@@ -381,8 +381,8 @@ CTest currently builds four headless test executables: two for generation, one f
 |---|---|
 | `stalberg_grid_tests` | Base mesh topology, repeatability, dual geometry, and relaxation |
 | `stalberg_room_generation_tests` | Adapter contract, all room methods, physical metadata, circulation, roles, scoring, and edge cases |
-| `stalberg_generated_level_tests` | Retained artifact alignment, exact floor area, authorized walls/doors, doorway clearance, Start spawn, and door-aware reachability |
-| `stalberg_game_tests` | Swept-circle queries, player wall faces/endpoints/corners/sliding, swept projectile-wall hits, outside-muzzle rejection, profile-separated pool ownership/reuse, muzzle position, fixed fire cadence, deterministic enemy movement/patterns, moving-enemy damage/defeat, player damage/invulnerability/death, interpolation freeze, and post-death/post-victory restart |
+| `stalberg_generated_level_tests` | Retained artifact alignment, exact floor area, authorized walls/doors, doorway clearance, dynamic lock collision/navigation, lifecycle/reset, Start spawn, and reachability |
+| `stalberg_game_tests` | Injected encounter walls, swept-circle queries, player wall faces/endpoints/corners/sliding, swept projectile-wall hits, outside-muzzle rejection, profile-separated pool ownership/reuse, muzzle position, fixed fire cadence, deterministic enemy movement/patterns, moving-enemy damage/defeat, player damage/invulnerability/death, interpolation freeze, and post-death/post-victory restart |
 
 Run:
 

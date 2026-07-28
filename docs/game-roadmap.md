@@ -93,7 +93,10 @@ The game runtime now provides:
 - One immutable `GeneratedLevel` package retaining `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout`.
 - Exact assigned dual-cell floor triangulation in a cached GPU mesh.
 - Closed wall geometry on floor/void boundaries and unauthorized cross-room contacts.
+- Retained exact doorway threshold segments for dynamic collision and rendering.
 - Open wall and navigation edges only for exact doorway cell pairs published by `RoomLayout`.
+- Separate mutable `LevelSession` state for traversal, room lifecycle/location, dynamic doorway locking, active walls, and reset.
+- Encounter updates parameterized by wall geometry while preserving the hard-coded arena overload.
 - A Start-room spawn selected from the room's highest-clearance cell.
 - A generated traversal view by default and the preserved hard-coded combat regression arena behind `F1`.
 - Headless tests for artifact alignment, floor area, wall/door authorization, doorway clearance, Start spawning, and complete door-aware floor reachability.
@@ -104,9 +107,9 @@ Acceptance check: the player can traverse a generated level through every author
 
 ### Milestone 7: encounters and room progression
 
-- Add room states: dormant, entered, locked, fighting, cleared, rewarded.
+- Drive the prepared room states: dormant, entered, locked, fighting, cleared, rewarded.
 - Filter the generator's enemy-spawn candidates for gameplay constraints.
-- Lock doors during encounters and reopen them after clearing.
+- Use retained doorway thresholds to lock doors during encounters and reopen them after clearing.
 - Treat generated room roles as structural hints; assign encounter and reward content in a separate pass.
 
 Acceptance check: a generated floor can be entered at Start, cleared room by room, and completed at Exit.

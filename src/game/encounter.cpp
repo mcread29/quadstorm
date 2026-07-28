@@ -28,6 +28,13 @@ void resetEncounter(Encounter& encounter)
 EncounterStepResult updateEncounter(
     Encounter& encounter, const PlayerInput& input, float stepTime)
 {
+    return updateEncounter(encounter, input, stepTime, ARENA_WALLS);
+}
+
+EncounterStepResult updateEncounter(Encounter& encounter,
+    const PlayerInput& input, float stepTime,
+    std::span<const Segment2D> walls)
+{
     EncounterStepResult result;
     if (!isPlayerAlive(encounter.player)
         || !isEnemyAlive(encounter.enemy)) {
@@ -53,13 +60,13 @@ EncounterStepResult updateEncounter(
     };
     updatePlayer(encounter.player, input, stepTime);
     resolvePlayerWallCollisions(
-        encounter.player, previousPlayerPosition, ARENA_WALLS);
+        encounter.player, previousPlayerPosition, walls);
 
     updateWeapon(encounter.weapon, encounter.playerProjectiles,
         encounter.player, input.fireHeld, stepTime);
     encounter.playerProjectiles.update(stepTime);
     resolveProjectileWallCollisions(
-        encounter.playerProjectiles, ARENA_WALLS);
+        encounter.playerProjectiles, walls);
 
     const Vector2 playerPosition {
         encounter.player.position.x,
@@ -68,7 +75,7 @@ EncounterStepResult updateEncounter(
     updateEnemyMovement(encounter.enemy, playerPosition, stepTime);
     resolveCircleWallCollisions(encounter.enemy.position,
         encounter.enemy.velocity, ENEMY_RADIUS,
-        encounter.enemy.previousPosition, ARENA_WALLS);
+        encounter.enemy.previousPosition, walls);
     result.enemyDamage = updateEnemyDamage(
         encounter.enemy, encounter.playerProjectiles, stepTime);
     updateTarget(
@@ -82,7 +89,7 @@ EncounterStepResult updateEncounter(
         encounter.enemyProjectiles, playerPosition, stepTime);
     encounter.enemyProjectiles.update(stepTime);
     resolveProjectileWallCollisions(
-        encounter.enemyProjectiles, ARENA_WALLS);
+        encounter.enemyProjectiles, walls);
     result.playerDamage = updatePlayerDamage(encounter.player,
         encounter.enemyProjectiles, previousPlayerPosition, stepTime);
     if (result.playerDamage == PlayerDamageResult::died) {

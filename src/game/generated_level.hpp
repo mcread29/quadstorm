@@ -29,6 +29,15 @@ struct FloorTriangle {
     int region = stalberg::rooms::EMPTY_CELL;
 };
 
+struct DoorwayThreshold {
+    std::size_t doorway = 0;
+    int firstRegion = stalberg::rooms::EMPTY_CELL;
+    stalberg::rooms::CellIndex firstCell = 0;
+    int secondRegion = stalberg::rooms::EMPTY_CELL;
+    stalberg::rooms::CellIndex secondCell = 0;
+    Segment2D segment {};
+};
+
 class GeneratedLevel {
 public:
     explicit GeneratedLevel(GeneratedLevelConfig config = {});
@@ -39,6 +48,10 @@ public:
     const stalberg::rooms::RoomLayout& roomLayout() const { return roomLayoutData; }
     std::span<const FloorTriangle> floorTriangles() const { return floors; }
     std::span<const Segment2D> walls() const { return wallSegments; }
+    std::span<const DoorwayThreshold> doorwayThresholds() const
+    {
+        return thresholds;
+    }
     std::span<const stalberg::rooms::CellIndex> traversableNeighbors(
         stalberg::rooms::CellIndex cell) const;
     bool canTraverse(stalberg::rooms::CellIndex first,
@@ -57,6 +70,7 @@ private:
     stalberg::rooms::RoomLayout roomLayoutData;
     std::vector<FloorTriangle> floors;
     std::vector<Segment2D> wallSegments;
+    std::vector<DoorwayThreshold> thresholds;
     std::vector<std::vector<stalberg::rooms::CellIndex>> navigation;
     Vector2 spawn {};
     stalberg::rooms::CellIndex spawnCell = 0;

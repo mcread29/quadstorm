@@ -185,6 +185,31 @@ GeneratedLevel::GeneratedLevel(GeneratedLevelConfig config)
         }
     }
 
+    const auto layoutDoorways = roomLayoutData.getDoorways();
+    thresholds.reserve(layoutDoorways.size());
+    for (std::size_t doorway = 0; doorway < layoutDoorways.size(); ++doorway) {
+        const stalberg::rooms::Doorway& source = layoutDoorways[doorway];
+        const auto cells = orderedPair(source.firstCell, source.secondCell);
+        const auto connection = std::ranges::find_if(
+            dualData.connections, [&](const stalberg::DualConnection& candidate) {
+                return orderedPair(candidate.cells.a, candidate.cells.b) == cells;
+            });
+        if (connection == dualData.connections.end()) {
+            throw std::runtime_error("generated doorway has no dual threshold");
+        }
+        thresholds.push_back(DoorwayThreshold {
+            doorway,
+            source.firstRegion,
+            source.firstCell,
+            source.secondRegion,
+            source.secondCell,
+            Segment2D {
+                toWorld(connection->first, scale),
+                toWorld(connection->second, scale)
+            }
+        });
+    }
+
     int startRegion = stalberg::rooms::EMPTY_CELL;
     for (const stalberg::rooms::GeneratedRoom& room : roomLayoutData.getRooms()) {
         if (room.role == stalberg::rooms::RoomRole::Start) {
