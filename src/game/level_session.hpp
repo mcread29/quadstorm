@@ -25,6 +25,7 @@ class LevelSession {
 public:
     explicit LevelSession(const GeneratedLevel& level);
 
+    Player& player() { return playerState; }
     const Player& player() const { return playerState; }
     std::optional<int> currentRoom() const { return currentRoomId; }
     std::optional<int> lockedRoom() const { return lockedRoomId; }

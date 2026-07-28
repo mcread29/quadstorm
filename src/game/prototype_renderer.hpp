@@ -1,5 +1,6 @@
 #pragma once
 
+#include "combat.hpp"
 #include "enemy.hpp"
 #include "generated_level.hpp"
 #include "level_session.hpp"
@@ -19,7 +20,8 @@ public:
 
     void drawGenerated(const Camera3D& camera, const Player& player,
         Vector3 aimPoint, const GeneratedLevel& level,
-        const LevelSession& session) const;
+        const LevelSession& session, const CombatState* combat,
+        bool floorComplete, float interpolationAmount) const;
     void drawCombat(const Camera3D& camera, const Player& player,
         Vector3 aimPoint, const ProjectilePool& playerProjectiles,
         const Target& target, const Enemy& enemy,

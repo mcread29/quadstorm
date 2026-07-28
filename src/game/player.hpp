@@ -35,6 +35,7 @@ enum class PlayerDamageResult {
 class ProjectilePool;
 
 void updatePlayer(Player& player, const PlayerInput& input, float stepTime);
+void updatePlayerEffects(Player& player, float stepTime);
 PlayerDamageResult updatePlayerDamage(Player& player,
     ProjectilePool& enemyProjectiles, Vector2 previousPlayerPosition,
     float stepTime);

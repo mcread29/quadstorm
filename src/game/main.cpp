@@ -3,6 +3,7 @@
 #include "encounter.hpp"
 #include "game_camera.hpp"
 #include "game_input.hpp"
+#include "generated_encounter.hpp"
 #include "generated_level.hpp"
 #include "level_session.hpp"
 #include "prototype_renderer.hpp"
@@ -42,6 +43,7 @@ int main()
         CombatAudio combatAudio;
         Encounter encounter;
         LevelSession levelSession(level);
+        GeneratedEncounterCoordinator generatedEncounter;
         Player previousGeneratedPlayer = levelSession.player();
         Player previousCombatPlayer = encounter.player;
         bool combatArenaActive = false;
@@ -105,9 +107,10 @@ int main()
                     combatAudio.playEnemyDamage(result.enemyDamage);
                 } else {
                     previousGeneratedPlayer = levelSession.player();
-                    const LevelSessionStepResult result = updateLevelSession(
-                        levelSession, level, input, FIXED_STEP_TIME);
-                    if (result.reset) {
+                    const GeneratedEncounterStepResult result
+                        = updateGeneratedEncounter(generatedEncounter,
+                            levelSession, level, input, FIXED_STEP_TIME);
+                    if (result.levelSession.reset) {
                         previousGeneratedPlayer = levelSession.player();
                         camera = makeGameCamera(levelSession.player());
                         previousCamera = camera;
@@ -116,6 +119,11 @@ int main()
                         updateGameCamera(
                             camera, levelSession.player(), FIXED_STEP_TIME);
                     }
+                    if (result.combat.enemyFired) {
+                        combatAudio.playEnemyShot();
+                    }
+                    combatAudio.playPlayerDamage(result.combat.playerDamage);
+                    combatAudio.playEnemyDamage(result.combat.enemyDamage);
                 }
 
                 restartQueued = false;
@@ -139,7 +147,10 @@ int main()
                     previousGeneratedPlayer, levelSession.player(),
                     interpolationAmount);
                 renderer.drawGenerated(renderCamera, renderPlayer, aimPoint,
-                    level, levelSession);
+                    level, levelSession,
+                    generatedEncounter.combatForRoom(
+                        levelSession.currentRoom()),
+                    generatedEncounter.floorIsComplete(), interpolationAmount);
             }
         }
     }

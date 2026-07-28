@@ -130,7 +130,8 @@ PrototypeRenderer::~PrototypeRenderer()
 
 void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     const Player& player, Vector3 aimPoint, const GeneratedLevel& level,
-    const LevelSession& session) const
+    const LevelSession& session, const CombatState* combat,
+    bool floorComplete, float interpolationAmount) const
 {
     BeginDrawing();
     ClearBackground(Color { 20, 31, 38, 255 });
@@ -142,6 +143,15 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     drawPlayerShadow(player);
     DrawSphere(Vector3 { aimPoint.x, 0.06F, aimPoint.z }, 0.12F,
         Color { 225, 241, 232, 210 });
+    if (combat != nullptr) {
+        drawEnemy(combat->enemy, interpolationAmount);
+        drawProjectiles(combat->playerProjectiles, interpolationAmount,
+            PLAYER_RADIUS, Color { 117, 226, 255, 255 },
+            Color { 117, 226, 255, 155 });
+        drawProjectiles(combat->enemyProjectiles, interpolationAmount,
+            PLAYER_RADIUS, Color { 255, 113, 74, 255 },
+            Color { 255, 174, 92, 175 });
+    }
     drawPlayer(player);
     EndMode3D();
 
@@ -151,20 +161,51 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
         ? level.roomLayout().getCellAssignment(*currentCell)
         : stalberg::rooms::EMPTY_CELL;
 
-    DrawRectangle(16, 16, 620, 132, Color { 8, 25, 30, 225 });
-    DrawText("GENERATED LEVEL RUNTIME", 28, 27, 22,
+    DrawRectangle(16, 16, 640, 174, Color { 8, 25, 30, 225 });
+    DrawText("GENERATED ROOM PROGRESSION", 28, 27, 22,
         Color { 225, 241, 232, 255 });
-    DrawText("WASD move  |  mouse aim  |  R reset  |  F1 combat arena",
+    DrawText("WASD move  |  mouse aim  |  hold LMB fire  |  R reset  |  F1 arena",
         28, 60, 17, Color { 151, 193, 190, 255 });
     DrawText(TextFormat("Rooms %i  |  doors %i  |  walls %i  |  room %i",
                  static_cast<int>(level.roomLayout().getRoomCount()),
                  static_cast<int>(level.roomLayout().getDoorways().size()),
                  static_cast<int>(session.activeWalls().size()), currentRegion),
         28, 91, 17, Color { 255, 231, 145, 255 });
+    if (combat != nullptr) {
+        DrawText(TextFormat("Health %i/%i  |  Enemy %i/%i  |  shots %i/%i",
+                     player.health, PLAYER_MAX_HEALTH,
+                     combat->enemy.health, ENEMY_MAX_HEALTH,
+                     static_cast<int>(combat->playerProjectiles.activeCount()),
+                     static_cast<int>(combat->enemyProjectiles.activeCount())),
+            28, 120, 17, Color { 255, 197, 121, 255 });
+    } else {
+        DrawText(TextFormat("Health %i/%i  |  room traversal active",
+                     player.health, PLAYER_MAX_HEALTH),
+            28, 120, 17, Color { 225, 241, 232, 255 });
+    }
     DrawText(TextFormat("Grid seed %u  |  room seed %u  |  quality %.1f",
                  level.grid().getSeed(), level.roomLayout().getSeed(),
                  level.roomLayout().getQualityScore()),
-        28, 120, 17, Color { 225, 241, 232, 255 });
+        28, 149, 17, Color { 225, 241, 232, 255 });
+    const char* statusMessage = nullptr;
+    Color statusColor { 255, 174, 92, 255 };
+    if (!isPlayerAlive(player)) {
+        statusMessage = "DEFEATED  -  press R to restart";
+    } else if (floorComplete) {
+        statusMessage = "EXIT REACHED  -  floor complete";
+        statusColor = Color { 151, 231, 190, 255 };
+    }
+    if (statusMessage != nullptr) {
+        constexpr int fontSize = 30;
+        const int messageWidth = MeasureText(statusMessage, fontSize);
+        DrawRectangle(GetScreenWidth() / 2 - messageWidth / 2 - 24,
+            GetScreenHeight() / 2 - 34, messageWidth + 48, 68,
+            Color { 8, 25, 30, 230 });
+        DrawText(statusMessage,
+            GetScreenWidth() / 2 - messageWidth / 2,
+            GetScreenHeight() / 2 - fontSize / 2, fontSize,
+            statusColor);
+    }
     DrawFPS(GetScreenWidth() - 96, 20);
 
     EndDrawing();

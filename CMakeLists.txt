@@ -80,11 +80,13 @@ enable_project_warnings(stalberg_grid)
 add_executable(stalberg_game
     src/game/arena.cpp
     src/game/collision_2d.cpp
+    src/game/combat.cpp
     src/game/combat_audio.cpp
     src/game/encounter.cpp
     src/game/enemy.cpp
     src/game/game_camera.cpp
     src/game/game_input.cpp
+    src/game/generated_encounter.cpp
     src/game/generated_level.cpp
     src/game/level_session.cpp
     src/game/main.cpp
@@ -116,10 +118,15 @@ if(BUILD_TESTING)
         tests/generated_level_tests.cpp
         src/game/arena.cpp
         src/game/collision_2d.cpp
+        src/game/combat.cpp
+        src/game/enemy.cpp
+        src/game/generated_encounter.cpp
         src/game/generated_level.cpp
         src/game/level_session.cpp
         src/game/player.cpp
         src/game/projectile_pool.cpp
+        src/game/target.cpp
+        src/game/weapon.cpp
     )
     target_include_directories(stalberg_generated_level_tests PRIVATE src)
     target_compile_features(stalberg_generated_level_tests PRIVATE cxx_std_20)
@@ -133,6 +140,7 @@ if(BUILD_TESTING)
         tests/game_tests.cpp
         src/game/arena.cpp
         src/game/collision_2d.cpp
+        src/game/combat.cpp
         src/game/encounter.cpp
         src/game/enemy.cpp
         src/game/player.cpp

@@ -90,6 +90,7 @@ LevelSessionStepResult updateLevelSession(LevelSession& session,
         session.playerState.position.x,
         session.playerState.position.z
     };
+    updatePlayerEffects(session.playerState, stepTime);
     updatePlayer(session.playerState, input, stepTime);
     resolvePlayerWallCollisions(session.playerState,
         previousPosition, session.activeWalls());

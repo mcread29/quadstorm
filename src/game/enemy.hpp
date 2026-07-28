@@ -1,8 +1,11 @@
 #pragma once
 
+#include "collision_2d.hpp"
 #include "projectile_pool.hpp"
 
 #include "raylib.h"
+
+#include <span>
 
 inline constexpr float ENEMY_RADIUS = 0.78F;
 inline constexpr int ENEMY_MAX_HEALTH = 20;
@@ -39,6 +42,9 @@ enum class EnemyDamageResult {
 void updateEnemyMovement(Enemy& enemy, Vector2 playerPosition, float stepTime);
 bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
     Vector2 playerPosition, float stepTime);
+bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
+    Vector2 playerPosition, float stepTime,
+    std::span<const Segment2D> walls);
 EnemyDamageResult updateEnemyDamage(Enemy& enemy,
     ProjectilePool& playerProjectiles, float stepTime);
 bool isEnemyAlive(const Enemy& enemy);

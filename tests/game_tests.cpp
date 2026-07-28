@@ -1,5 +1,6 @@
 #include "game/arena.hpp"
 #include "game/collision_2d.hpp"
+#include "game/combat.hpp"
 #include "game/encounter.hpp"
 #include "game/enemy.hpp"
 #include "game/projectile_pool.hpp"
@@ -219,6 +220,27 @@ bool playerSlidesAlongWalls()
                "sliding removes velocity into the wall")
         && check(nearlyEqual(player.velocity.y, 3.0F),
             "sliding preserves tangential velocity");
+}
+
+bool reusableCombatUpdatesACallerOwnedPlayer()
+{
+    constexpr std::array walls {
+        WallSegment { Vector2 { 1.0F, -5.0F }, Vector2 { 1.0F, 5.0F } }
+    };
+    Player player;
+    player.health = PLAYER_MAX_HEALTH - 1;
+    CombatState combat;
+    resetCombat(combat, Vector2 { -5.0F, -5.0F });
+    PlayerInput input;
+    input.movement = Vector2 { 1.0F, 0.0F };
+
+    updateCombat(combat, player, input, 0.1F, walls);
+
+    return check(nearlyEqual(player.position.x, 1.0F - PLAYER_RADIUS)
+            && player.health == PLAYER_MAX_HEALTH - 1,
+               "reusable combat directly updates its caller-owned player")
+        && check(nearlyEqual(combat.enemy.previousPosition.x, -5.0F),
+            "reusable combat starts from an injected deterministic enemy spawn");
 }
 
 bool encounterUsesSuppliedWallGeometry()
@@ -498,6 +520,34 @@ bool deathAndRestartResetEncounter()
     return valid;
 }
 
+bool blockedMuzzlesDropShotsAndConsumeCooldown()
+{
+    constexpr std::array walls {
+        WallSegment { Vector2 { 0.8F, -2.0F }, Vector2 { 0.8F, 2.0F } }
+    };
+    Player player;
+    player.facing = Vector2 { 1.0F, 0.0F };
+    Weapon weapon;
+    ProjectilePool playerProjectiles;
+    updateWeapon(weapon, playerProjectiles, player,
+        true, 1.0F / 120.0F, walls);
+
+    Enemy enemy;
+    enemy.position = Vector2 {};
+    enemy.previousPosition = enemy.position;
+    enemy.shotCooldownRemaining = 0.0F;
+    ProjectilePool enemyProjectiles(ENEMY_PROJECTILE_PROFILE);
+    const bool enemyFired = updateEnemyPattern(enemy, enemyProjectiles,
+        Vector2 { 5.0F, 0.0F }, 1.0F / 120.0F, walls);
+
+    return check(playerProjectiles.activeCount() == 0
+            && weapon.cooldownRemaining > 0.0F,
+               "a wall-blocked player muzzle drops the shot and consumes cooldown")
+        && check(!enemyFired && enemyProjectiles.activeCount() == 0
+                && enemy.shotCooldownRemaining > 0.0F,
+            "a wall-blocked enemy muzzle cannot emit through generated walls");
+}
+
 bool weaponUsesMuzzleAndFixedCadence()
 {
     constexpr float fixedStep = 1.0F / 120.0F;
@@ -538,6 +588,7 @@ int main()
     valid &= playerResolvesWallEndpoints();
     valid &= playerResolvesCornersIteratively();
     valid &= playerSlidesAlongWalls();
+    valid &= reusableCombatUpdatesACallerOwnedPlayer();
     valid &= encounterUsesSuppliedWallGeometry();
     valid &= projectileWallEndpointsAreSolid();
     valid &= fastProjectilesHitTheFirstWall();
@@ -548,6 +599,7 @@ int main()
     valid &= playerDamageRespectsInvulnerability();
     valid &= movingPlayerSweepsAgainstHostileProjectiles();
     valid &= deathAndRestartResetEncounter();
+    valid &= blockedMuzzlesDropShotsAndConsumeCooldown();
     valid &= weaponUsesMuzzleAndFixedCadence();
     return valid ? 0 : 1;
 }

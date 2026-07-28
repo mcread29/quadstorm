@@ -1,21 +1,13 @@
 #pragma once
 
-#include "collision_2d.hpp"
-#include "enemy.hpp"
-#include "player.hpp"
-#include "projectile_pool.hpp"
+#include "combat.hpp"
 #include "target.hpp"
-#include "weapon.hpp"
 
 #include <span>
 
-struct Encounter {
+struct Encounter : CombatState {
     Player player {};
-    Weapon weapon {};
-    ProjectilePool playerProjectiles {};
     Target target {};
-    Enemy enemy {};
-    ProjectilePool enemyProjectiles { ENEMY_PROJECTILE_PROFILE };
 };
 
 struct EncounterStepResult {

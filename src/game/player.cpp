@@ -81,14 +81,19 @@ void updatePlayer(Player& player, const PlayerInput& input, float stepTime)
     }
 }
 
-PlayerDamageResult updatePlayerDamage(Player& player,
-    ProjectilePool& enemyProjectiles, Vector2 previousPlayerPosition,
-    float stepTime)
+void updatePlayerEffects(Player& player, float stepTime)
 {
     player.invulnerabilityRemaining = std::max(
         0.0F, player.invulnerabilityRemaining - stepTime);
     player.hitFlashRemaining = std::max(
         0.0F, player.hitFlashRemaining - stepTime);
+}
+
+PlayerDamageResult updatePlayerDamage(Player& player,
+    ProjectilePool& enemyProjectiles, Vector2 previousPlayerPosition,
+    float stepTime)
+{
+    updatePlayerEffects(player, stepTime);
     if (!isPlayerAlive(player)) {
         return PlayerDamageResult::none;
     }

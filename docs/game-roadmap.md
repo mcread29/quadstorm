@@ -103,18 +103,20 @@ The game runtime now provides:
 
 Acceptance check: the player can traverse a generated level through every authorized doorway without crossing closed contacts or leaving the floor.
 
-## Next milestones
+### Milestone 7: encounters and room progression — complete
 
-### Milestone 7: encounters and room progression
+The generated runtime now provides:
 
-- Separate reusable combat state/update logic from regression `Encounter` player ownership so generated combat uses the authoritative `LevelSession` player.
-- Preserve `Encounter` as a deterministic hard-coded regression wrapper.
-- Drive the prepared room states: dormant, entered, locked, fighting, cleared, rewarded.
-- Filter the generator's enemy-spawn candidates for gameplay constraints.
-- Use retained doorway thresholds to lock doors during encounters and reopen them after clearing.
-- Treat generated room roles as structural hints; assign encounter and reward content in a separate pass.
+- Reusable caller-owned-player `CombatState` updates, with `Encounter` preserved as the deterministic hard-coded regression wrapper.
+- One deterministic encounter in entered `Combat` and `Hub` rooms using filtered generator spawn candidates.
+- Room transitions through entered, locked, fighting, and cleared states.
+- Exact retained doorway thresholds that close for collision, rendering, and traversal during combat and reopen on enemy defeat.
+- Generated combat rendering, audio events, player defeat/reset, and persistent authoritative player health.
+- Exit entry that marks the floor complete without introducing floor transitions or run state.
 
 Acceptance check: a generated floor can be entered at Start, cleared room by room, and completed at Exit.
+
+## Next milestone
 
 ### Milestone 8: roguelite run
 

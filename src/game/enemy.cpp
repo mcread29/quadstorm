@@ -79,8 +79,11 @@ void updateEnemyMovement(Enemy& enemy, Vector2 playerPosition, float stepTime)
     enemy.position.y += enemy.velocity.y * stepTime;
 }
 
-bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
-    Vector2 playerPosition, float stepTime)
+namespace {
+
+bool updateEnemyPatternState(Enemy& enemy, ProjectilePool& projectiles,
+    Vector2 playerPosition, float stepTime,
+    std::span<const Segment2D> walls, bool rejectBlockedMuzzle)
 {
     if (!isEnemyAlive(enemy)) {
         return false;
@@ -106,13 +109,37 @@ bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
         enemy.position.x + aimDirection.x * ENEMY_MUZZLE_DISTANCE,
         enemy.position.y + aimDirection.y * ENEMY_MUZZLE_DISTANCE
     };
+    const bool muzzleBlocked = rejectBlockedMuzzle
+        && earliestCircleSegmentHit(enemy.position, muzzle,
+            projectiles.profile().radius, walls)
+            .has_value();
     bool spawnedAny = false;
-    for (const float angle : std::array {
-             -ENEMY_SPREAD_ANGLE, 0.0F, ENEMY_SPREAD_ANGLE }) {
-        spawnedAny |= projectiles.spawn(muzzle, rotated(aimDirection, angle));
+    if (!muzzleBlocked) {
+        for (const float angle : std::array {
+                 -ENEMY_SPREAD_ANGLE, 0.0F, ENEMY_SPREAD_ANGLE }) {
+            spawnedAny |= projectiles.spawn(
+                muzzle, rotated(aimDirection, angle));
+        }
     }
     enemy.shotCooldownRemaining = ENEMY_SHOT_INTERVAL;
     return spawnedAny;
+}
+
+} // namespace
+
+bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
+    Vector2 playerPosition, float stepTime)
+{
+    return updateEnemyPatternState(enemy, projectiles,
+        playerPosition, stepTime, {}, false);
+}
+
+bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
+    Vector2 playerPosition, float stepTime,
+    std::span<const Segment2D> walls)
+{
+    return updateEnemyPatternState(enemy, projectiles,
+        playerPosition, stepTime, walls, true);
 }
 
 EnemyDamageResult updateEnemyDamage(Enemy& enemy,

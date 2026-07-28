@@ -1,3 +1,4 @@
+#include "game/generated_encounter.hpp"
 #include "game/generated_level.hpp"
 #include "game/level_session.hpp"
 #include "game/player.hpp"
@@ -219,6 +220,14 @@ bool sessionOwnsLifecycleAndDynamicDoorWalls(const GeneratedLevel& level)
                 level, threshold.firstCell, threshold.secondCell),
         "unlocking removes threshold collision and restores traversal");
 
+    session.player().invulnerabilityRemaining = 0.5F;
+    session.player().hitFlashRemaining = 0.4F;
+    updateLevelSession(session, level, PlayerInput {}, 0.1F);
+    valid &= check(nearlyEqual(
+                       session.player().invulnerabilityRemaining, 0.4F)
+            && nearlyEqual(session.player().hitFlashRemaining, 0.3F),
+        "player combat effect timers continue during generated traversal");
+
     PlayerInput resetInput;
     resetInput.restartPressed = true;
     const LevelSessionStepResult reset = updateLevelSession(
@@ -226,6 +235,208 @@ bool sessionOwnsLifecycleAndDynamicDoorWalls(const GeneratedLevel& level)
     valid &= check(reset.reset && !session.lockedRoom().has_value()
             && session.activeWalls().size() == level.walls().size(),
         "session reset restores lifecycle and open-door collision state");
+    return valid;
+}
+
+bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
+{
+    std::optional<int> encounterRoom;
+    std::optional<Vector2> playerPosition;
+    std::optional<Vector2> enemyPosition;
+    const auto assignments = level.roomLayout().getCellAssignments();
+    std::size_t encounterEntranceCount = 0;
+    std::size_t spawnableEntranceCount = 0;
+    for (const stalberg::rooms::GeneratedRoom& room
+        : level.roomLayout().getRooms()) {
+        if (room.role != stalberg::rooms::RoomRole::Combat
+            && room.role != stalberg::rooms::RoomRole::Hub) {
+            continue;
+        }
+        for (const DoorwayThreshold& doorway : level.doorwayThresholds()) {
+            CellIndex entryCell = 0;
+            if (doorway.firstRegion == room.id) {
+                entryCell = doorway.firstCell;
+            } else if (doorway.secondRegion == room.id) {
+                entryCell = doorway.secondCell;
+            } else {
+                continue;
+            }
+            ++encounterEntranceCount;
+            const Vector2 candidatePlayerPosition {
+                level.dualGrid().cells[entryCell].center.x * level.worldScale(),
+                level.dualGrid().cells[entryCell].center.y * level.worldScale()
+            };
+            const auto spawn = selectGeneratedEnemySpawn(
+                level, room.id, candidatePlayerPosition);
+            if (!spawn.has_value()) {
+                continue;
+            }
+            ++spawnableEntranceCount;
+            if (!encounterRoom.has_value()) {
+                encounterRoom = room.id;
+                playerPosition = candidatePlayerPosition;
+                enemyPosition = spawn;
+            }
+        }
+    }
+
+    bool valid = check(encounterEntranceCount > 0
+            && spawnableEntranceCount == encounterEntranceCount
+            && encounterRoom.has_value() && playerPosition.has_value()
+            && enemyPosition.has_value(),
+        "every generated Combat and Hub doorway entry has a filtered spawn");
+    if (!valid) {
+        return false;
+    }
+    const auto repeatedSpawn = selectGeneratedEnemySpawn(
+        level, *encounterRoom, *playerPosition);
+    valid &= check(repeatedSpawn.has_value()
+            && samePoint(*repeatedSpawn, *enemyPosition),
+        "enemy spawn selection is deterministic for the same room state");
+
+    LevelSession session(level);
+    GeneratedEncounterCoordinator coordinator;
+    const GeneratedEncounterStepResult startStep = updateGeneratedEncounter(
+        coordinator, session, level, PlayerInput {}, 1.0F / 120.0F);
+    valid &= check(!startStep.encounterStarted && !coordinator.isFighting(),
+        "the generated Start room remains traversal-only");
+    session.player().position = Vector3 {
+        playerPosition->x, PLAYER_RADIUS, playerPosition->y
+    };
+    session.player().health = PLAYER_MAX_HEALTH - 1;
+    const GeneratedEncounterStepResult entered = updateGeneratedEncounter(
+        coordinator, session, level, PlayerInput {}, 1.0F / 120.0F);
+    valid &= check(entered.encounterStarted
+            && coordinator.isFighting()
+            && coordinator.encounterRoom() == encounterRoom
+            && session.lockedRoom() == encounterRoom,
+        "entering a dormant combat room starts and locks its encounter");
+    valid &= check(session.roomStates()[static_cast<std::size_t>(*encounterRoom)]
+                == RoomLifecycleState::fighting
+            && session.activeWalls().size() > level.walls().size(),
+        "an active encounter advances lifecycle and closes doorway walls");
+    for (const DoorwayThreshold& doorway : level.doorwayThresholds()) {
+        if (doorway.firstRegion == *encounterRoom
+            || doorway.secondRegion == *encounterRoom) {
+            valid &= check(session.doorwayIsLocked(doorway.doorway)
+                    && hasWall(session.activeWalls(),
+                        doorway.segment.start, doorway.segment.end)
+                    && !session.canTraverse(
+                        level, doorway.firstCell, doorway.secondCell),
+                "generated combat locks every doorway incident to its room");
+        }
+    }
+    const CombatState* startedCombat = coordinator.activeCombat();
+    valid &= check(startedCombat != nullptr
+            && samePoint(startedCombat->enemy.position, *enemyPosition)
+            && session.player().health == PLAYER_MAX_HEALTH - 1,
+        "generated combat uses the session player and selected enemy spawn");
+
+    CombatState* combat = coordinator.activeCombat();
+    if (combat == nullptr) {
+        return false;
+    }
+    combat->enemy.health = 1;
+    combat->enemy.previousPosition = combat->enemy.position;
+    valid &= check(combat->playerProjectiles.spawn(
+                       combat->enemy.position, Vector2 { 1.0F, 0.0F }),
+        "a finishing player projectile can be staged in generated combat");
+    const GeneratedEncounterStepResult cleared = updateGeneratedEncounter(
+        coordinator, session, level, PlayerInput {}, 1.0F / 120.0F);
+    valid &= check(cleared.encounterCleared && !coordinator.isFighting()
+            && !session.lockedRoom().has_value()
+            && session.roomStates()[static_cast<std::size_t>(*encounterRoom)]
+                == RoomLifecycleState::cleared,
+        "enemy defeat clears the room and ends its active encounter");
+    valid &= check(session.activeWalls().size() == level.walls().size(),
+        "clearing generated combat reopens every retained room doorway");
+    for (const DoorwayThreshold& doorway : level.doorwayThresholds()) {
+        if (doorway.firstRegion == *encounterRoom
+            || doorway.secondRegion == *encounterRoom) {
+            valid &= check(!session.doorwayIsLocked(doorway.doorway)
+                    && session.canTraverse(
+                        level, doorway.firstCell, doorway.secondCell),
+                "cleared generated combat restores each room traversal edge");
+        }
+    }
+
+    PlayerInput resetInput;
+    resetInput.restartPressed = true;
+    const GeneratedEncounterStepResult reset = updateGeneratedEncounter(
+        coordinator, session, level, resetInput, 1.0F / 120.0F);
+    valid &= check(reset.levelSession.reset
+            && !coordinator.encounterRoom().has_value()
+            && session.player().health == PLAYER_MAX_HEALTH,
+        "generated restart resets both session and encounter coordinator state");
+
+    session.player().position = Vector3 {
+        playerPosition->x, PLAYER_RADIUS, playerPosition->y
+    };
+    const GeneratedEncounterStepResult reentered = updateGeneratedEncounter(
+        coordinator, session, level, PlayerInput {}, 1.0F / 120.0F);
+    CombatState* defeatCombat = coordinator.activeCombat();
+    valid &= check(reentered.encounterStarted && defeatCombat != nullptr,
+        "reset rooms can deterministically start their encounter again");
+    if (defeatCombat == nullptr) {
+        return false;
+    }
+    session.player().health = 1;
+    const Vector2 sessionPlayerPosition {
+        session.player().position.x,
+        session.player().position.z
+    };
+    defeatCombat->enemyProjectiles.spawn(
+        sessionPlayerPosition, Vector2 { 1.0F, 0.0F });
+    const GeneratedEncounterStepResult defeated = updateGeneratedEncounter(
+        coordinator, session, level, PlayerInput {}, 1.0F / 120.0F);
+    valid &= check(defeated.combat.playerDamage == PlayerDamageResult::died
+            && coordinator.isFighting()
+            && session.lockedRoom() == encounterRoom,
+        "generated player defeat freezes combat and leaves the room locked");
+
+    const GeneratedEncounterStepResult defeatReset = updateGeneratedEncounter(
+        coordinator, session, level, resetInput, 1.0F / 120.0F);
+    valid &= check(defeatReset.levelSession.reset
+            && !coordinator.isFighting()
+            && !session.lockedRoom().has_value(),
+        "restart recovers a defeated generated room without stale locks");
+
+    std::optional<int> exitRoom;
+    std::optional<Vector2> exitPosition;
+    for (const stalberg::rooms::GeneratedRoom& room
+        : level.roomLayout().getRooms()) {
+        if (room.role != stalberg::rooms::RoomRole::Exit) {
+            continue;
+        }
+        exitRoom = room.id;
+        for (CellIndex cell = 0; cell < assignments.size(); ++cell) {
+            if (assignments[cell] == room.id) {
+                exitPosition = Vector2 {
+                    level.dualGrid().cells[cell].center.x * level.worldScale(),
+                    level.dualGrid().cells[cell].center.y * level.worldScale()
+                };
+                break;
+            }
+        }
+        break;
+    }
+    if (!exitRoom.has_value() || !exitPosition.has_value()) {
+        return check(false, "generated progression has an Exit room");
+    }
+    session.player().position = Vector3 {
+        exitPosition->x, PLAYER_RADIUS, exitPosition->y
+    };
+    const GeneratedEncounterStepResult completed = updateGeneratedEncounter(
+        coordinator, session, level, PlayerInput {}, 1.0F / 120.0F);
+    valid &= check(completed.floorCompleted && coordinator.floorIsComplete()
+            && session.roomStates()[static_cast<std::size_t>(*exitRoom)]
+                == RoomLifecycleState::cleared,
+        "entering the generated Exit completes the cleared floor progression");
+
+    updateGeneratedEncounter(
+        coordinator, session, level, resetInput, 1.0F / 120.0F);
+    valid &= check(!coordinator.floorIsComplete(),
+        "generated restart clears floor-completion state");
     return valid;
 }
 
@@ -287,6 +498,7 @@ int main()
     valid &= navigationOpensOnlyPublishedDoorways(level);
     valid &= wallsCloseEveryUnauthorizedDualBoundary(level);
     valid &= sessionOwnsLifecycleAndDynamicDoorWalls(level);
+    valid &= generatedCombatLocksClearsAndReopensRoom(level);
     valid &= spawnAndNavigationReachAllFloor(level);
     return valid ? 0 : 1;
 }
