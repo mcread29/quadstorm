@@ -26,7 +26,7 @@ The generator works over the irregular dual-cell graph produced by the Stålberg
 
 The goals above describe valid shooter circulation, but the implemented planner still relies primarily on one noise-perturbed spatial tree, at most one loop, at least one explicit connector, and the same compact growth process for most arenas. Direct arena links, dense clusters, and landmark-sized arenas provide some contrast, yet representative runtime layouts can still read as alternating arena/connector chains whose substantial rooms have similar silhouettes.
 
-The immediate pass in [`level-identity-pass.md`](level-identity-pass.md) will choose an explicit topology archetype before routing, validate graph signatures and anti-alternation metrics, assign a separate room-shape grammar, publish deterministic landmark anchors, and expose the complete layout in a runtime overview/seed browser. These are planned changes; the pipeline documented below remains the authoritative current implementation until that pass lands.
+The first pass slice now exposes the complete runtime layout and six fixed read-only representative configurations in the F2 developer overview. The remaining work in [`level-identity-pass.md`](level-identity-pass.md) will choose an explicit topology archetype before routing, validate graph signatures and anti-alternation metrics, assign a separate room-shape grammar, and publish deterministic landmark anchors. The pipeline documented below remains the authoritative current generator implementation until those structural slices land.
 
 ### Horde-map interpretation
 

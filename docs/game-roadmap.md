@@ -149,12 +149,12 @@ Acceptance check: a generated floor can be entered at Start, cleared room by roo
 
 Acceptance check: several generated enemies coexist and can be defeated deterministically in one locked room while the player moves, dashes, and fires without crossing walls or losing shots at encounter transitions.
 
-### Milestone 8B: level identity and legibility — next
+### Milestone 8B: level identity and legibility — in progress
 
 The current generator is physically valid but often reads as an alternating arena/connector chain, substantial rooms share similar compact growth, and the runtime follow camera hides the complete layout. Complete the pass in [`level-identity-pass.md`](level-identity-pass.md) before adding more crowd systems.
 
-- Add a full-level runtime overview and deterministic representative-seed browser.
-- Select and publish strong map-level topology archetypes before physical routing.
+- **Complete:** add a fitted full-level runtime overview and read-only deterministic representative-seed browser.
+- **Next:** select and publish strong map-level topology archetypes before physical routing.
 - Penalize repetitive room/connector alternation and weak graph signatures.
 - Add explicit room-shape grammar and geometry validation.
 - Add role-, shape-, and district-driven semantic anchors and landmarks.

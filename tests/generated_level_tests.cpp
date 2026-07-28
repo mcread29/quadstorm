@@ -589,6 +589,65 @@ bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
     return valid;
 }
 
+bool spawnAndNavigationReachAllFloor(const GeneratedLevel& level);
+
+bool representativeConfigurationsRemainValid()
+{
+    bool valid = check(!REPRESENTATIVE_LEVEL_CONFIGS.empty(),
+        "the runtime seed browser publishes representative configurations");
+    std::vector<std::vector<int>> publishedAssignments;
+    for (std::size_t index = 0;
+         index < REPRESENTATIVE_LEVEL_CONFIGS.size(); ++index) {
+        const GeneratedLevelConfig& config
+            = REPRESENTATIVE_LEVEL_CONFIGS[index];
+        for (std::size_t other = 0; other < index; ++other) {
+            const GeneratedLevelConfig& candidate
+                = REPRESENTATIVE_LEVEL_CONFIGS[other];
+            valid &= check(config.gridRadius != candidate.gridRadius
+                    || config.gridSeed != candidate.gridSeed
+                    || config.roomSeed != candidate.roomSeed,
+                "representative browser configurations are unique");
+        }
+
+        const GeneratedLevel level(config);
+        valid &= check(level.grid().getRadius() == config.gridRadius
+                && level.grid().getSeed() == config.gridSeed
+                && level.roomLayout().getSeed() == config.roomSeed,
+            "representative browser configuration metadata remains exact");
+        valid &= check(level.roomLayout().getRoomCount() > 0
+                && std::isfinite(level.roomLayout().getQualityScore())
+                && level.roomLayout().getQualityScore() > 0.0F,
+            "every representative browser configuration generates a valid layout");
+        const auto assignments = level.roomLayout().getCellAssignments();
+        const std::vector<int> published(
+            assignments.begin(), assignments.end());
+        for (const std::vector<int>& previous : publishedAssignments) {
+            valid &= check(published != previous,
+                "representative browser layouts have distinct assignments");
+        }
+        publishedAssignments.push_back(published);
+
+        valid &= packageRetainsAlignedGeneratorArtifacts(level);
+        valid &= floorsTriangulateExactlyAssignedPolygons(level);
+        valid &= navigationOpensOnlyPublishedDoorways(level);
+        valid &= wallsHaveStableCanonicalOrder(level);
+        valid &= wallsCloseEveryUnauthorizedDualBoundary(level);
+        valid &= sessionOwnsLifecycleAndDynamicDoorWalls(level);
+        valid &= spawnAndNavigationReachAllFloor(level);
+
+        const GeneratedLevel repeated(config);
+        valid &= check(std::ranges::equal(
+                           level.roomLayout().getCellAssignments(),
+                           repeated.roomLayout().getCellAssignments())
+                && level.roomLayout().getSelectedCandidate()
+                    == repeated.roomLayout().getSelectedCandidate()
+                && level.roomLayout().getQualityScore()
+                    == repeated.roomLayout().getQualityScore(),
+            "representative browser configurations remain deterministic");
+    }
+    return valid;
+}
+
 bool spawnAndNavigationReachAllFloor(const GeneratedLevel& level)
 {
     const CellIndex spawn = level.playerSpawnCell();
@@ -650,6 +709,7 @@ int main()
     valid &= sessionOwnsLifecycleAndDynamicDoorWalls(level);
     valid &= generatedTraversalAllowsPlayerFire(level);
     valid &= generatedCombatLocksClearsAndReopensRoom(level);
+    valid &= representativeConfigurationsRemainValid();
     valid &= spawnAndNavigationReachAllFloor(level);
     return valid ? 0 : 1;
 }

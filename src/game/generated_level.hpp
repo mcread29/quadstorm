@@ -8,6 +8,7 @@
 
 #include "raylib.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -20,6 +21,17 @@ struct GeneratedLevelConfig {
     std::uint32_t roomSeed = 1;
     float worldScale = 0.16F;
 };
+
+// Fixed read-only browser matrix; the first entry also configures the active level.
+inline constexpr std::array<GeneratedLevelConfig, 6>
+    REPRESENTATIVE_LEVEL_CONFIGS {{
+        { 6, 1, 1, 0.16F },
+        { 6, 7, 19, 0.16F },
+        { 6, 23, 41, 0.16F },
+        { 8, 3, 17, 0.16F },
+        { 8, 29, 73, 0.16F },
+        { 10, 11, 5, 0.16F },
+    }};
 
 struct FloorTriangle {
     Vector2 first {};

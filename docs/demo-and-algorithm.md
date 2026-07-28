@@ -489,7 +489,7 @@ The generation demo intentionally focuses on a single understandable patch. The 
 - Explicit square-fitting forces.
 - Face-quality optimization after relaxation.
 - Crowd navigation, local separation, wave pacing, or round phases.
-- A runtime full-level overview/seed browser, explicit topology archetypes, published room-shape grammar, semantic landmark anchors, or cross-seed structural-diversity acceptance.
+- Explicit topology archetypes, published room-shape grammar, semantic landmark anchors, or cross-seed structural-diversity acceptance. The runtime full-level overview and fixed read-only seed browser are implemented.
 - Persistent gates, economy, services, objectives, quests, bosses, or extraction.
 - Mesh export.
 - General-purpose three-dimensional asset extrusion beyond runtime floor and wall geometry.

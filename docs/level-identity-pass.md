@@ -8,9 +8,10 @@ For the implemented generator pipeline, see [`shooter-level-generation.md`](shoo
 
 ## Current baseline
 
-- The game constructs the default `GeneratedLevelConfig`: radius 6, grid seed 1, and room seed 1.
-- The game camera follows the player and has no whole-level overview or tactical map.
-- The separate `stalberg_grid` diagnostic can fit the generated grid to its window, but it does not provide the runtime floor, wall, doorway-lock, encounter, or landmark view.
+- The active game constructs the default `GeneratedLevelConfig`: radius 6, grid seed 1, and room seed 1.
+- The gameplay camera follows the player. F2 now opens a developer whole-level overview with exact runtime floor, boundaries, role/ID labels, the published room graph, open/locked thresholds, role markers, player position, and generator metadata.
+- Left/Right browses six fixed representative configurations as read-only previews; Home returns to the active session. Preview browsing pauses and never replaces or mutates the active simulation.
+- Until later slices publish archetype and room-shape metadata, the overview explicitly labels the current derived topology and compact/routed baseline rather than pretending the planned grammar already exists.
 - Shooter mission graphs are primarily a spatial tree with at most one deliberate loop.
 - At least one explicit connector is required; long routed edges become connector regions.
 - Direct arena links and occasional dense clusters already exist, but the generator does not select or validate a strong map-level topology archetype.
@@ -28,9 +29,9 @@ The identity pass must preserve deterministic generation, exact dual geometry, a
 5. **Runtime landmarks use semantic anchors, never hand-authored world coordinates.**
 6. **The overview is an iteration tool first.** A later player-facing map may add discovery or fog rules without weakening the debug view.
 
-## Slice 1: full-level overview and seed browser
+## Slice 1: full-level overview and seed browser — complete
 
-Add a runtime debug view that fits the complete generated floor onscreen and exposes the structure hidden by the follow camera.
+The runtime debug view fits the complete generated floor onscreen and exposes the structure hidden by the follow camera.
 
 It should show:
 
@@ -42,7 +43,7 @@ It should show:
 - Locked versus open thresholds when viewing an active session.
 - Controls to move through a deterministic set of representative configurations without changing seeds implicitly during simulation.
 
-The first version is a developer view, not the final player map. It may reveal the complete layout. If a player-facing tactical map is added later, unexplored-room rules should be layered separately.
+The first version is a developer view, not the final player map. It reveals the complete layout. The fixed browser configurations live in `REPRESENTATIVE_LEVEL_CONFIGS`, and generated-level tests ensure that each remains unique, deterministic, and valid. If a player-facing tactical map is added later, unexplored-room rules should be layered separately.
 
 ## Slice 2: topology archetypes
 

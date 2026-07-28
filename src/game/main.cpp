@@ -15,6 +15,7 @@
 #endif
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <exception>
 #include <memory>
@@ -46,6 +47,31 @@ public:
 
     void frame()
     {
+        if (IsKeyPressed(KEY_F2)) {
+            overviewActive = !overviewActive;
+            restartQueued = false;
+            dashQueued = false;
+            accumulatedTime = 0.0F;
+        }
+        if (overviewActive) {
+            if (IsKeyPressed(KEY_HOME)) {
+                selectOverviewConfiguration(0);
+            } else if (IsKeyPressed(KEY_LEFT)) {
+                const std::size_t previous = overviewConfiguration == 0
+                    ? REPRESENTATIVE_LEVEL_CONFIGS.size() - 1
+                    : overviewConfiguration - 1;
+                selectOverviewConfiguration(previous);
+            } else if (IsKeyPressed(KEY_RIGHT)) {
+                selectOverviewConfiguration((overviewConfiguration + 1)
+                    % REPRESENTATIVE_LEVEL_CONFIGS.size());
+            }
+            const GeneratedLevel& overviewLevel = selectedOverviewLevel();
+            renderer.drawGeneratedOverview(overviewLevel,
+                overviewConfiguration == 0 ? &levelSession : nullptr,
+                overviewConfiguration, REPRESENTATIVE_LEVEL_CONFIGS.size());
+            return;
+        }
+
         const float frameTime = std::min(GetFrameTime(), MAX_FRAME_TIME);
         accumulatedTime += frameTime;
 
@@ -115,7 +141,7 @@ public:
     }
 
 private:
-    GeneratedLevel level;
+    GeneratedLevel level { REPRESENTATIVE_LEVEL_CONFIGS.front() };
     PrototypeRenderer renderer;
     CombatAudio combatAudio;
     Encounter encounter;
@@ -125,6 +151,9 @@ private:
     Player previousCombatPlayer;
     bool combatArenaActive = false;
     bool showDebug = false;
+    bool overviewActive = false;
+    std::size_t overviewConfiguration = 0;
+    std::unique_ptr<GeneratedLevel> overviewPreview;
     Camera3D camera;
     Camera3D previousCamera;
     Camera3D renderCamera;
@@ -132,6 +161,22 @@ private:
     float accumulatedTime = 0.0F;
     bool restartQueued = false;
     bool dashQueued = false;
+
+    void selectOverviewConfiguration(std::size_t configuration)
+    {
+        overviewConfiguration = configuration;
+        if (overviewConfiguration == 0) {
+            overviewPreview.reset();
+            return;
+        }
+        overviewPreview = std::make_unique<GeneratedLevel>(
+            REPRESENTATIVE_LEVEL_CONFIGS[overviewConfiguration]);
+    }
+
+    const GeneratedLevel& selectedOverviewLevel() const
+    {
+        return overviewPreview != nullptr ? *overviewPreview : level;
+    }
 
     void updateCombatArena(const PlayerInput& input)
     {
@@ -202,6 +247,9 @@ int main()
     // which diverges from the letterboxed canvas and offsets mouse input.
     SetConfigFlags(windowFlags);
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Stalberg game prototype");
+#if !defined(PLATFORM_WEB)
+    SetWindowMinSize(900, 600);
+#endif
 
     std::unique_ptr<GameApplication> application;
     try {

@@ -539,4 +539,4 @@ Use this order:
 
 The diagnostic HUD already displays room seed, doorway count, quality score, and selected candidate index for quick visual diagnosis.
 
-For a valid but repetitive layout, do not merely cycle seeds until one looks better. Once the planned runtime overview/seed browser lands, inspect the published topology archetype, direct-arena edge ratio, longest arena/connector alternation, degree/cycle signature, room-shape histogram, district/landmark anchors, and cross-seed similarity report. Capture the poor signature as a deterministic diversity regression before changing construction or score weights.
+For a valid but repetitive layout, do not merely cycle seeds until one looks better. Use F2 and the fixed read-only representative browser to inspect the complete silhouette, room graph, thresholds, baseline topology, and generator metadata. As later identity slices publish archetypes, anti-alternation metrics, room-shape histograms, district/landmark anchors, and cross-seed similarity reports, expose those in the same overview and capture poor signatures as deterministic diversity regressions before changing construction or score weights.

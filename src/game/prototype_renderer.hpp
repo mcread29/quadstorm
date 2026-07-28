@@ -11,6 +11,8 @@
 
 #include "raylib.h"
 
+#include <cstddef>
+
 class PrototypeRenderer {
 public:
     explicit PrototypeRenderer(const GeneratedLevel& level);
@@ -25,6 +27,9 @@ public:
         const ProjectilePool& playerProjectiles,
         const GeneratedCombatState* combat,
         bool floorComplete, float interpolationAmount, bool showDebug) const;
+    void drawGeneratedOverview(const GeneratedLevel& level,
+        const LevelSession* session, std::size_t selectedConfiguration,
+        std::size_t configurationCount) const;
     void drawCombat(const Camera3D& camera, const Player& player,
         Vector3 aimPoint, const ProjectilePool& playerProjectiles,
         const Target& target, const Enemy& enemy,
