@@ -5,6 +5,7 @@ This document describes the renderer-independent contract between grid generatio
 - Shooter algorithm: [`shooter-level-generation.md`](shooter-level-generation.md)
 - Validation, scoring, retries, and tests: [`layout-quality-and-testing.md`](layout-quality-and-testing.md)
 - Base quad-grid algorithm: [`demo-and-algorithm.md`](demo-and-algorithm.md)
+- Planned identity metadata and runtime consumption: [`level-identity-pass.md`](level-identity-pass.md)
 
 ## Module boundary
 
@@ -321,6 +322,12 @@ Roles:
 
 Shooter layouts normalize planned arena and corridor roles after common annotation. `Reward` is not currently assigned to shooter arenas.
 
+### Planned identity metadata
+
+`RoomRole` must remain a semantic gameplay classification; it should not be overloaded to describe geometry. The next identity pass is expected to publish an independent map topology archetype and room-shape grammar, plus deterministic semantic anchors for focal landmarks, doorway-facing presentation, perimeter features, or central obstructions. Exact fields are not part of the current API yet and must be introduced with deterministic generation and alignment tests.
+
+A layout archetype describes graph structure across rooms. A room shape describes the generated geometry of one substantial room. District or landmark metadata describes presentation/gameplay grouping. These concepts remain separate so, for example, two `Combat` rooms can have different shapes and landmarks without inventing new gameplay roles.
+
 ### Doorways
 
 ```cpp
@@ -359,7 +366,7 @@ Connected entrances are not `Doorway` objects. They do not include an exterior s
 
 ## Gameplay consumption
 
-> Runtime status: `stalberg_game` consumes the complete generation chain through an immutable `GeneratedLevel` package, renders exact assigned dual-cell floors, retains exact doorway threshold segments, publishes door-aware navigation, and spawns the player in Start. A separate mutable `LevelSession` owns the authoritative generated player, room lifecycle/location, and doorway collision/traversal locks. `GeneratedEncounterCoordinator` keeps generated-player firing active during traversal, preserves in-flight shots when combat starts, filters the published tactical candidates, activates one deterministic enemy in entered `Combat` and `Hub` rooms, closes every incident threshold while fighting, reopens them on clear, freezes locked combat on player defeat, and marks the floor complete at Exit. The intended round-based horde game keeps one generated map active for a complete match: doorway thresholds become purchasable and objective-lockable gates, room roles become persistent map landmarks, enemy spawn candidates feed deterministic waves, and cover and geometry support crowd routing, machinery, quests, Easter eggs, wonder weapons, and a finale. Reusable `CombatState` updates and the hard-coded `F1` arena remain regression foundations; see [`game-roadmap.md`](game-roadmap.md) for the complete game concept and [`game-handoff.md`](game-handoff.md) for the current boundary.
+> Runtime status: `stalberg_game` consumes the complete generation chain through an immutable `GeneratedLevel` package, renders exact assigned dual-cell floors, retains exact doorway threshold segments, publishes door-aware navigation, and spawns the player in Start. A separate mutable `LevelSession` owns the authoritative generated player, room lifecycle/location, and doorway collision/traversal locks. `GeneratedEncounterCoordinator` keeps generated-player firing active during traversal, preserves in-flight shots when combat starts, filters the published tactical candidates, activates up to three deterministic stable-ID enemies in entered `Combat` and `Hub` rooms, closes every incident threshold until all are defeated, reopens them on clear, freezes locked combat on player defeat, and marks the floor complete at Exit. The immediate [`level-identity-pass.md`](level-identity-pass.md) work adds a runtime whole-map overview, explicit topology and room-shape metadata, semantic landmark anchors, and diversity validation before crowd navigation continues. The intended round-based horde game keeps one generated map active for a complete match: doorway thresholds become purchasable and objective-lockable gates, room roles become persistent map landmarks, enemy spawn candidates feed deterministic waves, and cover and geometry support crowd routing, machinery, quests, Easter eggs, wonder weapons, and a finale. Regression `CombatState` updates and the hard-coded `F1` arena remain foundations; see [`game-roadmap.md`](game-roadmap.md) for the complete game concept and [`game-handoff.md`](game-handoff.md) for the current boundary.
 
 ### Walkability
 

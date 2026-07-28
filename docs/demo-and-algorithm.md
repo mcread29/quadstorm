@@ -9,8 +9,9 @@ Room-generation details are split into focused documents:
 - [`room-generation-model.md`](room-generation-model.md) — physical neutral input and output API.
 - [`shooter-level-generation.md`](shooter-level-generation.md) — complete graph-first shooter pipeline.
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
+- [`level-identity-pass.md`](level-identity-pass.md) — planned topology archetypes, room-shape grammar, runtime overview, and landmark pass.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently consumes the complete generation chain through immutable `GeneratedLevel` geometry and mutable `LevelSession` state, renders exact assigned dual-cell floors, retains lockable doorway thresholds, closes unauthorized contacts, builds matching navigation, and spawns the player in Start. The player can dash and fire throughout traversal. `GeneratedEncounterCoordinator` preserves that weapon/projectile state while activating one deterministic enemy in entered `Combat` and `Hub` rooms, driving doorway locking and room clearing against the authoritative session player, and marking the floor complete at Exit. The intended game turns one such generated layout into a persistent round-based horde map: thresholds become purchasable gates, room roles become machinery and quest landmarks, common enemies move as crowds across opened routes, and elites and bosses add readable bullet-hell patterns. The hard-coded deterministic arena remains available through `F1` as a separate regression wrapper.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently consumes the complete generation chain through immutable `GeneratedLevel` geometry and mutable `LevelSession` state, renders exact assigned dual-cell floors, retains lockable doorway thresholds, closes unauthorized contacts, builds matching navigation, and spawns the player in Start. The player can dash and fire throughout traversal. `GeneratedEncounterCoordinator` preserves that weapon/projectile state while activating up to three deterministic stable-ID enemies in entered `Combat` and `Hub` rooms, keeping doorways locked until the collection is defeated, and marking the floor complete at Exit. The intended game turns one such generated layout into a persistent round-based horde map: thresholds become purchasable gates, room roles become machinery and quest landmarks, common enemies move as crowds across opened routes, and elites and bosses add readable bullet-hell patterns. The hard-coded deterministic arena remains available through `F1` as a separate regression wrapper.
 
 ## Overview
 
@@ -351,6 +352,8 @@ Interior dual-cell polygons are formed by angularly ordering the centers of all 
 
 The default **shooter layout** starts with an abstract mission graph. It anchors start and exit arenas near well-separated selected boundary entrances, distributes additional arena seeds using farthest-point sampling, and grows compact combat rooms around them while retaining negative space. A noise-perturbed Prim-like spatial tree creates the main route and side branches; maps with enough routing capacity may receive one deliberate long-cycle loop. Each planned edge is routed through unoccupied cells with physical costs that penalize low clearance and narrow portals. Longer routes become separate connector rooms and gain lateral cells where space allows. Links shorter than an arena's approximate diameter are folded into an endpoint arena and become direct arena doorways, avoiding a separate tiny connector for every mission-graph edge. At least one route remains an explicit connector, while additional connector identities are reserved for long passages. Opportunistic widening does not mathematically guarantee that every connector is narrower than every arena. Only planned arena/corridor contacts become logical doorways, so incidental physical contact cannot introduce an unintended shortcut.
 
+That pipeline is the current implementation, not the endpoint for map identity. In practice, the spatial tree, required connector, compact arena growth, and player-follow runtime camera can make layouts read as variations of arena → corridor → arena without exposing a memorable whole-map silhouette. The next pass adds a runtime full-level overview, chooses explicit topology archetypes before routing, publishes distinct room-shape grammar, and adds semantic landmark anchors and cross-seed diversity checks. See [`level-identity-pass.md`](level-identity-pass.md).
+
 The legacy **branching shapes** method starts with a central room, uses geometric compact, elongated, branching, irregular, and L-shaped masks, and extends radial branches. The **organic growth** method joins the selected entrances to the center, expands a noisy footprint balanced across six angular sectors, and partitions it with weighted multi-source growth. These legacy methods use a quality-weighted spanning tree plus a bounded loop budget over their resulting room contacts.
 
 All methods select uniformly from every concrete subset containing three to six candidate entrances. There are 20 three-side, 15 four-side, 6 five-side, and 1 six-side subsets, so those counts occur in a proportional 20:15:6:1 ratio. The selected entrance brief remains fixed while several deterministic candidates are generated and scored. Every accepted layout has connected multi-cell regions, distinct start and exit rooms, intentional negative space, and no more than 64 rooms. Each doorway publishes physical width and quality. Rooms publish physical area and a gameplay role: start, exit, combat, connector, hub, or reward. A tactical annotation pass marks wall-adjacent cover candidates and enemy-spawn candidates away from published internal doorway thresholds. Exterior connected entrances require separate downstream filtering. The diagnostic renderer still keeps boundaries visually continuous and rounds the resulting outlines.
@@ -407,10 +410,11 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/game/main.cpp` | Run the fixed-step 2.5D traversal/combat loop and compose runtime modules |
 | `src/game/generated_level.*` | Retain generation artifacts and build exact floors, walls, doorway thresholds, navigation, and Start spawn |
 | `src/game/level_session.*` | Own mutable traversal, room lifecycle/location, dynamic doorway locks, active walls, and reset |
-| `src/game/generated_encounter.*` | Keep generated-player firing active, preserve shots across room activation, and coordinate generated encounter locking/clearing |
-| `src/game/combat.*` | Update caller-owned players, weapons, enemies, and projectile pools against injected walls |
+| `src/game/generated_encounter.*` | Keep generated-player firing active, preserve shots across room activation, filter deterministic multi-spawns, and coordinate collection locking/clearing |
+| `src/game/combat.*` | Promote player attack state and update caller-owned regression players, enemies, and projectile pools against injected walls |
 | `src/game/encounter.*` | Order regression-arena combat against injected walls and reset the complete encounter deterministically |
-| `src/game/enemy.*` | Enemy movement, health, damage, fan pattern, and hostile projectile profile |
+| `src/game/enemy.*` | Enemy movement, health, single-enemy damage, fan pattern, and hostile projectile profile |
+| `src/game/enemy_collection.*` | Stable enemy identities/order, collection movement/firing, earliest swept-hit selection, and all-defeated queries |
 | `src/game/combat_audio.*` | Own the audio device and generated combat tones |
 | `src/game/arena.*` | Define arena walls and resolve circle/projectile wall collision |
 | `src/game/collision_2d.*` | Reusable swept-circle, segment, earliest-hit, and containment queries |
@@ -423,8 +427,8 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/game/prototype_renderer.*` | Own game GPU resources and render the current prototype scene |
 | `tests/grid_tests.cpp` | Headless grid topology and relaxation tests |
 | `tests/room_generation_tests.cpp` | Headless room connectivity, doorway, and determinism tests |
-| `tests/generated_level_tests.cpp` | Headless runtime artifact, floor, wall/door, dynamic locking, lifecycle/reset, traversal firing/preservation, spawn, and navigation tests |
-| `tests/game_tests.cpp` | Headless dash/wall collision, projectile ownership/profile/pool, weapon cadence, enemy determinism/damage, player damage/invulnerability, death, victory, and restart tests |
+| `tests/generated_level_tests.cpp` | Headless runtime artifact, floor, wall/door, dynamic locking, lifecycle/reset, traversal firing/preservation, deterministic multi-spawn/identity, partial/all-enemies clear, hostile cleanup, and navigation tests |
+| `tests/game_tests.cpp` | Headless dash/wall collision, projectile ownership/profile/pool, weapon cadence, single-enemy and collection determinism/damage, earliest-hit/identity tie-breaking, simultaneous defeat, closed-wall containment, player damage/invulnerability, death, victory, and restart tests |
 
 ## Compact pseudocode
 
@@ -484,7 +488,8 @@ The generation demo intentionally focuses on a single understandable patch. The 
 - Cross-chunk relaxation.
 - Explicit square-fitting forces.
 - Face-quality optimization after relaxation.
-- Enemy collections, crowd navigation, wave pacing, or round phases.
+- Crowd navigation, local separation, wave pacing, or round phases.
+- A runtime full-level overview/seed browser, explicit topology archetypes, published room-shape grammar, semantic landmark anchors, or cross-seed structural-diversity acceptance.
 - Persistent gates, economy, services, objectives, quests, bosses, or extraction.
 - Mesh export.
 - General-purpose three-dimensional asset extrusion beyond runtime floor and wall geometry.

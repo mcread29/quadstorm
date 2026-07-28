@@ -302,7 +302,7 @@ PrototypeRenderer::~PrototypeRenderer()
 void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     const Player& player, Vector3 aimPoint, const GeneratedLevel& level,
     const LevelSession& session, const ProjectilePool& playerProjectiles,
-    const CombatState* combat, bool floorComplete,
+    const GeneratedCombatState* combat, bool floorComplete,
     float interpolationAmount, bool showDebug) const
 {
     BeginDrawing();
@@ -320,7 +320,9 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
         interpolationAmount, PLAYER_RADIUS,
         Color { 92, 225, 255, 255 }, Color { 92, 225, 255, 155 });
     if (combat != nullptr) {
-        drawEnemy(combat->enemy, interpolationAmount);
+        for (const StableEnemy& entry : combat->enemies.entries()) {
+            drawEnemy(entry.enemy, interpolationAmount);
+        }
         drawProjectiles(camera, combat->enemyProjectiles,
             interpolationAmount, PLAYER_RADIUS,
             Color { 255, 93, 55, 255 }, Color { 255, 153, 70, 175 });

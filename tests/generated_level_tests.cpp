@@ -335,7 +335,7 @@ bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
 {
     std::optional<int> encounterRoom;
     std::optional<Vector2> playerPosition;
-    std::optional<Vector2> enemyPosition;
+    std::vector<GeneratedEnemySpawn> enemySpawns;
     const auto assignments = level.roomLayout().getCellAssignments();
     std::size_t encounterEntranceCount = 0;
     std::size_t spawnableEntranceCount = 0;
@@ -359,16 +359,17 @@ bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
                 level.dualGrid().cells[entryCell].center.x * level.worldScale(),
                 level.dualGrid().cells[entryCell].center.y * level.worldScale()
             };
-            const auto spawn = selectGeneratedEnemySpawn(
+            const auto spawns = selectGeneratedEnemySpawns(
                 level, room.id, candidatePlayerPosition);
-            if (!spawn.has_value()) {
+            if (spawns.empty()) {
                 continue;
             }
             ++spawnableEntranceCount;
-            if (!encounterRoom.has_value()) {
+            if (!encounterRoom.has_value()
+                && spawns.size() == GENERATED_ENEMIES_PER_ENCOUNTER) {
                 encounterRoom = room.id;
                 playerPosition = candidatePlayerPosition;
-                enemyPosition = spawn;
+                enemySpawns = spawns;
             }
         }
     }
@@ -376,16 +377,22 @@ bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
     bool valid = check(encounterEntranceCount > 0
             && spawnableEntranceCount == encounterEntranceCount
             && encounterRoom.has_value() && playerPosition.has_value()
-            && enemyPosition.has_value(),
-        "every generated Combat and Hub doorway entry has a filtered spawn");
+            && enemySpawns.size() == GENERATED_ENEMIES_PER_ENCOUNTER,
+        "every generated encounter entrance has a spawn and one supports a crowd");
     if (!valid) {
         return false;
     }
-    const auto repeatedSpawn = selectGeneratedEnemySpawn(
+    const auto repeatedSpawns = selectGeneratedEnemySpawns(
         level, *encounterRoom, *playerPosition);
-    valid &= check(repeatedSpawn.has_value()
-            && samePoint(*repeatedSpawn, *enemyPosition),
-        "enemy spawn selection is deterministic for the same room state");
+    bool repeatedMatch = repeatedSpawns.size() == enemySpawns.size();
+    for (std::size_t index = 0;
+        repeatedMatch && index < enemySpawns.size(); ++index) {
+        repeatedMatch = repeatedSpawns[index].id == enemySpawns[index].id
+            && samePoint(repeatedSpawns[index].position,
+                enemySpawns[index].position);
+    }
+    valid &= check(repeatedMatch,
+        "enemy identities, spawn selection, and spawn order are deterministic");
 
     LevelSession session(level);
     GeneratedEncounterCoordinator coordinator;
@@ -400,7 +407,9 @@ bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
     PlayerInput entryInput;
     entryInput.hasAimPoint = true;
     entryInput.aimPoint = Vector3 {
-        enemyPosition->x, 0.0F, enemyPosition->y
+        enemySpawns.front().position.x,
+        0.0F,
+        enemySpawns.front().position.y
     };
     entryInput.fireHeld = true;
     const GeneratedEncounterStepResult entered = updateGeneratedEncounter(
@@ -425,29 +434,61 @@ bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
                 "generated combat locks every doorway incident to its room");
         }
     }
-    const CombatState* startedCombat = coordinator.activeCombat();
+    const GeneratedCombatState* startedCombat = coordinator.activeCombat();
     valid &= check(startedCombat != nullptr
-            && samePoint(startedCombat->enemy.position, *enemyPosition)
+            && startedCombat->enemies.size()
+                == GENERATED_ENEMIES_PER_ENCOUNTER
+            && startedCombat->enemies.entries().front().id()
+                == enemySpawns.front().id
+            && samePoint(startedCombat->enemies.entries().front().enemy.position,
+                enemySpawns.front().position)
             && session.player().health == PLAYER_MAX_HEALTH - 1
             && coordinator.playerProjectiles().activeCount() == 1,
-        "generated combat preserves the session player and traversal-fired shots");
+        "generated combat preserves the player and shot while spawning a crowd");
 
-    CombatState* combat = coordinator.activeCombat();
+    GeneratedCombatState* combat = coordinator.activeCombat();
     if (combat == nullptr) {
         return false;
     }
-    combat->enemy.health = 1;
-    combat->enemy.previousPosition = combat->enemy.position;
-    valid &= check(combat->playerProjectiles.spawn(
-                       combat->enemy.position, Vector2 { 1.0F, 0.0F }),
-        "a finishing player projectile can be staged in generated combat");
+    StableEnemy& firstEnemy = combat->enemies.entries().front();
+    firstEnemy.enemy.health = 1;
+    firstEnemy.enemy.previousPosition = firstEnemy.enemy.position;
+    valid &= check(coordinator.playerProjectiles().spawn(
+                       firstEnemy.enemy.position, Vector2 { 1.0F, 0.0F }),
+        "a finishing player projectile can be staged for one crowd member");
+    const GeneratedEncounterStepResult partiallyCleared
+        = updateGeneratedEncounter(
+            coordinator, session, level, PlayerInput {}, 1.0F / 120.0F);
+    valid &= check(!partiallyCleared.encounterCleared
+            && coordinator.isFighting()
+            && session.lockedRoom() == encounterRoom
+            && combat->enemies.livingCount()
+                == GENERATED_ENEMIES_PER_ENCOUNTER - 1,
+        "defeating one enemy keeps every encounter doorway locked");
+
+    for (StableEnemy& entry : combat->enemies.entries()) {
+        if (!isEnemyAlive(entry.enemy)) {
+            continue;
+        }
+        entry.enemy.health = 1;
+        entry.enemy.previousPosition = entry.enemy.position;
+        valid &= check(coordinator.playerProjectiles().spawn(
+                           entry.enemy.position, Vector2 { 1.0F, 0.0F }),
+            "each remaining enemy can receive a deterministic finishing shot");
+    }
+    valid &= check(combat->enemyProjectiles.spawn(
+                       firstEnemy.enemy.position, Vector2 { 1.0F, 0.0F }),
+        "a hostile shot can be staged before the all-clear transition");
     const GeneratedEncounterStepResult cleared = updateGeneratedEncounter(
         coordinator, session, level, PlayerInput {}, 1.0F / 120.0F);
     valid &= check(cleared.encounterCleared && !coordinator.isFighting()
             && !session.lockedRoom().has_value()
             && session.roomStates()[static_cast<std::size_t>(*encounterRoom)]
                 == RoomLifecycleState::cleared,
-        "enemy defeat clears the room and ends its active encounter");
+        "defeating every enemy clears the room and ends its encounter");
+    valid &= check(combat->enemyProjectiles.activeCount() == 0
+            && coordinator.playerProjectiles().activeCount() > 0,
+        "all-clear removes hostile shots without discarding player shots");
     valid &= check(session.activeWalls().size() == level.walls().size(),
         "clearing generated combat reopens every retained room doorway");
     for (const DoorwayThreshold& doorway : level.doorwayThresholds()) {
@@ -474,9 +515,17 @@ bool generatedCombatLocksClearsAndReopensRoom(const GeneratedLevel& level)
     };
     const GeneratedEncounterStepResult reentered = updateGeneratedEncounter(
         coordinator, session, level, PlayerInput {}, 1.0F / 120.0F);
-    CombatState* defeatCombat = coordinator.activeCombat();
-    valid &= check(reentered.encounterStarted && defeatCombat != nullptr,
-        "reset rooms can deterministically start their encounter again");
+    GeneratedCombatState* defeatCombat = coordinator.activeCombat();
+    bool resetIdentitiesMatch = defeatCombat != nullptr
+        && defeatCombat->enemies.size() == enemySpawns.size();
+    for (std::size_t index = 0;
+        resetIdentitiesMatch && index < enemySpawns.size(); ++index) {
+        resetIdentitiesMatch
+            = defeatCombat->enemies.entries()[index].id()
+            == enemySpawns[index].id;
+    }
+    valid &= check(reentered.encounterStarted && resetIdentitiesMatch,
+        "whole-match reset restores the same stable enemy identities");
     if (defeatCombat == nullptr) {
         return false;
     }

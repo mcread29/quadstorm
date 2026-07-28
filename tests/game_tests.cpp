@@ -3,6 +3,7 @@
 #include "game/combat.hpp"
 #include "game/encounter.hpp"
 #include "game/enemy.hpp"
+#include "game/enemy_collection.hpp"
 #include "game/projectile_pool.hpp"
 #include "game/weapon.hpp"
 
@@ -442,22 +443,146 @@ bool enemyMovementAndPatternAreDeterministic()
             "three seconds produces two complete three-shot fans");
 }
 
+bool stableEnemyCollectionsResolveHitsDeterministically()
+{
+    EnemyCollection enemies;
+    bool valid = check(enemies.add(20, Vector2 { 0.0F, 0.0F })
+            && enemies.add(10, Vector2 { 4.0F, 0.0F })
+            && !enemies.add(10, Vector2 { 8.0F, 0.0F }),
+        "enemy identities are unique regardless of insertion order");
+    ProjectilePool projectiles;
+    valid &= check(projectiles.spawn(
+                       Vector2 { -5.0F, 0.0F }, Vector2 { 1.0F, 0.0F }),
+        "an earliest-target selection projectile can be staged");
+    Projectile& crossing = projectiles.projectiles().front();
+    crossing.previousPosition = Vector2 { -5.0F, 0.0F };
+    crossing.position = Vector2 { 5.0F, 0.0F };
+    updateEnemyCollectionDamage(enemies, projectiles, 0.0F);
+    valid &= check(enemies.find(20)->enemy.health == ENEMY_MAX_HEALTH - 1
+            && enemies.find(10)->enemy.health == ENEMY_MAX_HEALTH,
+        "a projectile damages the earliest enemy instead of the lowest identity");
+
+    EnemyCollection tiedEnemies;
+    tiedEnemies.add(7, Vector2 {});
+    tiedEnemies.add(3, Vector2 {});
+    ProjectilePool tiedProjectiles;
+    tiedProjectiles.spawn(Vector2 {}, Vector2 { 1.0F, 0.0F });
+    Projectile& tied = tiedProjectiles.projectiles().front();
+    tied.previousPosition = Vector2 {};
+    tied.position = Vector2 {};
+    updateEnemyCollectionDamage(tiedEnemies, tiedProjectiles, 0.0F);
+    valid &= check(tiedEnemies.entries().front().id() == 3
+            && tiedEnemies.find(3)->enemy.health == ENEMY_MAX_HEALTH - 1
+            && tiedEnemies.find(7)->enemy.health == ENEMY_MAX_HEALTH,
+        "stable identity breaks equal-time projectile hit ties");
+
+    for (StableEnemy& entry : tiedEnemies.entries()) {
+        entry.enemy.health = 1;
+        tiedProjectiles.spawn(entry.enemy.position, Vector2 { 1.0F, 0.0F });
+    }
+    const EnemyDamageResult simultaneous = updateEnemyCollectionDamage(
+        tiedEnemies, tiedProjectiles, 0.0F);
+    valid &= check(simultaneous == EnemyDamageResult::died
+            && tiedEnemies.allDefeated() && tiedEnemies.livingCount() == 0,
+        "multiple enemies can be defeated deterministically in one step");
+    return valid;
+}
+
+bool enemyCollectionUpdatesRepeatExactly()
+{
+    constexpr float fixedStep = 1.0F / 120.0F;
+    EnemyCollection first;
+    EnemyCollection second;
+    first.add(30, Vector2 { 5.0F, 5.0F });
+    first.add(10, Vector2 { -5.0F, 5.0F });
+    second.add(10, Vector2 { -5.0F, 5.0F });
+    second.add(30, Vector2 { 5.0F, 5.0F });
+    ProjectilePool firstProjectiles(ENEMY_PROJECTILE_PROFILE);
+    ProjectilePool secondProjectiles(ENEMY_PROJECTILE_PROFILE);
+    constexpr Vector2 playerPosition { 0.0F, -2.0F };
+
+    for (int step = 0; step < 360; ++step) {
+        updateEnemyCollectionMovement(first, playerPosition, fixedStep, {});
+        updateEnemyCollectionMovement(second, playerPosition, fixedStep, {});
+        updateEnemyCollectionPatterns(first, firstProjectiles,
+            playerPosition, fixedStep, {});
+        updateEnemyCollectionPatterns(second, secondProjectiles,
+            playerPosition, fixedStep, {});
+        firstProjectiles.update(fixedStep);
+        secondProjectiles.update(fixedStep);
+    }
+
+    bool same = first.entries().size() == second.entries().size();
+    for (std::size_t index = 0;
+        same && index < first.entries().size(); ++index) {
+        const StableEnemy& firstEntry = first.entries()[index];
+        const StableEnemy& secondEntry = second.entries()[index];
+        const Enemy& firstEnemy = firstEntry.enemy;
+        const Enemy& secondEnemy = secondEntry.enemy;
+        same = firstEntry.id() == secondEntry.id()
+            && firstEnemy.position.x == secondEnemy.position.x
+            && firstEnemy.position.y == secondEnemy.position.y
+            && firstEnemy.previousPosition.x == secondEnemy.previousPosition.x
+            && firstEnemy.previousPosition.y == secondEnemy.previousPosition.y
+            && firstEnemy.velocity.x == secondEnemy.velocity.x
+            && firstEnemy.velocity.y == secondEnemy.velocity.y
+            && firstEnemy.facing.x == secondEnemy.facing.x
+            && firstEnemy.facing.y == secondEnemy.facing.y
+            && firstEnemy.health == secondEnemy.health
+            && firstEnemy.hitFlashRemaining == secondEnemy.hitFlashRemaining
+            && firstEnemy.shotCooldownRemaining
+                == secondEnemy.shotCooldownRemaining;
+    }
+    const auto firstShots = firstProjectiles.projectiles();
+    const auto secondShots = secondProjectiles.projectiles();
+    for (std::size_t index = 0;
+        same && index < firstShots.size(); ++index) {
+        const Projectile& firstShot = firstShots[index];
+        const Projectile& secondShot = secondShots[index];
+        same = firstShot.active == secondShot.active
+            && firstShot.position.x == secondShot.position.x
+            && firstShot.position.y == secondShot.position.y
+            && firstShot.previousPosition.x == secondShot.previousPosition.x
+            && firstShot.previousPosition.y == secondShot.previousPosition.y
+            && firstShot.velocity.x == secondShot.velocity.x
+            && firstShot.velocity.y == secondShot.velocity.y
+            && firstShot.remainingLifetime == secondShot.remainingLifetime;
+    }
+    return check(same,
+        "stable identity order makes every crowd state repeat exactly");
+}
+
+bool enemyCollectionsRemainInsideClosedWalls()
+{
+    EnemyCollection enemies;
+    enemies.add(1, Vector2 { 9.0F, 0.0F });
+    constexpr Vector2 playerPosition { 20.0F, 0.0F };
+    for (int step = 0; step < 60; ++step) {
+        updateEnemyCollectionMovement(
+            enemies, playerPosition, 1.0F / 120.0F, ARENA_WALLS);
+    }
+
+    const Enemy& enemy = enemies.entries().front().enemy;
+    return check(enemy.position.x <= ARENA_HALF_EXTENT - ENEMY_RADIUS + 0.0001F,
+        "fixed-step crowd movement cannot cross a closed arena wall");
+}
+
 bool projectilePoolsKeepOwnershipSeparate()
 {
     Encounter encounter;
-    const bool playerSpawned = encounter.combat.playerProjectiles.spawn(
+    const bool playerSpawned = encounter.combat.playerAttack.projectiles.spawn(
         Vector2 {}, Vector2 { 1.0F, 0.0F });
     const bool enemySpawned = encounter.combat.enemyProjectiles.spawn(
         Vector2 {}, Vector2 { 1.0F, 0.0F });
 
     return check(playerSpawned && enemySpawned,
                "both projectile owners can use their own pool")
-        && check(nearlyEqual(encounter.combat.playerProjectiles.profile().speed,
+        && check(nearlyEqual(encounter.combat.playerAttack.projectiles.profile().speed,
                      PLAYER_PROJECTILE_SPEED)
                 && nearlyEqual(encounter.combat.enemyProjectiles.profile().speed,
                     ENEMY_PROJECTILE_SPEED),
             "projectile ownership keeps player and enemy profiles separate")
-        && check(encounter.combat.playerProjectiles.activeCount() == 1
+        && check(encounter.combat.playerAttack.projectiles.activeCount() == 1
                 && encounter.combat.enemyProjectiles.activeCount() == 1,
             "spawning for one owner does not consume the other owner's slots");
 }
@@ -488,7 +613,7 @@ bool playerProjectilesDamageAndDefeatEnemy()
     encounter.player.invulnerabilityRemaining = 0.5F;
     playerProjectiles.spawn(
         encounter.combat.enemy.position, Vector2 { 1.0F, 0.0F });
-    encounter.combat.playerProjectiles = playerProjectiles;
+    encounter.combat.playerAttack.projectiles = playerProjectiles;
     const EncounterStepResult defeated = updateEncounter(
         encounter, PlayerInput {}, fixedStep);
     valid &= check(defeated.enemyDamage == EnemyDamageResult::died
@@ -508,7 +633,7 @@ bool playerProjectilesDamageAndDefeatEnemy()
         encounter, restartInput, fixedStep);
     valid &= check(restarted.restarted
             && encounter.combat.enemy.health == ENEMY_MAX_HEALTH
-            && encounter.combat.playerProjectiles.activeCount() == 0,
+            && encounter.combat.playerAttack.projectiles.activeCount() == 0,
         "post-victory restart restores enemy health and clears shots");
     return valid;
 }
@@ -603,9 +728,10 @@ bool deathAndRestartResetEncounter()
     valid &= check(restart.restarted && isPlayerAlive(encounter.player)
             && encounter.player.health == PLAYER_MAX_HEALTH,
         "explicit restart restores player life and health");
-    valid &= check(encounter.combat.playerProjectiles.activeCount() == 0
+    valid &= check(encounter.combat.playerAttack.projectiles.activeCount() == 0
             && encounter.combat.enemyProjectiles.activeCount() == 0
-            && nearlyEqual(encounter.combat.weapon.cooldownRemaining, 0.0F)
+            && nearlyEqual(
+                encounter.combat.playerAttack.weapon.cooldownRemaining, 0.0F)
             && encounter.target.health == TARGET_MAX_HEALTH
             && nearlyEqual(encounter.combat.enemy.position.x, 5.0F)
             && nearlyEqual(encounter.combat.enemy.position.y, 5.0F)
@@ -692,6 +818,9 @@ int main()
     valid &= fastProjectilesHitTheFirstWall();
     valid &= outwardMuzzleProjectilesDoNotEscape();
     valid &= enemyMovementAndPatternAreDeterministic();
+    valid &= stableEnemyCollectionsResolveHitsDeterministically();
+    valid &= enemyCollectionUpdatesRepeatExactly();
+    valid &= enemyCollectionsRemainInsideClosedWalls();
     valid &= projectilePoolsKeepOwnershipSeparate();
     valid &= playerProjectilesDamageAndDefeatEnemy();
     valid &= playerDamageRespectsInvulnerability();

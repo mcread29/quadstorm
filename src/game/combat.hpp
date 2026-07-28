@@ -10,9 +10,13 @@
 
 struct Target;
 
-struct CombatState {
+struct PlayerAttackState {
     Weapon weapon {};
-    ProjectilePool playerProjectiles {};
+    ProjectilePool projectiles {};
+};
+
+struct CombatState {
+    PlayerAttackState playerAttack {};
     Enemy enemy {};
     ProjectilePool enemyProjectiles { ENEMY_PROJECTILE_PROFILE };
 };
@@ -23,6 +27,8 @@ struct CombatStepResult {
     bool enemyFired = false;
 };
 
+void updatePlayerAttack(PlayerAttackState& attack, const Player& player,
+    bool fireHeld, float stepTime, std::span<const Segment2D> walls);
 void resetCombat(CombatState& combat, Vector2 enemyPosition);
 CombatStepResult updateCombat(CombatState& combat, Player& player,
     const PlayerInput& input, float stepTime,

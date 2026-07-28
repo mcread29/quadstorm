@@ -15,7 +15,7 @@ void freezeProjectileInterpolation(ProjectilePool& projectiles)
 void freezeCombatInterpolation(CombatState& combat)
 {
     combat.enemy.previousPosition = combat.enemy.position;
-    freezeProjectileInterpolation(combat.playerProjectiles);
+    freezeProjectileInterpolation(combat.playerAttack.projectiles);
     freezeProjectileInterpolation(combat.enemyProjectiles);
 }
 
@@ -37,10 +37,8 @@ CombatStepResult updateCombatState(CombatState& combat, Player& player,
     updatePlayer(player, input, stepTime);
     resolvePlayerWallCollisions(player, previousPlayerPosition, walls);
 
-    updateWeapon(combat.weapon, combat.playerProjectiles,
+    updatePlayerAttack(combat.playerAttack,
         player, input.fireHeld, stepTime, walls);
-    combat.playerProjectiles.update(stepTime);
-    resolveProjectileWallCollisions(combat.playerProjectiles, walls);
 
     const Vector2 playerPosition {
         player.position.x,
@@ -51,11 +49,11 @@ CombatStepResult updateCombatState(CombatState& combat, Player& player,
         combat.enemy.velocity, ENEMY_RADIUS,
         combat.enemy.previousPosition, walls);
     result.enemyDamage = updateEnemyDamage(
-        combat.enemy, combat.playerProjectiles, stepTime);
+        combat.enemy, combat.playerAttack.projectiles, stepTime);
     if (target != nullptr) {
-        updateTarget(*target, combat.playerProjectiles, stepTime);
+        updateTarget(*target, combat.playerAttack.projectiles, stepTime);
     }
-    combat.playerProjectiles.retireExpired();
+    combat.playerAttack.projectiles.retireExpired();
     if (result.enemyDamage == EnemyDamageResult::died) {
         freezeCombatInterpolation(combat);
         return result;
@@ -75,6 +73,15 @@ CombatStepResult updateCombatState(CombatState& combat, Player& player,
 }
 
 } // namespace
+
+void updatePlayerAttack(PlayerAttackState& attack, const Player& player,
+    bool fireHeld, float stepTime, std::span<const Segment2D> walls)
+{
+    updateWeapon(attack.weapon, attack.projectiles,
+        player, fireHeld, stepTime, walls);
+    attack.projectiles.update(stepTime);
+    resolveProjectileWallCollisions(attack.projectiles, walls);
+}
 
 void resetCombat(CombatState& combat, Vector2 enemyPosition)
 {

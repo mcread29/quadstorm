@@ -135,17 +135,37 @@ Acceptance check: the player can traverse every authorized part of a generated l
 
 ### Milestone 7: generated encounters — complete
 
-The generated runtime activates one deterministic enemy in entered Combat and Hub rooms, locks incident thresholds during combat, reopens them on clear, preserves player health, handles defeat/reset, and marks the current floor complete on entering Exit. The hard-coded arena remains available through **F1** as a regression path.
+The original generated-encounter slice activated one deterministic enemy in entered Combat and Hub rooms, locked incident thresholds during combat, reopened them on clear, preserved player health, handled defeat/reset, and marked the current floor complete on entering Exit. Milestone 8 later replaced that single-enemy assumption with the current stable collection. The hard-coded arena remains available through **F1** as a regression path.
 
 Acceptance check: a generated floor can be entered at Start, cleared room by room, and completed at Exit with collision, navigation, rendering, and room lifecycle kept synchronized.
 
 ## Planned milestones
 
-### Milestone 8: horde combat — in progress
+### Milestone 8A: horde combat foundation — complete
 
-- Player foundation complete: a short cooldown-based dash and always-available generated-map firing now work during traversal and encounters.
-- Replace the single generated enemy with a stable collection of simultaneous enemies.
-- Add crowd pursuit, pathfinding through the published room graph, local separation, and deterministic spawn control.
+- A short cooldown-based dash and always-available generated-map firing work during traversal and encounters.
+- Generated encounters spawn up to three simultaneous enemies with deterministic identities, spawn/update order, earliest swept-hit selection, exact-time identity tie-breaking, whole-match reset, and all-enemies-clear transitions.
+- Player shots survive encounter activation and clearing; hostile shots and doorway locks retain atomic cleanup behavior.
+
+Acceptance check: several generated enemies coexist and can be defeated deterministically in one locked room while the player moves, dashes, and fires without crossing walls or losing shots at encounter transitions.
+
+### Milestone 8B: level identity and legibility — next
+
+The current generator is physically valid but often reads as an alternating arena/connector chain, substantial rooms share similar compact growth, and the runtime follow camera hides the complete layout. Complete the pass in [`level-identity-pass.md`](level-identity-pass.md) before adding more crowd systems.
+
+- Add a full-level runtime overview and deterministic representative-seed browser.
+- Select and publish strong map-level topology archetypes before physical routing.
+- Penalize repetitive room/connector alternation and weak graph signatures.
+- Add explicit room-shape grammar and geometry validation.
+- Add role-, shape-, and district-driven semantic anchors and landmarks.
+- Add per-layout and cross-seed structural diversity tests plus repeatable overview screenshots.
+
+Acceptance check: representative layouts are distinguishable at a glance by silhouette, graph structure, room-shape distribution, and landmark hierarchy; no representative layout is dominated by repetitive arena/connector alternation; and all existing deterministic geometry, doorway, navigation, combat, and reset contracts remain correct.
+
+### Milestone 8C: horde combat continuation — planned
+
+- Add crowd pursuit and pathfinding through the published room/door graph.
+- Add local separation, wall-safe steering, and deterministic spawn control.
 - Add crowd-readable hit, death, and threat feedback.
 - Introduce Drifter, Runner, and Caster roles.
 - Organize combat into rounds with build-up, peak, cleanup, and intermission states.
@@ -157,7 +177,7 @@ Acceptance check: generated rooms and connectors support readable crowd movement
 - Keep one generated map active for the complete match.
 - Turn doorway thresholds into purchasable gates whose state affects collision and navigation for players and enemies.
 - Add the primary match currency, fixed services, traps, and combat upgrades.
-- Interpret room roles as persistent horde-map landmarks rather than one-time room-clear encounters.
+- Turn the generated role/shape/district identity established in Milestone 8B into persistent economy, service, trap, and objective locations rather than one-time room-clear labels.
 - Let waves and enemies move across every currently opened part of the map.
 
 Acceptance check: spending, route choice, and gate state materially change both survival strategy and enemy flow throughout a match.
@@ -183,7 +203,7 @@ Acceptance check: the game supports a complete round-based horde match with a be
 
 ### Milestone 12: maps, mastery, and presentation
 
-- Pair curated generated seeds with distinct map recipes, themes, quests, enemy mixes, and wonder weapons.
+- Use the seed browser and structural-diversity baseline from Milestone 8B to curate shipped seeds, then pair them with authored map recipes, finished themes, quests, enemy mixes, and wonder weapons.
 - Add alternate routes, optional challenges, hidden audiovisual events, and multiple finale conditions.
 - Complete controller support, accessibility options, visual telegraphs, combat audio, and map-state presentation.
 - Evaluate cooperative play only after the solo simulation, content, and readability remain strong at full match scale.

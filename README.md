@@ -11,14 +11,17 @@ The grid generator:
 
 As a separate pass, the room generator consumes a neutral cell graph with physical cell area, clearance, traversal distance, shared-boundary width, and explicit entrance candidates. Its default shooter method plans a mission graph first, embeds several combat arenas—including occasional dense two-to-three-room clusters or one larger landmark room when the map supports them—and joins them with explicit corridor regions where space permits, side branches, a meaningful start-to-exit route, and at most one deliberate loop. Legacy branching-shape and organic-growth methods remain available. Every method generates several deterministic candidates and keeps the highest-scoring valid layout.
 
+The next generator pass addresses level identity rather than adding more combat systems. The current spatial-tree pipeline can still read as repetitive arena → connector → arena structure, most shooter arenas share similar compact growth, and the runtime follow camera hides the complete map. [`docs/level-identity-pass.md`](docs/level-identity-pass.md) specifies a full-level overview and seed browser, explicit topology archetypes, room-shape grammar, semantic landmark anchors, and structural-diversity acceptance tests.
+
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
-The repository also contains the first seven runtime milestones and the player foundation for milestone 8 of a top-down 2.5D round-based horde shooter. The finished game is intended to take place on one persistent, learnable generated map per match: players survive escalating waves, earn currency, open routes, power strange machinery, solve a readable main quest, uncover optional Easter eggs, acquire geometry-driven wonder weapons, and reach a boss or extraction. Most enemies create crowd pressure, while ranged enemies, elites, objectives, and bosses introduce readable bullet-hell patterns. The current `stalberg_game` executable provides exact generated-floor traversal, always-available player firing, a short cooldown-based dash, and deterministic single-enemy room encounters; the focused regression arena remains available through **F1**.
+The repository also contains the first seven runtime milestones and the completed Milestone 8A combat foundation of a top-down 2.5D round-based horde shooter. The finished game is intended to take place on one persistent, learnable generated map per match: players survive escalating waves, earn currency, open routes, power strange machinery, solve a readable main quest, uncover optional Easter eggs, acquire geometry-driven wonder weapons, and reach a boss or extraction. Most enemies create crowd pressure, while ranged enemies, elites, objectives, and bosses introduce readable bullet-hell patterns. The current `stalberg_game` executable provides exact generated-floor traversal, always-available player firing, a short cooldown-based dash, and generated-room encounters containing up to three deterministic stable-ID enemies; the focused single-enemy regression arena remains available through **F1**.
 
 ## Documentation
 
 - [`docs/game-roadmap.md`](docs/game-roadmap.md) — complete horde-shooter concept, match structure, and milestones.
-- [`docs/game-handoff.md`](docs/game-handoff.md) — current runtime architecture, decisions, limitations, and intended horde-mode boundary.
+- [`docs/game-handoff.md`](docs/game-handoff.md) — current runtime architecture, decisions, limitations, and immediate implementation slice.
+- [`docs/level-identity-pass.md`](docs/level-identity-pass.md) — next full-map overview, topology-archetype, room-grammar, landmark, and diversity-validation pass.
 - [`docs/demo-and-algorithm.md`](docs/demo-and-algorithm.md) — base mesh mathematics, topology, relaxation, rendering, and source map.
 - [`docs/room-generation-model.md`](docs/room-generation-model.md) — neutral physical input, output API, roles, doorways, and gameplay integration contract.
 - [`docs/shooter-level-generation.md`](docs/shooter-level-generation.md) — complete graph-first arena, route, corridor, entrance, doorway, and tactical-annotation pipeline.
@@ -46,7 +49,7 @@ cd emsdk
 ./emsdk install latest
 ./emsdk activate latest
 source ./emsdk_env.sh
-cd /path/to/quadstorm
+cd /path/to/stalberg-grid
 
 emcmake cmake -S . -B build-web \
   -DCMAKE_BUILD_TYPE=Release \
@@ -65,7 +68,7 @@ Use **WASD** to move, **Space** to dash, the **mouse** to aim, and hold the **le
 
 Debug builds apply debugger-friendly optimization to the game runtime and bundled raylib so interactive frame pacing remains representative while symbols and assertions stay enabled. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized stepping is required.
 
-Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Generation, generated-level runtime/session behavior, and combat simulation have dedicated headless test executables. Runtime tests include dash cooldown and wall collision, traversal firing and in-flight-shot preservation, dynamic doorway locking, collision-wall rebuilding, navigation blocking, reset behavior, and custom encounter wall injection.
+Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Generation, generated-level runtime/session behavior, and combat simulation have dedicated headless test executables. Runtime tests include dash cooldown and wall collision, traversal firing and in-flight-shot preservation, deterministic multi-spawn identities and order, earliest enemy-hit selection, all-enemies-clear doorway transitions, hostile-shot cleanup, closed-wall containment, reset behavior, and custom encounter wall injection.
 
 ## Game prototype controls
 
@@ -80,7 +83,7 @@ Grid generation and room generation are independent libraries. The room library 
 | F3 | Toggle rendering/gameplay diagnostics |
 | Escape/window close | Exit |
 
-Generated traversal and generated-room encounters share the reusable game core. `LevelSession` owns the authoritative player and room lifecycle, while `GeneratedEncounterCoordinator` keeps the generated weapon and player projectiles active during traversal and preserves them across encounter activation and clearing. Atomic encounter transitions keep room state, doorway locks, and active collision walls synchronized through combat, clearing, and progression toward Exit. The intended horde mode will reinterpret the same exact doorway thresholds as persistent gates, the room roles as map landmarks, and the navigation graph as the shared movement contract for crowds crossing every opened part of the map.
+Generated traversal and generated-room encounters share the reusable game core. `LevelSession` owns the authoritative player and room lifecycle, while `GeneratedEncounterCoordinator` keeps the generated weapon and player projectiles active during traversal and preserves them across encounter activation and clearing. Its stable enemy collection updates up to three enemies in identity order and keeps room thresholds locked until all are defeated. Atomic encounter transitions keep room state, doorway locks, and active collision walls synchronized through combat, clearing, and progression toward Exit. The intended horde mode will reinterpret the same exact doorway thresholds as persistent gates, the room roles as map landmarks, and the navigation graph as the shared movement contract for crowds crossing every opened part of the map.
 
 ## Generator demo controls
 

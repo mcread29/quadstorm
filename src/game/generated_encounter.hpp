@@ -1,9 +1,24 @@
 #pragma once
 
 #include "combat.hpp"
+#include "enemy_collection.hpp"
 #include "level_session.hpp"
 
+#include <cstddef>
 #include <optional>
+#include <vector>
+
+inline constexpr std::size_t GENERATED_ENEMIES_PER_ENCOUNTER = 3;
+
+struct GeneratedEnemySpawn {
+    EnemyId id = 0;
+    Vector2 position {};
+};
+
+struct GeneratedCombatState {
+    EnemyCollection enemies;
+    ProjectilePool enemyProjectiles { ENEMY_PROJECTILE_PROFILE };
+};
 
 struct GeneratedEncounterStepResult {
     LevelSessionStepResult levelSession;
@@ -19,12 +34,16 @@ public:
     bool isFighting() const { return fighting; }
     bool floorIsComplete() const { return floorComplete; }
 
-    CombatState* activeCombat();
-    const CombatState* activeCombat() const;
-    const CombatState* combatForRoom(std::optional<int> room) const;
+    GeneratedCombatState* activeCombat();
+    const GeneratedCombatState* activeCombat() const;
+    const GeneratedCombatState* combatForRoom(std::optional<int> room) const;
+    ProjectilePool& playerProjectiles()
+    {
+        return playerAttack.projectiles;
+    }
     const ProjectilePool& playerProjectiles() const
     {
-        return combatState.playerProjectiles;
+        return playerAttack.projectiles;
     }
 
 private:
@@ -33,7 +52,8 @@ private:
         GeneratedEncounterCoordinator&, LevelSession&,
         const GeneratedLevel&, const PlayerInput&, float);
 
-    CombatState combatState;
+    PlayerAttackState playerAttack;
+    GeneratedCombatState combatState;
     std::optional<int> roomId;
     bool fighting = false;
     bool floorComplete = false;
@@ -43,5 +63,7 @@ void resetGeneratedEncounter(GeneratedEncounterCoordinator& coordinator);
 GeneratedEncounterStepResult updateGeneratedEncounter(
     GeneratedEncounterCoordinator& coordinator, LevelSession& session,
     const GeneratedLevel& level, const PlayerInput& input, float stepTime);
+std::vector<GeneratedEnemySpawn> selectGeneratedEnemySpawns(
+    const GeneratedLevel& level, int room, Vector2 playerPosition);
 std::optional<Vector2> selectGeneratedEnemySpawn(
     const GeneratedLevel& level, int room, Vector2 playerPosition);

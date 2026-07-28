@@ -12,6 +12,7 @@ constexpr float MINIMUM_PLAYER_SPAWN_DISTANCE = 4.0F;
 constexpr float MINIMUM_ENEMY_CLEARANCE = ENEMY_RADIUS + 0.2F;
 constexpr float MINIMUM_DOORWAY_SPAWN_DISTANCE = ENEMY_RADIUS + 0.75F;
 constexpr float MINIMUM_WALL_SPAWN_DISTANCE = ENEMY_RADIUS + 0.05F;
+constexpr float MINIMUM_ENEMY_SEPARATION = ENEMY_RADIUS * 2.0F + 0.2F;
 
 using vector2::distanceSquared;
 
@@ -57,42 +58,111 @@ bool hasWallClearance(const GeneratedLevel& level, Vector2 position)
         });
 }
 
-void updateGeneratedPlayerWeapon(CombatState& combat,
+bool hasEnemySeparation(std::span<const GeneratedEnemySpawn> selected,
+    Vector2 position)
+{
+    return std::ranges::none_of(selected,
+        [&](const GeneratedEnemySpawn& spawn) {
+            return distanceSquared(position, spawn.position)
+                < MINIMUM_ENEMY_SEPARATION * MINIMUM_ENEMY_SEPARATION;
+        });
+}
+
+void freezeProjectileInterpolation(ProjectilePool& projectiles)
+{
+    for (Projectile& projectile : projectiles.projectiles()) {
+        projectile.previousPosition = projectile.position;
+    }
+}
+
+void freezeGeneratedCombatInterpolation(
+    PlayerAttackState& attack, GeneratedCombatState& combat)
+{
+    freezeEnemyCollectionInterpolation(combat.enemies);
+    freezeProjectileInterpolation(attack.projectiles);
+    freezeProjectileInterpolation(combat.enemyProjectiles);
+}
+
+void updateGeneratedPlayerWeapon(PlayerAttackState& attack,
     const LevelSession& session, const PlayerInput& input, float stepTime)
 {
     if (!isPlayerAlive(session.player())) {
         return;
     }
 
-    updateWeapon(combat.weapon, combat.playerProjectiles,
-        session.player(), input.fireHeld, stepTime, session.activeWalls());
-    combat.playerProjectiles.update(stepTime);
-    resolveProjectileWallCollisions(
-        combat.playerProjectiles, session.activeWalls());
-    combat.playerProjectiles.retireExpired();
+    updatePlayerAttack(attack, session.player(),
+        input.fireHeld, stepTime, session.activeWalls());
+    attack.projectiles.retireExpired();
 }
 
-void beginGeneratedCombat(CombatState& combat, Vector2 enemyPosition)
+void beginGeneratedCombat(GeneratedCombatState& combat,
+    std::span<const GeneratedEnemySpawn> spawns)
 {
-    combat.enemy = Enemy {};
-    combat.enemy.position = enemyPosition;
-    combat.enemy.previousPosition = enemyPosition;
+    combat.enemies.clear();
+    for (const GeneratedEnemySpawn& spawn : spawns) {
+        combat.enemies.add(spawn.id, spawn.position);
+    }
     combat.enemyProjectiles = ProjectilePool { ENEMY_PROJECTILE_PROFILE };
+}
+
+CombatStepResult updateGeneratedCombat(PlayerAttackState& attack,
+    GeneratedCombatState& combat, Player& player,
+    const PlayerInput& input, float stepTime,
+    std::span<const Segment2D> walls)
+{
+    CombatStepResult result;
+    updatePlayerEffects(player, stepTime);
+    if (!isPlayerAlive(player) || combat.enemies.allDefeated()) {
+        freezeGeneratedCombatInterpolation(attack, combat);
+        return result;
+    }
+
+    const Vector2 previousPlayerPosition {
+        player.position.x,
+        player.position.z
+    };
+    updatePlayer(player, input, stepTime);
+    resolvePlayerWallCollisions(player, previousPlayerPosition, walls);
+
+    updatePlayerAttack(attack, player, input.fireHeld, stepTime, walls);
+
+    const Vector2 playerPosition { player.position.x, player.position.z };
+    updateEnemyCollectionMovement(
+        combat.enemies, playerPosition, stepTime, walls);
+    result.enemyDamage = updateEnemyCollectionDamage(
+        combat.enemies, attack.projectiles, stepTime);
+    attack.projectiles.retireExpired();
+    if (combat.enemies.allDefeated()) {
+        freezeGeneratedCombatInterpolation(attack, combat);
+        return result;
+    }
+
+    result.enemyFired = updateEnemyCollectionPatterns(combat.enemies,
+        combat.enemyProjectiles, playerPosition, stepTime, walls);
+    combat.enemyProjectiles.update(stepTime);
+    resolveProjectileWallCollisions(combat.enemyProjectiles, walls);
+    result.playerDamage = updatePlayerDamage(player,
+        combat.enemyProjectiles, previousPlayerPosition, stepTime);
+    combat.enemyProjectiles.retireExpired();
+    if (result.playerDamage == PlayerDamageResult::died) {
+        freezeGeneratedCombatInterpolation(attack, combat);
+    }
+    return result;
 }
 
 } // namespace
 
-CombatState* GeneratedEncounterCoordinator::activeCombat()
+GeneratedCombatState* GeneratedEncounterCoordinator::activeCombat()
 {
     return fighting ? &combatState : nullptr;
 }
 
-const CombatState* GeneratedEncounterCoordinator::activeCombat() const
+const GeneratedCombatState* GeneratedEncounterCoordinator::activeCombat() const
 {
     return fighting ? &combatState : nullptr;
 }
 
-const CombatState* GeneratedEncounterCoordinator::combatForRoom(
+const GeneratedCombatState* GeneratedEncounterCoordinator::combatForRoom(
     std::optional<int> room) const
 {
     return roomId.has_value() && room == roomId ? &combatState : nullptr;
@@ -103,21 +173,24 @@ void resetGeneratedEncounter(GeneratedEncounterCoordinator& coordinator)
     coordinator = GeneratedEncounterCoordinator {};
 }
 
-std::optional<Vector2> selectGeneratedEnemySpawn(
+std::vector<GeneratedEnemySpawn> selectGeneratedEnemySpawns(
     const GeneratedLevel& level, int room, Vector2 playerPosition)
 {
     const stalberg::rooms::GeneratedRoom* generatedRoom = findRoom(level, room);
     if (generatedRoom == nullptr) {
-        return std::nullopt;
+        return {};
     }
 
     const auto playerCell = level.cellAtWorldPoint(playerPosition);
     const auto assignments = level.roomLayout().getCellAssignments();
-    std::optional<Vector2> bestPosition;
-    stalberg::rooms::CellIndex bestCell = 0;
+    std::vector<stalberg::rooms::CellIndex> candidates(
+        generatedRoom->enemySpawnCandidates.begin(),
+        generatedRoom->enemySpawnCandidates.end());
+    std::ranges::sort(candidates);
 
-    for (const stalberg::rooms::CellIndex cell
-        : generatedRoom->enemySpawnCandidates) {
+    std::vector<GeneratedEnemySpawn> selected;
+    selected.reserve(GENERATED_ENEMIES_PER_ENCOUNTER);
+    for (const stalberg::rooms::CellIndex cell : candidates) {
         if (cell >= assignments.size() || assignments[cell] != room
             || (playerCell.has_value() && cell == *playerCell)) {
             continue;
@@ -137,16 +210,30 @@ std::optional<Vector2> selectGeneratedEnemySpawn(
                 < MINIMUM_PLAYER_SPAWN_DISTANCE
                     * MINIMUM_PLAYER_SPAWN_DISTANCE
             || !farEnoughFromRoomDoorways(level, room, position)
-            || !hasWallClearance(level, position)) {
+            || !hasWallClearance(level, position)
+            || !hasEnemySeparation(selected, position)) {
             continue;
         }
 
-        if (!bestPosition.has_value() || cell < bestCell) {
-            bestPosition = position;
-            bestCell = cell;
+        selected.push_back(GeneratedEnemySpawn {
+            .id = static_cast<EnemyId>(cell),
+            .position = position
+        });
+        if (selected.size() == GENERATED_ENEMIES_PER_ENCOUNTER) {
+            break;
         }
     }
-    return bestPosition;
+    return selected;
+}
+
+std::optional<Vector2> selectGeneratedEnemySpawn(
+    const GeneratedLevel& level, int room, Vector2 playerPosition)
+{
+    const auto spawns = selectGeneratedEnemySpawns(
+        level, room, playerPosition);
+    return spawns.empty()
+        ? std::nullopt
+        : std::optional<Vector2> { spawns.front().position };
 }
 
 GeneratedEncounterStepResult updateGeneratedEncounter(
@@ -161,9 +248,10 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
     }
 
     if (coordinator.fighting) {
-        result.combat = updateCombat(coordinator.combatState,
-            session.player(), input, stepTime, session.activeWalls());
-        if (result.combat.enemyDamage == EnemyDamageResult::died
+        result.combat = updateGeneratedCombat(coordinator.playerAttack,
+            coordinator.combatState, session.player(), input,
+            stepTime, session.activeWalls());
+        if (coordinator.combatState.enemies.allDefeated()
             && coordinator.roomId.has_value()) {
             const int room = *coordinator.roomId;
             if (session.clearEncounter(room)) {
@@ -178,7 +266,7 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
 
     result.levelSession = session.update(input, stepTime);
     updateGeneratedPlayerWeapon(
-        coordinator.combatState, session, input, stepTime);
+        coordinator.playerAttack, session, input, stepTime);
     if (!result.levelSession.enteredRoom.has_value()) {
         return result;
     }
@@ -204,8 +292,9 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
         session.player().position.x,
         session.player().position.z
     };
-    const auto spawn = selectGeneratedEnemySpawn(level, room, playerPosition);
-    if (!spawn.has_value()) {
+    const auto spawns = selectGeneratedEnemySpawns(
+        level, room, playerPosition);
+    if (spawns.empty()) {
         session.markRoomCleared(room);
         return result;
     }
@@ -220,7 +309,7 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
     };
     resolvePlayerWallCollisions(
         session.player(), lockedPosition, session.activeWalls());
-    beginGeneratedCombat(coordinator.combatState, *spawn);
+    beginGeneratedCombat(coordinator.combatState, spawns);
     coordinator.roomId = room;
     coordinator.fighting = true;
     result.encounterStarted = true;

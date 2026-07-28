@@ -2,6 +2,7 @@
 
 #include "combat.hpp"
 #include "enemy.hpp"
+#include "generated_encounter.hpp"
 #include "generated_level.hpp"
 #include "level_session.hpp"
 #include "player.hpp"
@@ -21,7 +22,8 @@ public:
     void drawGenerated(const Camera3D& camera, const Player& player,
         Vector3 aimPoint, const GeneratedLevel& level,
         const LevelSession& session,
-        const ProjectilePool& playerProjectiles, const CombatState* combat,
+        const ProjectilePool& playerProjectiles,
+        const GeneratedCombatState* combat,
         bool floorComplete, float interpolationAmount, bool showDebug) const;
     void drawCombat(const Camera3D& camera, const Player& player,
         Vector3 aimPoint, const ProjectilePool& playerProjectiles,

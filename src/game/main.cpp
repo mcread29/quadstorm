@@ -99,7 +99,7 @@ public:
             const Player renderPlayer = interpolatePlayer(
                 previousCombatPlayer, encounter.player, interpolationAmount);
             renderer.drawCombat(renderCamera, renderPlayer, aimPoint,
-                encounter.combat.playerProjectiles, encounter.target,
+                encounter.combat.playerAttack.projectiles, encounter.target,
                 encounter.combat.enemy, encounter.combat.enemyProjectiles,
                 interpolationAmount, showDebug);
         } else {

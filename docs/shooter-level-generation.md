@@ -2,9 +2,9 @@
 
 This document describes the default `RoomGenerationMethod::ShooterLayout` pipeline implemented in `src/rooms/room_generator.cpp`. It covers mission-graph construction, arena placement and growth, physical routing, corridor materialization, entrance handling, planned doorways, role assignment, tactical annotations, and fallback behavior.
 
-For the input/output types and physical geometry contract, see [`room-generation-model.md`](room-generation-model.md). For candidate validation, scoring, deterministic retries, and tests, see [`layout-quality-and-testing.md`](layout-quality-and-testing.md).
+For the input/output types and physical geometry contract, see [`room-generation-model.md`](room-generation-model.md). For candidate validation, scoring, deterministic retries, and tests, see [`layout-quality-and-testing.md`](layout-quality-and-testing.md). For the next topology-archetype, room-grammar, runtime-overview, and landmark pass, see [`level-identity-pass.md`](level-identity-pass.md).
 
-The `stalberg_game` runtime consumes shooter layouts through an immutable package retaining the source grid, dual geometry, neutral room graph, layout, and exact doorway threshold segments. It renders exact assigned floors, closes unauthorized contacts, opens published doorway pairs, builds matching navigation, and spawns the player in Start. A mutable `LevelSession` owns the authoritative generated player and dynamically locks retained thresholds for collision and traversal. `GeneratedEncounterCoordinator` keeps generated-player firing active during traversal, preserves in-flight shots across encounter activation, uses filtered `enemySpawnCandidates` to activate one deterministic enemy in entered `Combat` and `Hub` rooms, locks every incident doorway while fighting, reopens them on clear, and marks the floor complete at Exit. The intended game reinterprets the same layout as one persistent round-based horde map: published thresholds become purchasable gates, rooms become learnable landmarks and objective sites, and the navigation graph governs crowds moving across opened routes. Runtime milestones are tracked in [`game-roadmap.md`](game-roadmap.md), and [`game-handoff.md`](game-handoff.md) records the current implementation boundary.
+The `stalberg_game` runtime consumes shooter layouts through an immutable package retaining the source grid, dual geometry, neutral room graph, layout, and exact doorway threshold segments. It renders exact assigned floors, closes unauthorized contacts, opens published doorway pairs, builds matching navigation, and spawns the player in Start. A mutable `LevelSession` owns the authoritative generated player and dynamically locks retained thresholds for collision and traversal. `GeneratedEncounterCoordinator` keeps generated-player firing active during traversal, preserves in-flight shots across encounter activation, uses filtered `enemySpawnCandidates` to activate up to three deterministic stable-ID enemies in entered `Combat` and `Hub` rooms, locks every incident doorway until all spawned enemies are defeated, reopens them on clear, and marks the floor complete at Exit. The intended game reinterprets the same layout as one persistent round-based horde map: published thresholds become purchasable gates, rooms become learnable landmarks and objective sites, and the navigation graph governs crowds moving across opened routes. Runtime milestones are tracked in [`game-roadmap.md`](game-roadmap.md), and [`game-handoff.md`](game-handoff.md) records the current implementation boundary.
 
 ## Goals
 
@@ -21,6 +21,12 @@ The shooter method is designed for a 3D twin-stick game whose simulation remains
 - Stable gameplay metadata for navigation, spawning, cover, and encounter systems.
 
 The generator works over the irregular dual-cell graph produced by the Stålberg grid. It does not require square tiles or a regular Cartesian grid.
+
+### Current identity limitation and next pass
+
+The goals above describe valid shooter circulation, but the implemented planner still relies primarily on one noise-perturbed spatial tree, at most one loop, at least one explicit connector, and the same compact growth process for most arenas. Direct arena links, dense clusters, and landmark-sized arenas provide some contrast, yet representative runtime layouts can still read as alternating arena/connector chains whose substantial rooms have similar silhouettes.
+
+The immediate pass in [`level-identity-pass.md`](level-identity-pass.md) will choose an explicit topology archetype before routing, validate graph signatures and anti-alternation metrics, assign a separate room-shape grammar, publish deterministic landmark anchors, and expose the complete layout in a runtime overview/seed browser. These are planned changes; the pipeline documented below remains the authoritative current implementation until that pass lands.
 
 ### Horde-map interpretation
 

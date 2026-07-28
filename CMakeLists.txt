@@ -91,6 +91,7 @@ add_library(stalberg_game_core
     src/game/combat.cpp
     src/game/encounter.cpp
     src/game/enemy.cpp
+    src/game/enemy_collection.cpp
     src/game/generated_encounter.cpp
     src/game/generated_level.cpp
     src/game/level_session.cpp

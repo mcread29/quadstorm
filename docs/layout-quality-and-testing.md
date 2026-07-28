@@ -5,6 +5,7 @@ This document explains how room candidates are seeded, validated, scored, select
 - Shooter construction stages: [`shooter-level-generation.md`](shooter-level-generation.md)
 - Input/output model: [`room-generation-model.md`](room-generation-model.md)
 - Base grid algorithm: [`demo-and-algorithm.md`](demo-and-algorithm.md)
+- Planned identity/diversity expansion: [`level-identity-pass.md`](level-identity-pass.md)
 
 ## Why generation uses multiple candidates
 
@@ -175,6 +176,23 @@ A geometrically connected floor is not sufficient; accepted circulation must als
 - Shortest start-to-exit doorway-graph distance is at least three edges.
 
 This rejects layouts that are topologically valid but do not provide a meaningful shooter route.
+
+## Planned identity and diversity expansion
+
+The current validation proves local correctness and a minimum shooter structure, but it does not prove that accepted layouts are recognizably different. It permits candidates dominated by arena → connector → arena alternation, does not assign a map-level topology archetype, and does not validate distinct substantial-room shapes. The next pass in [`level-identity-pass.md`](level-identity-pass.md) adds both per-layout conformance and cross-seed diversity gates.
+
+Planned graph measurements include:
+
+- Published topology archetype and archetype-specific degree/cycle constraints.
+- Direct arena-to-arena edge ratio.
+- Longest alternating arena/connector chain.
+- Connector count relative to substantial-room count.
+- Multi-door substantial-room and meaningful-junction counts.
+- Degree histogram, cycle rank, branch depth, and graph-community separation.
+
+Planned room-geometry measurements include compactness, elongation, concavity, lobe/neck structure, doorway count, doorway angular spread, and local clearance. Accepted representative sets should contain multiple topology and room-shape signatures without introducing nondeterminism: repeated identical inputs must still publish identical layouts, metadata, and scores.
+
+These checks are not implemented yet. The 100-point score below remains the current authoritative formula until the identity pass explicitly revises and rebaselines it.
 
 ## Candidate quality score
 
@@ -375,15 +393,15 @@ Callers should check `getRoomCount()` before constructing gameplay state.
 
 ## Test organization
 
-CTest currently builds five headless test executables: two for generation, one for renderer-cache geometry, one for generated-level runtime packaging/geometry/navigation/encounters, and one for `stalberg_game` dash, collision, arena, projectile, weapon, enemy, player-damage, and encounter modules. Stationary-target collision, audio, browser presentation, and full runtime rendering currently rely on graphical smoke or manual runs; target headless tests were explicitly deferred for Milestone 3.
+CTest currently builds five headless test executables: two for generation, one for renderer-cache geometry, one for generated-level runtime packaging/geometry/navigation/collection encounters, and one for `stalberg_game` dash, collision, arena, projectile, weapon, single-enemy and enemy-collection, player-damage, and encounter modules. Stationary-target collision, audio, browser presentation, and full runtime rendering currently rely on graphical smoke or manual runs; target headless tests were explicitly deferred for Milestone 3.
 
 | Test | Coverage |
 |---|---|
 | `stalberg_grid_tests` | Base mesh topology, repeatability, dual geometry, and relaxation |
 | `stalberg_room_generation_tests` | Adapter contract, all room methods, physical metadata, circulation, roles, scoring, and edge cases |
 | `stalberg_grid_renderer_cache_tests` | Cached dual-grid and room-overlay geometry, bounds, colors, and draw-command alignment |
-| `stalberg_generated_level_tests` | Retained artifact alignment, exact floor area, authorized walls/doors, doorway clearance, dynamic lock collision/navigation, lifecycle/reset, traversal firing and projectile reset/preservation, Start spawn, and reachability |
-| `stalberg_game_tests` | Injected encounter walls, swept-circle queries, player wall faces/endpoints/corners/sliding, dash activation/cooldown/wall collision, swept projectile-wall hits, outside-muzzle rejection, profile-separated pool ownership/reuse, muzzle position, fixed fire cadence, deterministic enemy movement/patterns, moving-enemy damage/defeat, player damage/invulnerability/death, interpolation freeze, and post-death/post-victory restart |
+| `stalberg_generated_level_tests` | Retained artifact alignment, exact floor area, authorized walls/doors, doorway clearance, dynamic lock collision/navigation, lifecycle/reset, traversal firing and projectile preservation, deterministic multi-spawn filtering/identity, partial/all-enemies clear transitions, hostile cleanup, whole-match identity reset, Start spawn, and reachability |
+| `stalberg_game_tests` | Injected encounter walls, swept-circle queries, player wall faces/endpoints/corners/sliding, dash activation/cooldown/wall collision, swept projectile-wall hits, outside-muzzle rejection, profile-separated pool ownership/reuse, muzzle position, fixed fire cadence, deterministic single-enemy and collection movement/patterns, earliest enemy-hit and exact-time identity tie-breaking, simultaneous defeat, enemy closed-wall containment, player damage/invulnerability/death, interpolation freeze, and post-death/post-victory restart |
 
 Run:
 
@@ -519,4 +537,6 @@ Use this order:
 9. If compact seeds fail frequently, profile how often fallback candidates above the requested budget are selected.
 10. Add a deterministic regression case to `tests/room_generation_tests.cpp` before changing formulas.
 
-The HUD already displays room seed, doorway count, quality score, and selected candidate index for quick visual diagnosis.
+The diagnostic HUD already displays room seed, doorway count, quality score, and selected candidate index for quick visual diagnosis.
+
+For a valid but repetitive layout, do not merely cycle seeds until one looks better. Once the planned runtime overview/seed browser lands, inspect the published topology archetype, direct-arena edge ratio, longest arena/connector alternation, degree/cycle signature, room-shape histogram, district/landmark anchors, and cross-seed similarity report. Capture the poor signature as a deterministic diversity regression before changing construction or score weights.
