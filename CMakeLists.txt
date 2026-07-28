@@ -80,6 +80,9 @@ enable_project_warnings(stalberg_grid)
 add_executable(stalberg_game
     src/game/arena.cpp
     src/game/collision_2d.cpp
+    src/game/combat_audio.cpp
+    src/game/encounter.cpp
+    src/game/enemy.cpp
     src/game/game_camera.cpp
     src/game/game_input.cpp
     src/game/main.cpp
@@ -111,7 +114,11 @@ if(BUILD_TESTING)
         tests/game_tests.cpp
         src/game/arena.cpp
         src/game/collision_2d.cpp
+        src/game/encounter.cpp
+        src/game/enemy.cpp
+        src/game/player.cpp
         src/game/projectile_pool.cpp
+        src/game/target.cpp
         src/game/weapon.cpp
     )
     target_include_directories(stalberg_game_tests PRIVATE src)

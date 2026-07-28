@@ -3,6 +3,7 @@
 #include "arena.hpp"
 #include "directional_shader.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -39,6 +40,7 @@ PrototypeRenderer::PrototypeRenderer()
     , playerModel(LoadModelFromMesh(GenMeshSphere(PLAYER_RADIUS, 16, 24)))
     , projectileModel(LoadModelFromMesh(GenMeshSphere(1.0F, 8, 12)))
     , targetModel(LoadModelFromMesh(GenMeshSphere(TARGET_RADIUS, 16, 24)))
+    , enemyModel(LoadModelFromMesh(GenMeshSphere(ENEMY_RADIUS, 16, 24)))
     , shadowModel(LoadModelFromMesh(
           GenMeshCylinder(PLAYER_RADIUS * 1.05F, 0.01F, 32)))
 {
@@ -47,11 +49,13 @@ PrototypeRenderer::PrototypeRenderer()
     playerModel.materials[0].shader = lightingShader;
     projectileModel.materials[0].shader = lightingShader;
     targetModel.materials[0].shader = lightingShader;
+    enemyModel.materials[0].shader = lightingShader;
 }
 
 PrototypeRenderer::~PrototypeRenderer()
 {
     UnloadModel(shadowModel);
+    UnloadModel(enemyModel);
     UnloadModel(targetModel);
     UnloadModel(projectileModel);
     UnloadModel(playerModel);
@@ -61,7 +65,9 @@ PrototypeRenderer::~PrototypeRenderer()
 }
 
 void PrototypeRenderer::draw(const Camera3D& camera, const Player& player,
-    Vector3 aimPoint, const ProjectilePool& projectiles, const Target& target,
+    Vector3 aimPoint, const ProjectilePool& playerProjectiles,
+    const Target& target, const Enemy& enemy,
+    const ProjectilePool& enemyProjectiles,
     float interpolationAmount) const
 {
     BeginDrawing();
@@ -76,27 +82,56 @@ void PrototypeRenderer::draw(const Camera3D& camera, const Player& player,
     DrawSphere(Vector3 { aimPoint.x, 0.06F, aimPoint.z }, 0.12F,
         Color { 225, 241, 232, 210 });
     drawTarget(target);
-    drawProjectiles(projectiles, interpolationAmount);
+    drawEnemy(enemy, interpolationAmount);
+    drawProjectiles(playerProjectiles, interpolationAmount, PLAYER_RADIUS,
+        Color { 117, 226, 255, 255 }, Color { 117, 226, 255, 155 });
+    drawProjectiles(enemyProjectiles, interpolationAmount, PLAYER_RADIUS,
+        Color { 255, 113, 74, 255 }, Color { 255, 174, 92, 175 });
     drawPlayer(player);
     EndMode3D();
 
-    DrawRectangle(16, 16, 530, 108, Color { 8, 25, 30, 220 });
-    DrawText("WALLED TARGET PRACTICE", 28, 27, 22,
+    DrawRectangle(16, 16, 600, 144, Color { 8, 25, 30, 220 });
+    DrawText("FIRST ENEMY ENCOUNTER", 28, 27, 22,
         Color { 225, 241, 232, 255 });
     DrawText("WASD move  |  mouse aim  |  hold LMB fire", 28, 60, 17,
         Color { 151, 193, 190, 255 });
+    const Color healthColor = player.health <= 1
+        ? Color { 255, 113, 74, 255 }
+        : Color { 255, 231, 145, 255 };
+    DrawText(TextFormat("Health %i/%i  |  Enemy %i/%i  |  hostile shots %i",
+                 player.health, PLAYER_MAX_HEALTH,
+                 enemy.health, ENEMY_MAX_HEALTH,
+                 static_cast<int>(enemyProjectiles.activeCount())),
+        28, 91, 17, healthColor);
     if (target.health > 0) {
-        DrawText(TextFormat(
-                     "Target %i/%i  |  active %i  |  10/s  %.0fu/s  r%.2f",
+        DrawText(TextFormat("Target %i/%i  |  player shots %i",
                      target.health, TARGET_MAX_HEALTH,
-                     static_cast<int>(projectiles.activeCount()),
-                     projectiles.profile().speed, projectiles.profile().radius),
-            28, 91, 17, Color { 225, 241, 232, 255 });
+                     static_cast<int>(playerProjectiles.activeCount())),
+            28, 122, 17, Color { 225, 241, 232, 255 });
     } else {
-        DrawText(TextFormat("Target resetting in %.1fs  |  active %i",
+        DrawText(TextFormat("Target resetting in %.1fs  |  player shots %i",
                      target.resetRemaining,
-                     static_cast<int>(projectiles.activeCount())),
-            28, 91, 17, Color { 255, 197, 121, 255 });
+                     static_cast<int>(playerProjectiles.activeCount())),
+            28, 122, 17, Color { 255, 197, 121, 255 });
+    }
+    const char* encounterMessage = nullptr;
+    Color encounterMessageColor { 255, 174, 92, 255 };
+    if (!isPlayerAlive(player)) {
+        encounterMessage = "DEFEATED  -  press R to restart";
+    } else if (!isEnemyAlive(enemy)) {
+        encounterMessage = "ENEMY DEFEATED  -  press R to restart";
+        encounterMessageColor = Color { 151, 231, 190, 255 };
+    }
+    if (encounterMessage != nullptr) {
+        const int fontSize = 30;
+        const int messageWidth = MeasureText(encounterMessage, fontSize);
+        DrawRectangle(GetScreenWidth() / 2 - messageWidth / 2 - 24,
+            GetScreenHeight() / 2 - 34, messageWidth + 48, 68,
+            Color { 8, 25, 30, 230 });
+        DrawText(encounterMessage,
+            GetScreenWidth() / 2 - messageWidth / 2,
+            GetScreenHeight() / 2 - fontSize / 2, fontSize,
+            encounterMessageColor);
     }
     DrawFPS(GetScreenWidth() - 96, 20);
 
@@ -195,12 +230,10 @@ void PrototypeRenderer::drawTarget(const Target& target) const
     }
 }
 
-void PrototypeRenderer::drawProjectiles(
-    const ProjectilePool& projectiles, float interpolationAmount) const
+void PrototypeRenderer::drawProjectiles(const ProjectilePool& projectiles,
+    float interpolationAmount, float height, Color headColor,
+    Color trailColor) const
 {
-    constexpr Color projectileColor { 117, 226, 255, 255 };
-    constexpr Color trailColor { 117, 226, 255, 155 };
-    constexpr float projectileHeight = PLAYER_RADIUS;
     constexpr float trailLength = 0.5F;
 
     for (const Projectile& projectile : projectiles.projectiles()) {
@@ -211,24 +244,83 @@ void PrototypeRenderer::drawProjectiles(
         const Vector2 position = interpolateProjectilePosition(
             projectile, interpolationAmount);
         const float inverseSpeed = 1.0F / projectiles.profile().speed;
-        const Vector3 head { position.x, projectileHeight, position.y };
+        const Vector3 head { position.x, height, position.y };
         const Vector3 tail {
             head.x - projectile.velocity.x * inverseSpeed * trailLength,
-            projectileHeight,
+            height,
             head.z - projectile.velocity.y * inverseSpeed * trailLength
         };
         DrawLine3D(tail, head, trailColor);
         DrawModel(projectileModel, head,
-            projectiles.profile().radius, projectileColor);
+            projectiles.profile().radius, headColor);
     }
+}
+
+void PrototypeRenderer::drawEnemy(
+    const Enemy& enemy, float interpolationAmount) const
+{
+    const Vector2 position = interpolateEnemyPosition(
+        enemy, interpolationAmount);
+    const Vector3 center { position.x, ENEMY_RADIUS, position.y };
+    const Vector3 groundCenter { position.x, 0.025F, position.y };
+    if (!isEnemyAlive(enemy)) {
+        DrawCircle3D(groundCenter, ENEMY_RADIUS * 1.8F,
+            Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+            Color { 151, 231, 190, 210 });
+        DrawModel(enemyModel, center, 0.55F, Color { 72, 74, 81, 255 });
+        DrawSphereWires(center, ENEMY_RADIUS * 1.2F,
+            8, 12, Color { 186, 244, 211, 190 });
+        return;
+    }
+
+    const float chargeAmount = 1.0F - std::clamp(
+        enemy.shotCooldownRemaining / ENEMY_SHOT_INTERVAL, 0.0F, 1.0F);
+    const Color bodyColor = enemy.hitFlashRemaining > 0.0F
+        ? Color { 244, 222, 255, 255 }
+        : Color { 143, 81, 184, 255 };
+
+    DrawCircle3D(groundCenter,
+        ENEMY_RADIUS * (1.15F + chargeAmount * 0.35F),
+        Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+        Color { 80, 48, 112, 220 });
+    DrawModel(enemyModel, center, 1.0F, bodyColor);
+    if (enemy.hitFlashRemaining > 0.0F) {
+        DrawSphereWires(center, ENEMY_RADIUS * 1.18F,
+            8, 12, Color { 255, 238, 194, 210 });
+    }
+    const Vector3 aimEnd {
+        center.x + enemy.facing.x * (ENEMY_RADIUS + 0.6F),
+        center.y,
+        center.z + enemy.facing.y * (ENEMY_RADIUS + 0.6F)
+    };
+    DrawLine3D(center, aimEnd, Color { 255, 197, 121, 255 });
 }
 
 void PrototypeRenderer::drawPlayer(const Player& player) const
 {
-    constexpr Color bodyColor { 239, 180, 74, 255 };
     constexpr Color facingColor { 255, 231, 145, 255 };
+    const Color bodyColor = player.hitFlashRemaining > 0.0F
+        ? Color { 255, 245, 210, 255 }
+        : isPlayerAlive(player)
+            ? Color { 239, 180, 74, 255 }
+            : Color { 96, 75, 68, 255 };
+    const float bodyScale = isPlayerAlive(player) ? 1.0F : 0.65F;
 
-    DrawModel(playerModel, player.position, 1.0F, bodyColor);
+    DrawModel(playerModel, player.position, bodyScale, bodyColor);
+    if (player.invulnerabilityRemaining > 0.0F) {
+        const float shieldScale = 1.08F
+            + 0.12F * (player.invulnerabilityRemaining
+                / PLAYER_INVULNERABILITY_DURATION);
+        DrawSphereWires(player.position, PLAYER_RADIUS * shieldScale,
+            8, 12, Color { 255, 238, 194, 180 });
+    }
+    if (!isPlayerAlive(player)) {
+        DrawCircle3D(Vector3 {
+                         player.position.x, 0.025F, player.position.z },
+            PLAYER_RADIUS * 1.8F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+            Color { 255, 113, 74, 210 });
+        return;
+    }
 
     const Vector3 noseStart {
         player.position.x + player.facing.x * PLAYER_RADIUS * 0.55F,

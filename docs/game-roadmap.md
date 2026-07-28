@@ -73,16 +73,20 @@ The runtime now provides:
 
 Acceptance check: movement remains smooth along corners and walls, and neither player nor projectiles escape the arena.
 
+### Milestone 5: first enemy — complete
+
+The hard-coded arena now provides:
+
+- One 20-health deterministic enemy that circles the player while correcting toward a readable preferred range.
+- Swept player-projectile collision against the moving enemy, with hit feedback and a victory state.
+- A slow three-shot fan pattern backed by a separate profile-driven projectile pool.
+- Swept hostile-projectile collision against arena walls and the player circle.
+- Five player health, damage invulnerability, hit/death feedback, and explicit `R` restart.
+- A deterministic post-defeat or post-victory encounter reset, procedural combat tones, and headless combat tests.
+
+Acceptance check: the arena supports a repeatable survival encounter with readable hostile fire and deterministic restart.
+
 ## Next milestones
-
-### Milestone 5: first enemy
-
-- Add one enemy that moves toward or around the player.
-- Add one readable enemy projectile pattern using a separate profile-driven projectile pool.
-- Add player health, damage, invulnerability timing, death, and restart.
-- Add minimal combat audio and effects.
-
-Acceptance check: the hard-coded arena supports a repeatable 60–90 second survival encounter.
 
 ### Milestone 6: generated level runtime
 

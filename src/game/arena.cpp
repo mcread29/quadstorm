@@ -6,7 +6,7 @@
 namespace {
 
 constexpr float COLLISION_EPSILON = 0.000001F;
-constexpr int PLAYER_COLLISION_PASSES = 4;
+constexpr int CIRCLE_COLLISION_PASSES = 4;
 
 float dot(Vector2 left, Vector2 right)
 {
@@ -47,31 +47,35 @@ Vector2 faceNormal(const WallSegment& wall, Vector2 previousPosition,
     return normal;
 }
 
-void removeVelocityIntoContact(Player& player, Vector2 normal)
+void removeVelocityIntoContact(Vector2& velocity, Vector2 normal)
 {
-    const float velocityIntoContact = dot(player.velocity, normal);
+    const float velocityIntoContact = dot(velocity, normal);
     if (velocityIntoContact >= 0.0F) {
         return;
     }
-    player.velocity.x -= normal.x * velocityIntoContact;
-    player.velocity.y -= normal.y * velocityIntoContact;
+    velocity.x -= normal.x * velocityIntoContact;
+    velocity.y -= normal.y * velocityIntoContact;
 }
 
 } // namespace
 
-void resolvePlayerWallCollisions(Player& player, Vector2 previousPosition,
+void resolveCircleWallCollisions(Vector2& position, Vector2& velocity,
+    float radius, Vector2 previousPosition,
     std::span<const WallSegment> walls)
 {
-    for (int pass = 0; pass < PLAYER_COLLISION_PASSES; ++pass) {
+    if (!std::isfinite(radius) || radius < 0.0F) {
+        return;
+    }
+
+    for (int pass = 0; pass < CIRCLE_COLLISION_PASSES; ++pass) {
         bool foundContact = false;
         for (const WallSegment& wall : walls) {
-            const Vector2 currentPosition { player.position.x, player.position.z };
             const ClosestSegmentPoint closestPoint = closestPointOnSegment(
-                currentPosition, wall);
+                position, wall);
             const Vector2 contactOffset = subtract(
-                currentPosition, closestPoint.position);
+                position, closestPoint.position);
             const float distanceSquared = lengthSquared(contactOffset);
-            if (distanceSquared > PLAYER_RADIUS * PLAYER_RADIUS) {
+            if (distanceSquared > radius * radius) {
                 continue;
             }
 
@@ -80,7 +84,7 @@ void resolvePlayerWallCollisions(Player& player, Vector2 previousPosition,
             if (closestPoint.amount > COLLISION_EPSILON
                 && closestPoint.amount < 1.0F - COLLISION_EPSILON) {
                 normal = faceNormal(
-                    wall, previousPosition, currentPosition, player.velocity);
+                    wall, previousPosition, position, velocity);
             } else if (distance > COLLISION_EPSILON) {
                 normal = Vector2 {
                     contactOffset.x / distance,
@@ -88,25 +92,34 @@ void resolvePlayerWallCollisions(Player& player, Vector2 previousPosition,
                 };
             } else {
                 normal = faceNormal(
-                    wall, previousPosition, currentPosition, player.velocity);
+                    wall, previousPosition, position, velocity);
             }
             if (lengthSquared(normal) <= COLLISION_EPSILON) {
                 continue;
             }
 
-            const float penetration = PLAYER_RADIUS
-                - dot(contactOffset, normal);
+            const float penetration = radius - dot(contactOffset, normal);
             if (penetration > 0.0F) {
-                player.position.x += normal.x * penetration;
-                player.position.z += normal.y * penetration;
+                position.x += normal.x * penetration;
+                position.y += normal.y * penetration;
             }
-            removeVelocityIntoContact(player, normal);
+            removeVelocityIntoContact(velocity, normal);
             foundContact = true;
         }
         if (!foundContact) {
             break;
         }
     }
+}
+
+void resolvePlayerWallCollisions(Player& player, Vector2 previousPosition,
+    std::span<const WallSegment> walls)
+{
+    Vector2 position { player.position.x, player.position.z };
+    resolveCircleWallCollisions(position, player.velocity, PLAYER_RADIUS,
+        previousPosition, walls);
+    player.position.x = position.x;
+    player.position.z = position.y;
 }
 
 void resolveProjectileWallCollisions(ProjectilePool& projectiles,

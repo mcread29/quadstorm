@@ -1,11 +1,8 @@
-#include "arena.hpp"
+#include "combat_audio.hpp"
+#include "encounter.hpp"
 #include "game_camera.hpp"
 #include "game_input.hpp"
-#include "player.hpp"
-#include "projectile_pool.hpp"
 #include "prototype_renderer.hpp"
-#include "target.hpp"
-#include "weapon.hpp"
 
 #include "raylib.h"
 
@@ -27,52 +24,61 @@ int main()
 
     {
         PrototypeRenderer renderer;
-        Player player;
-        Player previousPlayer = player;
-        Weapon weapon;
-        ProjectilePool projectiles;
-        Target target;
-        Camera3D camera = makeGameCamera(player);
+        CombatAudio combatAudio;
+        Encounter encounter;
+        Player previousPlayer = encounter.player;
+        Camera3D camera = makeGameCamera(encounter.player);
         Camera3D previousCamera = camera;
         Camera3D renderCamera = camera;
         Vector3 aimPoint { -3.0F, 0.0F, -3.0F };
         float accumulatedTime = 0.0F;
+        bool restartQueued = false;
 
         while (!WindowShouldClose()) {
             const float frameTime = std::min(GetFrameTime(), MAX_FRAME_TIME);
             accumulatedTime += frameTime;
 
             PlayerInput input = readPlayerInput(renderCamera);
+            restartQueued |= input.restartPressed;
+            input.restartPressed = restartQueued;
             if (input.hasAimPoint) {
                 aimPoint = input.aimPoint;
             }
 
             while (accumulatedTime >= FIXED_STEP_TIME) {
-                previousPlayer = player;
+                previousPlayer = encounter.player;
                 previousCamera = camera;
-                const Vector2 previousPlayerPosition {
-                    player.position.x,
-                    player.position.z
-                };
-                updatePlayer(player, input, FIXED_STEP_TIME);
-                resolvePlayerWallCollisions(
-                    player, previousPlayerPosition, ARENA_WALLS);
-                updateWeapon(weapon, projectiles, player,
-                    input.fireHeld, FIXED_STEP_TIME);
-                projectiles.update(FIXED_STEP_TIME);
-                resolveProjectileWallCollisions(projectiles, ARENA_WALLS);
-                updateTarget(target, projectiles, FIXED_STEP_TIME);
-                updateGameCamera(camera, player, FIXED_STEP_TIME);
+                const EncounterStepResult result = updateEncounter(
+                    encounter, input, FIXED_STEP_TIME);
+                restartQueued = false;
+                input.restartPressed = false;
+
+                if (result.restarted) {
+                    previousPlayer = encounter.player;
+                    camera = makeGameCamera(encounter.player);
+                    previousCamera = camera;
+                    combatAudio.playRestart();
+                } else {
+                    updateGameCamera(
+                        camera, encounter.player, FIXED_STEP_TIME);
+                }
+                if (result.enemyFired) {
+                    combatAudio.playEnemyShot();
+                }
+                combatAudio.playPlayerDamage(result.playerDamage);
+                combatAudio.playEnemyDamage(result.enemyDamage);
                 accumulatedTime -= FIXED_STEP_TIME;
             }
 
             const float interpolationAmount = accumulatedTime / FIXED_STEP_TIME;
             const Player renderPlayer = interpolatePlayer(
-                previousPlayer, player, interpolationAmount);
+                previousPlayer, encounter.player, interpolationAmount);
             renderCamera = interpolateGameCamera(
                 previousCamera, camera, interpolationAmount);
             renderer.draw(renderCamera, renderPlayer, aimPoint,
-                projectiles, target, interpolationAmount);
+                encounter.playerProjectiles, encounter.target,
+                encounter.enemy, encounter.enemyProjectiles,
+                interpolationAmount);
         }
     }
 

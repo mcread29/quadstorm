@@ -1,5 +1,9 @@
 #include "player.hpp"
 
+#include "collision_2d.hpp"
+#include "projectile_pool.hpp"
+
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -46,6 +50,11 @@ float lerp(float start, float end, float amount)
 
 void updatePlayer(Player& player, const PlayerInput& input, float stepTime)
 {
+    if (!isPlayerAlive(player)) {
+        player.velocity = Vector2 {};
+        return;
+    }
+
     const Vector2 targetVelocity {
         input.movement.x * PLAYER_SPEED,
         input.movement.y * PLAYER_SPEED
@@ -70,6 +79,63 @@ void updatePlayer(Player& player, const PlayerInput& input, float stepTime)
     if (length(aimDirection) > 0.05F) {
         player.facing = normalized(aimDirection);
     }
+}
+
+PlayerDamageResult updatePlayerDamage(Player& player,
+    ProjectilePool& enemyProjectiles, Vector2 previousPlayerPosition,
+    float stepTime)
+{
+    player.invulnerabilityRemaining = std::max(
+        0.0F, player.invulnerabilityRemaining - stepTime);
+    player.hitFlashRemaining = std::max(
+        0.0F, player.hitFlashRemaining - stepTime);
+    if (!isPlayerAlive(player)) {
+        return PlayerDamageResult::none;
+    }
+
+    PlayerDamageResult result = PlayerDamageResult::none;
+    const Vector2 playerPosition { player.position.x, player.position.z };
+    for (Projectile& projectile : enemyProjectiles.projectiles()) {
+        if (!projectile.active) {
+            continue;
+        }
+        const Vector2 relativeStart {
+            projectile.previousPosition.x - previousPlayerPosition.x,
+            projectile.previousPosition.y - previousPlayerPosition.y
+        };
+        const Vector2 relativeEnd {
+            projectile.position.x - playerPosition.x,
+            projectile.position.y - playerPosition.y
+        };
+        const auto hitAmount = sweepCircleAgainstCircle(
+            relativeStart, relativeEnd, enemyProjectiles.profile().radius,
+            Vector2 {}, PLAYER_RADIUS);
+        if (!hitAmount.has_value()) {
+            continue;
+        }
+
+        projectile.active = false;
+        if (player.invulnerabilityRemaining > 0.0F) {
+            continue;
+        }
+
+        --player.health;
+        player.hitFlashRemaining = PLAYER_HIT_FLASH_DURATION;
+        player.invulnerabilityRemaining = PLAYER_INVULNERABILITY_DURATION;
+        result = PlayerDamageResult::hit;
+        if (player.health <= 0) {
+            player.health = 0;
+            player.velocity = Vector2 {};
+            result = PlayerDamageResult::died;
+            break;
+        }
+    }
+    return result;
+}
+
+bool isPlayerAlive(const Player& player)
+{
+    return player.health > 0;
 }
 
 Player interpolatePlayer(const Player& previous, const Player& current, float amount)

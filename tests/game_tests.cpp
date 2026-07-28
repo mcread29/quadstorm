@@ -1,5 +1,7 @@
 #include "game/arena.hpp"
 #include "game/collision_2d.hpp"
+#include "game/encounter.hpp"
+#include "game/enemy.hpp"
 #include "game/projectile_pool.hpp"
 #include "game/weapon.hpp"
 
@@ -282,6 +284,202 @@ bool outwardMuzzleProjectilesDoNotEscape()
         "a muzzle beyond the closed arena cannot emit an escaping projectile");
 }
 
+bool enemyMovementAndPatternAreDeterministic()
+{
+    constexpr float fixedStep = 1.0F / 120.0F;
+    Enemy first;
+    Enemy second;
+    ProjectilePool firstProjectiles(ENEMY_PROJECTILE_PROFILE);
+    ProjectilePool secondProjectiles(ENEMY_PROJECTILE_PROFILE);
+    constexpr Vector2 playerPosition { -1.0F, 2.0F };
+
+    for (int step = 0; step < 360; ++step) {
+        updateEnemyMovement(first, playerPosition, fixedStep);
+        updateEnemyMovement(second, playerPosition, fixedStep);
+        updateEnemyPattern(
+            first, firstProjectiles, playerPosition, fixedStep);
+        updateEnemyPattern(
+            second, secondProjectiles, playerPosition, fixedStep);
+        firstProjectiles.update(fixedStep);
+        secondProjectiles.update(fixedStep);
+    }
+
+    return check(nearlyEqual(first.position.x, second.position.x)
+            && nearlyEqual(first.position.y, second.position.y)
+            && firstProjectiles.activeCount()
+                == secondProjectiles.activeCount(),
+        "enemy movement and firing repeat exactly from the same state")
+        && check(!nearlyEqual(first.position.x, 5.0F)
+                || !nearlyEqual(first.position.y, 5.0F),
+            "the deterministic enemy advances around the player")
+        && check(firstProjectiles.activeCount() == 6,
+            "three seconds produces two complete three-shot fans");
+}
+
+bool projectilePoolsKeepOwnershipSeparate()
+{
+    Encounter encounter;
+    const bool playerSpawned = encounter.playerProjectiles.spawn(
+        Vector2 {}, Vector2 { 1.0F, 0.0F });
+    const bool enemySpawned = encounter.enemyProjectiles.spawn(
+        Vector2 {}, Vector2 { 1.0F, 0.0F });
+
+    return check(playerSpawned && enemySpawned,
+               "both projectile owners can use their own pool")
+        && check(nearlyEqual(encounter.playerProjectiles.profile().speed,
+                     PLAYER_PROJECTILE_SPEED)
+                && nearlyEqual(encounter.enemyProjectiles.profile().speed,
+                    ENEMY_PROJECTILE_SPEED),
+            "projectile ownership keeps player and enemy profiles separate")
+        && check(encounter.playerProjectiles.activeCount() == 1
+                && encounter.enemyProjectiles.activeCount() == 1,
+            "spawning for one owner does not consume the other owner's slots");
+}
+
+bool playerProjectilesDamageAndDefeatEnemy()
+{
+    constexpr float fixedStep = 1.0F / 120.0F;
+    Enemy enemy;
+    enemy.previousPosition = Vector2 { 3.0F, 5.0F };
+    enemy.position = Vector2 { 7.0F, 5.0F };
+    ProjectilePool playerProjectiles;
+    bool valid = check(playerProjectiles.spawn(
+                           Vector2 { 5.0F, 5.0F }, Vector2 { 1.0F, 0.0F }),
+        "a player projectile spawns for enemy damage testing");
+    Projectile& crossingProjectile = playerProjectiles.projectiles().front();
+    crossingProjectile.previousPosition = Vector2 { 5.0F, 5.0F };
+    crossingProjectile.position = Vector2 { 5.0F, 5.0F };
+
+    const EnemyDamageResult movingHit = updateEnemyDamage(
+        enemy, playerProjectiles, fixedStep);
+    valid &= check(movingHit == EnemyDamageResult::hit
+            && enemy.health == ENEMY_MAX_HEALTH - 1
+            && playerProjectiles.activeCount() == 0,
+        "relative swept collision damages a moving enemy and consumes the shot");
+
+    Encounter encounter;
+    encounter.enemy.health = 1;
+    playerProjectiles.spawn(
+        encounter.enemy.position, Vector2 { 1.0F, 0.0F });
+    encounter.playerProjectiles = playerProjectiles;
+    const EncounterStepResult defeated = updateEncounter(
+        encounter, PlayerInput {}, fixedStep);
+    valid &= check(defeated.enemyDamage == EnemyDamageResult::died
+            && !isEnemyAlive(encounter.enemy),
+        "the enemy enters a defeated state when its final health is removed");
+
+    PlayerInput restartInput;
+    restartInput.restartPressed = true;
+    const EncounterStepResult restarted = updateEncounter(
+        encounter, restartInput, fixedStep);
+    valid &= check(restarted.restarted
+            && encounter.enemy.health == ENEMY_MAX_HEALTH
+            && encounter.playerProjectiles.activeCount() == 0,
+        "post-victory restart restores enemy health and clears shots");
+    return valid;
+}
+
+bool playerDamageRespectsInvulnerability()
+{
+    constexpr float fixedStep = 1.0F / 120.0F;
+    Player player;
+    ProjectilePool hostileProjectiles(ENEMY_PROJECTILE_PROFILE);
+    bool valid = check(hostileProjectiles.spawn(
+                           Vector2 {}, Vector2 { 1.0F, 0.0F }),
+        "a hostile projectile spawns for damage testing");
+    const PlayerDamageResult firstHit = updatePlayerDamage(
+        player, hostileProjectiles, Vector2 {}, fixedStep);
+    valid &= check(firstHit == PlayerDamageResult::hit
+            && player.health == PLAYER_MAX_HEALTH - 1
+            && hostileProjectiles.activeCount() == 0,
+        "a hostile projectile damages once and deactivates");
+
+    hostileProjectiles.spawn(Vector2 {}, Vector2 { 1.0F, 0.0F });
+    const PlayerDamageResult blockedHit = updatePlayerDamage(
+        player, hostileProjectiles, Vector2 {}, fixedStep);
+    valid &= check(blockedHit == PlayerDamageResult::none
+            && player.health == PLAYER_MAX_HEALTH - 1
+            && hostileProjectiles.activeCount() == 0,
+        "invulnerability consumes overlapping shots without repeated damage");
+
+    const int recoverySteps = static_cast<int>(
+        PLAYER_INVULNERABILITY_DURATION / fixedStep) + 2;
+    for (int step = 0; step < recoverySteps; ++step) {
+        updatePlayerDamage(
+            player, hostileProjectiles, Vector2 {}, fixedStep);
+    }
+    hostileProjectiles.spawn(Vector2 {}, Vector2 { 1.0F, 0.0F });
+    const PlayerDamageResult recoveredHit = updatePlayerDamage(
+        player, hostileProjectiles, Vector2 {}, fixedStep);
+    valid &= check(recoveredHit == PlayerDamageResult::hit
+            && player.health == PLAYER_MAX_HEALTH - 2,
+        "damage resumes after invulnerability expires");
+    return valid;
+}
+
+bool movingPlayerSweepsAgainstHostileProjectiles()
+{
+    Player player;
+    player.position.x = 1.2F;
+    ProjectilePool hostileProjectiles(ENEMY_PROJECTILE_PROFILE);
+    bool valid = check(hostileProjectiles.spawn(
+                           Vector2 {}, Vector2 { 1.0F, 0.0F }),
+        "a stationary hostile projectile spawns for relative sweep testing");
+    Projectile& projectile = hostileProjectiles.projectiles().front();
+    projectile.previousPosition = Vector2 {};
+    projectile.position = Vector2 {};
+
+    const PlayerDamageResult result = updatePlayerDamage(player,
+        hostileProjectiles, Vector2 { -1.2F, 0.0F }, 0.0F);
+    valid &= check(result == PlayerDamageResult::hit
+            && player.health == PLAYER_MAX_HEALTH - 1,
+        "relative swept collision catches a player crossing a hostile shot");
+    return valid;
+}
+
+bool deathAndRestartResetEncounter()
+{
+    constexpr float fixedStep = 1.0F / 120.0F;
+    Encounter encounter;
+    encounter.player.health = 1;
+    encounter.enemyProjectiles.spawn(
+        Vector2 {}, Vector2 { 1.0F, 0.0F });
+    encounter.enemyProjectiles.spawn(
+        Vector2 { 5.0F, 0.0F }, Vector2 { 1.0F, 0.0F });
+
+    const EncounterStepResult death = updateEncounter(
+        encounter, PlayerInput {}, fixedStep);
+    bool valid = check(death.playerDamage == PlayerDamageResult::died
+            && !isPlayerAlive(encounter.player),
+        "the final hit enters the defeated state");
+    const Projectile& frozenProjectile
+        = encounter.enemyProjectiles.projectiles()[1];
+    valid &= check(frozenProjectile.active
+            && nearlyEqual(frozenProjectile.previousPosition.x,
+                frozenProjectile.position.x)
+            && nearlyEqual(frozenProjectile.previousPosition.y,
+                frozenProjectile.position.y),
+        "defeat freezes surviving projectile interpolation state");
+
+    PlayerInput restartInput;
+    restartInput.restartPressed = true;
+    const EncounterStepResult restart = updateEncounter(
+        encounter, restartInput, fixedStep);
+    valid &= check(restart.restarted && isPlayerAlive(encounter.player)
+            && encounter.player.health == PLAYER_MAX_HEALTH,
+        "explicit restart restores player life and health");
+    valid &= check(encounter.playerProjectiles.activeCount() == 0
+            && encounter.enemyProjectiles.activeCount() == 0
+            && nearlyEqual(encounter.weapon.cooldownRemaining, 0.0F)
+            && encounter.target.health == TARGET_MAX_HEALTH
+            && nearlyEqual(encounter.enemy.position.x, 5.0F)
+            && nearlyEqual(encounter.enemy.position.y, 5.0F)
+            && nearlyEqual(encounter.enemy.shotCooldownRemaining,
+                ENEMY_FIRST_SHOT_DELAY),
+        "restart deterministically clears projectiles and combat state");
+    return valid;
+}
+
 bool weaponUsesMuzzleAndFixedCadence()
 {
     constexpr float fixedStep = 1.0F / 120.0F;
@@ -325,6 +523,12 @@ int main()
     valid &= projectileWallEndpointsAreSolid();
     valid &= fastProjectilesHitTheFirstWall();
     valid &= outwardMuzzleProjectilesDoNotEscape();
+    valid &= enemyMovementAndPatternAreDeterministic();
+    valid &= projectilePoolsKeepOwnershipSeparate();
+    valid &= playerProjectilesDamageAndDefeatEnemy();
+    valid &= playerDamageRespectsInvulnerability();
+    valid &= movingPlayerSweepsAgainstHostileProjectiles();
+    valid &= deathAndRestartResetEncounter();
     valid &= weaponUsesMuzzleAndFixedCadence();
     return valid ? 0 : 1;
 }
