@@ -10,7 +10,7 @@ Room-generation details are split into focused documents:
 - [`shooter-level-generation.md`](shooter-level-generation.md) — complete graph-first shooter pipeline.
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently implements movement, aiming, pooled projectile firing, a resettable swept-collision target, and hard-coded arena walls with player sliding and swept projectile collision; it does not yet consume generated layouts.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently implements movement, aiming, two profile-driven projectile pools, hard-coded arena collision, a resettable target, and a deterministic damageable enemy encounter with player health, invulnerability, death, victory, restart, effects, and audio. It does not yet consume generated layouts; that integration is the next milestone.
 
 ## Overview
 
@@ -405,9 +405,12 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/grid_renderer.cpp` / `drawGrid()` | Render room fills, connected rounded boundaries, and dual centers |
 | `src/main.cpp` | Compose generation modules, process controls, update, and render the diagnostic demo |
 | `src/game/main.cpp` | Run the fixed-step 2.5D prototype loop and compose runtime modules |
-| `src/game/arena.*` | Define arena walls and resolve player/projectile wall collision |
+| `src/game/encounter.*` | Order combat simulation and reset the complete encounter deterministically |
+| `src/game/enemy.*` | Enemy movement, health, damage, fan pattern, and hostile projectile profile |
+| `src/game/combat_audio.*` | Own the audio device and generated combat tones |
+| `src/game/arena.*` | Define arena walls and resolve circle/projectile wall collision |
 | `src/game/collision_2d.*` | Reusable swept-circle, segment, earliest-hit, and containment queries |
-| `src/game/player.*` | Player movement, facing, and interpolated render state |
+| `src/game/player.*` | Player movement, facing, health, damage, invulnerability, and interpolation |
 | `src/game/weapon.*` | Fixed fire cadence and facing-marker muzzle spawning |
 | `src/game/projectile_pool.*` | Profile-driven preallocated projectile slots, movement, lifetime, reuse, and interpolation |
 | `src/game/target.*` | Target health/reset state and swept projectile-versus-circle collision |
@@ -416,7 +419,7 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/game/prototype_renderer.*` | Own game GPU resources and render the current prototype scene |
 | `tests/grid_tests.cpp` | Headless grid topology and relaxation tests |
 | `tests/room_generation_tests.cpp` | Headless room connectivity, doorway, and determinism tests |
-| `tests/game_tests.cpp` | Headless 2D collision, arena collision, projectile profile/pool, and weapon-cadence tests |
+| `tests/game_tests.cpp` | Headless 2D/arena collision, projectile ownership/profile/pool, weapon cadence, enemy determinism/damage, player damage/invulnerability, death, victory, and restart tests |
 
 ## Compact pseudocode
 
@@ -470,7 +473,7 @@ function relaxOnce():
 
 ## Current scope and limitations
 
-The generation demo intentionally focuses on a single understandable patch. The separate game executable currently proves movement, aiming, pooled projectile firing, swept target hits, hit feedback, camera behavior, lighting, and fixed-step timing. It does not yet consume generated layouts. The generator does not currently implement:
+The generation demo intentionally focuses on a single understandable patch. The separate game executable currently proves movement, aiming, profile-separated player/enemy projectile firing, swept arena and combat collision, a damageable moving enemy, player health and invulnerability, deterministic death/victory restart, combat feedback, camera behavior, lighting, audio, and fixed-step timing. It does not yet consume generated layouts. The generator does not currently implement:
 
 - Infinite chunk generation.
 - Cross-chunk relaxation.

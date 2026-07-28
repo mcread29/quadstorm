@@ -13,7 +13,7 @@ As a separate pass, the room generator consumes a neutral cell graph with physic
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
-The repository now also contains the first three runtime slices of a top-down 2.5D roguelite bullet hell. The `stalberg_game` executable supports movement, aiming, fixed-cadence pooled projectile firing, and a resettable target with swept hit detection over a flat test plane; generated-level integration follows after the core combat sandbox is proven.
+The repository also contains the first five runtime milestones of a top-down 2.5D roguelite bullet hell. The `stalberg_game` executable supports movement, aiming, fixed-cadence pooled projectile firing, swept arena collision, a resettable target, and a deterministic first-enemy encounter with health, damage, invulnerability, death, victory, restart, effects, and generated combat audio. Generated-level integration is the next milestone.
 
 ## Documentation
 
@@ -32,11 +32,11 @@ A system raylib installation is used when available. Otherwise CMake downloads r
 cmake -S . -B build
 cmake --build build -j
 ctest --test-dir build --output-on-failure
-./build/stalberg_game       # minimal 2.5D target-practice prototype
+./build/stalberg_game       # 2.5D first-enemy combat prototype
 ./build/stalberg_grid       # procedural-generation diagnostic demo
 ```
 
-The target-practice prototype is intentionally small: use **WASD** to move the sphere, the **mouse** to aim its facing marker across the XZ ground plane, and hold the **left mouse button** to fire. A five-health target flashes on swept projectile hits, shows a defeat cue, and resets after one second. The player slides along the hard-coded arena walls, and swept projectiles stop at wall faces and endpoints. A 45-degree tilted orthographic camera follows the player. Simulation runs at a fixed 120 Hz; rendering interpolates player, camera, and projectile state. Firing uses a profile-driven preallocated stable-slot pool and does not allocate per shot.
+The combat prototype remains intentionally small: use **WASD** to move the sphere, the **mouse** to aim its facing marker across the XZ ground plane, and hold the **left mouse button** to fire. A stationary five-health target still provides repeatable aim practice. A separate 20-health enemy circles the player and emits a slow three-shot fan from its own projectile pool. Swept relative-motion collision lets player shots damage and defeat the moving enemy, while hostile hits remove player health and grant brief invulnerability. Player defeat or enemy defeat freezes the encounter until **R** resets every combat system. The player and both projectile pools respect the hard-coded arena walls. A 45-degree tilted orthographic camera follows the player, simulation runs at a fixed 120 Hz, and rendering interpolates player, camera, enemy, and projectile state.
 
 Debug builds apply debugger-friendly optimization to the game runtime and bundled raylib so interactive frame pacing remains representative while symbols and assertions stay enabled. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized stepping is required.
 
@@ -49,9 +49,10 @@ Grid generation and room generation are independent libraries. The room library 
 | WASD | Move relative to the camera |
 | Mouse | Aim on the ground plane |
 | Hold left mouse button | Fire |
+| R after defeat or victory | Restart the encounter |
 | Escape/window close | Exit |
 
-Arena collision and wall rendering are complete. The next milestone adds the first enemy, an enemy projectile pattern, and player health, damage, death, and restart.
+The first-enemy combat milestone is complete. The next milestone packages the generator artifacts for runtime use, renders exact generated floors and walls, opens only published doorway pairs, and spawns the player in the generated Start room.
 
 ## Generator demo controls
 

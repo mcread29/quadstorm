@@ -84,7 +84,7 @@ The hard-coded arena now provides:
 - Five player health, damage invulnerability, hit/death feedback, and explicit `R` restart.
 - A deterministic post-defeat or post-victory encounter reset, procedural combat tones, and headless combat tests.
 
-Acceptance check: the arena supports a repeatable survival encounter with readable hostile fire and deterministic restart.
+Acceptance check: the arena supports a repeatable combat encounter with readable hostile fire, swept damage in both directions, clear defeat/victory states, and deterministic restart.
 
 ## Next milestones
 

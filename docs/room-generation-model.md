@@ -359,7 +359,7 @@ Connected entrances are not `Doorway` objects. They do not include an exterior s
 
 ## Gameplay consumption
 
-> Runtime status: `stalberg_game` currently contains a flat-plane movement, aiming, pooled-projectile, swept-target-collision, hard-coded arena, and first-enemy combat prototype. It does not consume `RoomGrid` or `RoomLayout` yet. Generated-level conversion is the next runtime milestone (Milestone 6 in [`game-roadmap.md`](game-roadmap.md)). See [`game-handoff.md`](game-handoff.md) for current architecture and integration constraints.
+> Runtime status: `stalberg_game` currently contains a flat-plane movement, aiming, profile-separated projectile pools, hard-coded arena, stationary target, and damageable first-enemy encounter with player health, death/victory restart, effects, and audio. It does not consume `RoomGrid` or `RoomLayout` yet. Generated-level conversion is the next runtime milestone (Milestone 6 in [`game-roadmap.md`](game-roadmap.md)). See [`game-handoff.md`](game-handoff.md) for current architecture and integration constraints.
 
 ### Walkability
 

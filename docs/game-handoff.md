@@ -42,7 +42,7 @@ PlayerInput ──→ updateEncounter() ──→ Player ──→ arena wall re
       │                 ├──→ Weapon + player ProjectilePool ──→ Target + Enemy
       │                 ├──→ Enemy movement + fan pattern
       │                 ├──→ enemy ProjectilePool ──→ Player damage
-      │                 └──→ deterministic reset on post-death R
+      │                 └──→ deterministic reset on post-defeat/victory R
       └── populated only by game_input
 
 Player ──→ updateGameCamera() ──→ Camera3D
@@ -70,10 +70,10 @@ EncounterStepResult ──→ CombatAudio
 | `src/game/game_input.hpp/.cpp` | All current polling of raylib keyboard and mouse input |
 | `src/game/prototype_renderer.hpp/.cpp` | GPU resource ownership and all prototype drawing |
 | `src/game/directional_shader.hpp` | Embedded GLSL and shared directional-light vector |
-| `tests/game_tests.cpp` | Headless 2D/arena collision, projectile ownership/profile/pool, weapon, enemy determinism, damage, death, and restart coverage |
+| `tests/game_tests.cpp` | Headless 2D/arena collision, projectile ownership/profile/pool, weapon, enemy determinism/damage/defeat, player damage/death, interpolation freeze, victory, and restart coverage |
 | `CMakeLists.txt` | Runtime/test source lists, raylib linkage, warnings, and Debug runtime optimization |
 
-The renderer's destructor unloads models before unloading the shared lighting shader. It must be destroyed before `CloseWindow()`, which is why it lives inside an inner scope in `main.cpp`.
+The renderer's destructor unloads models before unloading the shared lighting shader. `CombatAudio` unloads sounds before closing its audio device. Both presentation owners must be destroyed before `CloseWindow()`, which is why they live inside an inner scope in `main.cpp`.
 
 ## Technical decisions and invariants
 
@@ -92,7 +92,7 @@ The camera uses orthographic projection with both a 45-degree elevation and diag
 
 ### Timing
 
-Simulation advances in fixed `1/120` second steps. Rendering interpolates between the previous and current player, camera, and projectile states. New gameplay behavior—especially weapon cooldowns, projectile movement, collision, and enemy logic—belongs in the fixed update loop, not the render path.
+Simulation advances in fixed `1/120` second steps. Rendering interpolates between the previous and current player, enemy, camera, and projectile states. New gameplay behavior—especially weapon cooldowns, projectile movement, collision, and enemy logic—belongs in the fixed update loop, not the render path.
 
 Frame time is clamped to 50 ms before entering the accumulator to avoid an unbounded catch-up spiral after pauses or debugger stops.
 
@@ -137,7 +137,7 @@ Projectile collision uses the shared `collision_2d` queries to treat each projec
 
 ### Rendering boundary
 
-Gameplay code does not own raylib `Model` or `Shader` handles. `PrototypeRenderer` owns temporary runtime graphics resources. Projectiles expose stable simulation state to the renderer rather than issuing draw calls from their simulation module.
+Gameplay code does not own raylib `Model`, `Shader`, or `Sound` handles. `PrototypeRenderer` owns temporary runtime graphics resources, while `CombatAudio` owns the audio device and generated sounds. Projectiles expose stable simulation state to presentation modules rather than issuing draw or audio calls from simulation code.
 
 ### Procedural generation boundary
 
