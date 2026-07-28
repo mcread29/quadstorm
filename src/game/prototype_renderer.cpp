@@ -2,6 +2,7 @@
 
 #include "arena.hpp"
 #include "directional_shader.hpp"
+#include "generated_level_queries.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -83,19 +84,10 @@ const char* roomRoleName(stalberg::rooms::RoomRole role)
     return "ROOM";
 }
 
-const stalberg::rooms::GeneratedRoom* findRoom(
-    const GeneratedLevel& level, int region)
-{
-    const auto rooms = level.roomLayout().getRooms();
-    const auto room = std::ranges::find(rooms, region,
-        &stalberg::rooms::GeneratedRoom::id);
-    return room == rooms.end() ? nullptr : &*room;
-}
-
 Color generatedFloorColor(const GeneratedLevel& level,
     int region, stalberg::rooms::CellIndex cell)
 {
-    const auto* room = findRoom(level, region);
+    const auto* room = generated_level::findRoomById(level, region);
     const Color base = room != nullptr
         ? roomRoleColor(room->role)
         : Color { 70, 95, 105, 255 };
@@ -492,7 +484,8 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     const int currentRegion = currentCell.has_value()
         ? level.roomLayout().getCellAssignment(*currentCell)
         : stalberg::rooms::EMPTY_CELL;
-    const auto* currentRoom = findRoom(level, currentRegion);
+    const auto* currentRoom
+        = generated_level::findRoomById(level, currentRegion);
 
     drawPlayerHud(player);
     DrawRectangleRounded(Rectangle { 292.0F, 16.0F, 330.0F, 64.0F },

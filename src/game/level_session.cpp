@@ -33,10 +33,21 @@ bool LevelSession::doorwayIsLocked(std::size_t doorway) const
 
 bool LevelSession::setDoorwayLocked(std::size_t doorway, bool locked)
 {
-    if (doorway >= lockedDoorways.size()) {
+    return setDoorwaysLocked(std::span { &doorway, 1U }, locked);
+}
+
+bool LevelSession::setDoorwaysLocked(
+    std::span<const std::size_t> doorways, bool locked)
+{
+    if (std::ranges::any_of(doorways,
+            [&](std::size_t doorway) {
+                return doorway >= lockedDoorways.size();
+            })) {
         return false;
     }
-    lockedDoorways[doorway] = locked;
+    for (const std::size_t doorway : doorways) {
+        lockedDoorways[doorway] = locked;
+    }
     rebuildWalls();
     return true;
 }

@@ -9,10 +9,50 @@
 #include <limits>
 #include <map>
 #include <ranges>
+#include <span>
 #include <utility>
 #include <vector>
 
 namespace stalberg::rooms::detail {
+
+using DoorwayCellPair = std::pair<CellIndex, CellIndex>;
+
+float doorwayCandidateQuality(
+    const RoomGrid& grid, const DoorwayCellPair& candidate)
+{
+    const float width
+        = sharedBoundaryLength(grid, candidate.first, candidate.second);
+    const float clearance = std::min(
+        grid.cells[candidate.first].clearance,
+        grid.cells[candidate.second].clearance);
+    return width + clearance * 0.35F;
+}
+
+auto bestDoorwayCandidate(const RoomGrid& grid,
+    std::uint32_t generationSeed,
+    std::span<const DoorwayCellPair> candidates)
+{
+    return std::ranges::max_element(
+        candidates, {}, [&](const DoorwayCellPair& candidate) {
+            const float noise = unitNoise(generationSeed,
+                mix(candidate.first) ^ (mix(candidate.second) << 1U));
+            return doorwayCandidateQuality(grid, candidate) + noise * 0.05F;
+        });
+}
+
+Doorway makeDoorway(const RoomGrid& grid, int firstRegion,
+    int secondRegion, const DoorwayCellPair& cells, float qualityScale)
+{
+    const float width
+        = sharedBoundaryLength(grid, cells.first, cells.second);
+    const float quality = qualityScale <= 0.0F
+        ? 0.0F
+        : std::clamp(
+            doorwayCandidateQuality(grid, cells) / qualityScale, 0.0F, 1.0F);
+    return Doorway {
+        firstRegion, cells.first, secondRegion, cells.second, width, quality
+    };
+}
 
 bool generatePlannedDoorways(
     const RoomGrid& grid,
@@ -22,7 +62,6 @@ bool generatePlannedDoorways(
     const std::vector<std::pair<int, int>>& requiredConnections,
     std::vector<Doorway>& doorways)
 {
-    using CellPair = std::pair<CellIndex, CellIndex>;
     doorways.clear();
     float averageWidth = 0.0F;
     std::size_t widthCount = 0;
@@ -38,7 +77,7 @@ bool generatePlannedDoorways(
         ? 1.0F
         : averageWidth / static_cast<float>(widthCount);
     for (const auto& [firstRegion, secondRegion] : requiredConnections) {
-        std::vector<CellPair> candidates;
+        std::vector<DoorwayCellPair> candidates;
         for (CellIndex cell = 0; cell < assignments.size(); ++cell) {
             if (assignments[cell] != firstRegion
                 && assignments[cell] != secondRegion) {
@@ -63,33 +102,10 @@ bool generatePlannedDoorways(
             return false;
         }
 
-        const auto best = std::ranges::max_element(
-            candidates, {}, [&](const CellPair& candidate) {
-                const float width
-                    = sharedBoundaryLength(grid, candidate.first, candidate.second);
-                const float clearance = std::min(
-                    grid.cells[candidate.first].clearance,
-                    grid.cells[candidate.second].clearance);
-                const float noise = unitNoise(generationSeed,
-                    mix(candidate.first) ^ (mix(candidate.second) << 1U));
-                return width + clearance * 0.35F + noise * 0.05F;
-            });
-        const float width = sharedBoundaryLength(grid, best->first, best->second);
-        const float clearance = std::min(
-            grid.cells[best->first].clearance,
-            grid.cells[best->second].clearance);
-        const float quality = std::clamp(
-            (width + clearance * 0.35F) / std::max(averageWidth * 1.25F, 0.001F),
-            0.0F,
-            1.0F);
-        doorways.push_back(Doorway {
-            firstRegion,
-            best->first,
-            secondRegion,
-            best->second,
-            width,
-            quality
-        });
+        const auto best
+            = bestDoorwayCandidate(grid, generationSeed, candidates);
+        doorways.push_back(makeDoorway(grid, firstRegion, secondRegion, *best,
+            std::max(averageWidth * 1.25F, 0.001F)));
     }
     return true;
 }
@@ -103,15 +119,14 @@ void generateDoorways(
     std::vector<Doorway>& doorways)
 {
     using RegionPair = std::pair<int, int>;
-    using CellPair = std::pair<CellIndex, CellIndex>;
     struct Contact {
         RegionPair regions;
-        std::vector<CellPair> candidates;
+        std::vector<DoorwayCellPair> candidates;
         float quality = 0.0F;
         bool selected = false;
     };
 
-    std::map<RegionPair, std::vector<CellPair>> sharedBoundaries;
+    std::map<RegionPair, std::vector<DoorwayCellPair>> sharedBoundaries;
     for (CellIndex cell = 0; cell < assignments.size(); ++cell) {
         const int firstRegion = assignments[cell];
         if (firstRegion == EMPTY_CELL) {
@@ -126,9 +141,11 @@ void generateDoorways(
                 continue;
             }
             if (firstRegion < secondRegion) {
-                sharedBoundaries[{ firstRegion, secondRegion }].emplace_back(cell, neighbor);
+                sharedBoundaries[{ firstRegion, secondRegion }]
+                    .emplace_back(cell, neighbor);
             } else {
-                sharedBoundaries[{ secondRegion, firstRegion }].emplace_back(neighbor, cell);
+                sharedBoundaries[{ secondRegion, firstRegion }]
+                    .emplace_back(neighbor, cell);
             }
         }
     }
@@ -137,12 +154,9 @@ void generateDoorways(
     contacts.reserve(sharedBoundaries.size());
     for (auto& [regions, candidates] : sharedBoundaries) {
         float bestQuality = 0.0F;
-        for (const CellPair& candidate : candidates) {
-            const float width = sharedBoundaryLength(grid, candidate.first, candidate.second);
-            const float clearance = std::min(
-                grid.cells[candidate.first].clearance,
-                grid.cells[candidate.second].clearance);
-            bestQuality = std::max(bestQuality, width + clearance * 0.35F);
+        for (const DoorwayCellPair& candidate : candidates) {
+            bestQuality = std::max(
+                bestQuality, doorwayCandidateQuality(grid, candidate));
         }
         contacts.push_back(Contact { regions, std::move(candidates), bestQuality });
     }
@@ -224,34 +238,10 @@ void generateDoorways(
         if (!contact.selected || contact.candidates.empty()) {
             continue;
         }
-        const auto best = std::ranges::max_element(
-            contact.candidates, {}, [&](const CellPair& candidate) {
-                const float width
-                    = sharedBoundaryLength(grid, candidate.first, candidate.second);
-                const float clearance = std::min(
-                    grid.cells[candidate.first].clearance,
-                    grid.cells[candidate.second].clearance);
-                const float noise = unitNoise(generationSeed,
-                    mix(candidate.first) ^ (mix(candidate.second) << 1U));
-                return width + clearance * 0.35F + noise * 0.05F;
-            });
-        const float width = sharedBoundaryLength(grid, best->first, best->second);
-        const float clearance = std::min(
-            grid.cells[best->first].clearance,
-            grid.cells[best->second].clearance);
-        const float quality = contact.quality <= 0.0F
-            ? 0.0F
-            : std::clamp((width + clearance * 0.35F) / contact.quality,
-                0.0F,
-                1.0F);
-        doorways.push_back(Doorway {
-            contact.regions.first,
-            best->first,
-            contact.regions.second,
-            best->second,
-            width,
-            quality
-        });
+        const auto best = bestDoorwayCandidate(
+            grid, generationSeed, contact.candidates);
+        doorways.push_back(makeDoorway(grid, contact.regions.first,
+            contact.regions.second, *best, contact.quality));
     }
 }
 

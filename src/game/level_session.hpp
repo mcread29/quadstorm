@@ -34,6 +34,8 @@ public:
 
     bool doorwayIsLocked(std::size_t doorway) const;
     bool setDoorwayLocked(std::size_t doorway, bool locked);
+    bool setDoorwaysLocked(
+        std::span<const std::size_t> doorways, bool locked);
     void openAllDoorways();
     bool canTraverse(stalberg::rooms::CellIndex first,
         stalberg::rooms::CellIndex second) const;

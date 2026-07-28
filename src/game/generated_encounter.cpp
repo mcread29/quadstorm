@@ -1,6 +1,7 @@
 #include "generated_encounter.hpp"
 
 #include "arena.hpp"
+#include "generated_level_queries.hpp"
 #include "vector2_math.hpp"
 
 #include <algorithm>
@@ -20,15 +21,6 @@ float distanceToSegment(Vector2 point, const Segment2D& segment)
 {
     const Vector2 closest = closestPointOnSegment(point, segment).position;
     return std::sqrt(distanceSquared(point, closest));
-}
-
-const stalberg::rooms::GeneratedRoom* findRoom(
-    const GeneratedLevel& level, int room)
-{
-    const auto rooms = level.roomLayout().getRooms();
-    const auto found = std::ranges::find(rooms, room,
-        &stalberg::rooms::GeneratedRoom::id);
-    return found == rooms.end() ? nullptr : &*found;
 }
 
 bool roomStartsEncounter(const stalberg::rooms::GeneratedRoom& room)
@@ -176,7 +168,7 @@ void resetGeneratedEncounter(GeneratedEncounterCoordinator& coordinator)
 std::vector<GeneratedEnemySpawn> selectGeneratedEnemySpawns(
     const GeneratedLevel& level, int room, Vector2 playerPosition)
 {
-    const stalberg::rooms::GeneratedRoom* generatedRoom = findRoom(level, room);
+    const auto* generatedRoom = generated_level::findRoomById(level, room);
     if (generatedRoom == nullptr) {
         return {};
     }
@@ -272,7 +264,7 @@ GeneratedEncounterStepResult updateGeneratedEncounter(
     }
 
     const int room = *result.levelSession.enteredRoom;
-    const stalberg::rooms::GeneratedRoom* generatedRoom = findRoom(level, room);
+    const auto* generatedRoom = generated_level::findRoomById(level, room);
     if (generatedRoom == nullptr
         || session.roomStates()[static_cast<std::size_t>(room)]
             != RoomLifecycleState::entered) {
