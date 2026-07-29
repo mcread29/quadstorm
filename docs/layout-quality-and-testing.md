@@ -1,6 +1,6 @@
 # Layout Quality, Validation, Determinism, and Testing
 
-This document explains how room candidates are seeded, validated, scored, selected, retried, and tested.
+This document explains how room candidates are seeded, validated, scored, selected, retried, and tested. The room generator is deterministic for a requested seed. The target game adds an application-level match generator that chooses a fresh replayable match seed, derives layout inputs plus a physical-scale and quest profile, and accepts only a complete gameplay-valid result.
 
 - Shooter construction stages: [`shooter-level-generation.md`](shooter-level-generation.md)
 - Input/output model: [`room-generation-model.md`](room-generation-model.md)
@@ -21,7 +21,7 @@ Instead of forcing malformed geometry through repair steps, the generator create
 
 ## Stable requested seed versus candidate variant seed
 
-The public seed identifies the requested layout. It is preserved in `RoomLayout::getSeed()` regardless of which candidate wins.
+The public room seed identifies the requested layout and is preserved in `RoomLayout::getSeed()` regardless of which candidate wins. In normal gameplay it is deterministically derived from a freshly chosen match seed; replay/tests supply the match seed explicitly, while the room seed remains available for lower-level diagnostics.
 
 ### Grid fingerprint
 
@@ -182,9 +182,11 @@ A geometrically connected floor is not sufficient; accepted circulation must als
 
 This rejects layouts that are topologically valid but do not provide a meaningful shooter route, including the playtest failure where two progression branches collapsed into neighboring doors leading to effectively the same place.
 
-## Planned identity and diversity expansion
+## Planned random-match, physical-scale, quest, and diversity expansion
 
-Current validation proves local correctness and now requires small-map Hub Circuit, Broken Ring, or Twin Wings conformance, exact semantic edges, stable Hub/Reward semantics, and separated progression branches. It still does not validate distinct substantial-room shapes, districts, or broader cross-seed diversity, and larger maps retain the spatial planner. The next pass in [`level-identity-pass.md`](level-identity-pass.md) expands per-layout geometry conformance and cross-seed diversity gates.
+Current validation proves local correctness and small-map recipe conformance. It does not yet prove that a random runtime seed produces an endurance-ready map, that the map is physically larger relative to actors, or that an authored quest recipe can bind safely. The next pass in [`level-identity-pass.md`](level-identity-pass.md) adds a bounded application-level retry pipeline and expands per-layout geometry conformance and cross-seed diversity gates.
+
+The same match seed must reproduce derived grid/room seeds, selected recipe, candidate winner, world-scale profile, semantic anchors, and quest binding. Different new-match seeds should normally produce different accepted maps. `R` must preserve the accepted map; only a distinct new-match action requests another seed. Fixed configurations remain regression fixtures and deterministic fallback coverage.
 
 Planned graph measurements include:
 
@@ -195,7 +197,9 @@ Planned graph measurements include:
 - Multi-door substantial-room and meaningful-junction counts.
 - Degree histogram, cycle rank, branch depth, and graph-community separation.
 
-Planned room-geometry measurements include compactness, elongation, concavity, lobe/neck structure, doorway count, doorway angular spread, and local clearance. Accepted representative sets should contain multiple topology and room-shape signatures without introducing nondeterminism: repeated identical inputs must still publish identical layouts, metadata, and scores.
+Planned room-geometry measurements include compactness, elongation, concavity, lobe/neck structure, doorway count, doorway angular spread, and local clearance. Gameplay-scale measurements additionally include cell spacing, doorway width, room footprint, connector length, ingress separation, sightline bands, objective clearance, and route travel in both world units and player-diameter units. Increasing radius without increasing these actor-relative dimensions must fail the large-map acceptance gate. Quest validation checks semantic-role availability, required route ordering/separation, objective capacity, and optional-branch viability without fixed coordinates.
+
+Accepted cross-seed sets should contain multiple topology, room-shape, and quest-placement signatures without introducing nondeterminism: repeated identical match inputs must still publish identical layouts, metadata, scores, and bindings.
 
 These checks are not implemented yet. The 100-point score below remains the current authoritative formula until the identity pass explicitly revises and rebaselines it.
 
@@ -536,12 +540,14 @@ Use this order:
 2. Verify `RoomGrid` physical metrics are finite and positive.
 3. Check `getRoomCount()` before consuming metadata.
 4. Record requested seed, grid seed, radius, method, selected candidate, and quality score.
-5. Compare connected entrances with the fixed brief.
+5. Compare connected entrances with the requested brief.
 6. Inspect start-to-exit graph distance and connector degrees.
-7. Inspect minimum selected doorway width relative to average input portal width.
-8. Try a different room seed before changing grid topology.
-9. If compact seeds fail frequently, profile how often fallback candidates above the requested budget are selected.
-10. Add a deterministic regression case to `tests/room_generation_tests.cpp` before changing formulas.
+7. For game candidates, record the match seed, derived seeds, world scale, selected recipe, semantic anchors, and whether fallback was used.
+8. Verify actor-relative room/route dimensions and quest requirements before admitting the map to normal play.
+9. Inspect minimum selected doorway width relative to average input portal width.
+10. Try a different room seed before changing grid topology.
+11. If compact seeds fail frequently, profile how often fallback candidates above the requested budget are selected.
+12. Add a deterministic regression case to `tests/room_generation_tests.cpp` before changing formulas.
 
 The diagnostic HUD already displays room seed, doorway count, quality score, and selected candidate index for quick visual diagnosis.
 

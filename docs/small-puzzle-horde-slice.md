@@ -1,6 +1,8 @@
 # Small Puzzle Horde Map Vertical Slice
 
-This document is the interactive and headless acceptance guide for the first intentional small-map horde match. The active generated level uses radius 5 and five substantial rooms. Generation selects one of three gameplay recipes before candidate placement and routing: **Hub Circuit**, **Broken Ring**, or **Twin Wings**. The required Anchor is a combat holdout objective, not a logic puzzle; the optional relay sequence is the slice's first deliberately simple puzzle.
+This document is the interactive and headless acceptance guide for the completed small-map horde **systems fixture**. The active generated level uses radius 5, five substantial rooms, fixed recipe seeds, and `worldScale = 0.16F`. Generation selects Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing. This document describes current behavior, not the production map-selection target.
+
+Normal future play must generate a fresh validated random map from a replayable match seed, preserve it on `R`, and use a separate new-match action to regenerate. Production maps must also enlarge cells, rooms, connectors, and routes relative to unchanged actor bodies; increasing radius alone is insufficient. The three maps below remain deterministic regression and fallback fixtures.
 
 ## Run each recipe
 
@@ -10,7 +12,7 @@ This document is the interactive and headless acceptance guide for the first int
 ./build/stalberg_game --recipe=wings
 ```
 
-F2 opens the complete overview. The first three browser configurations show Hub Circuit, Broken Ring, and Twin Wings on the same source grid, making graph differences directly comparable.
+F2 opens the complete overview. The first three browser configurations are fixed regression fixtures showing Hub Circuit, Broken Ring, and Twin Wings on the same source grid, making graph differences directly comparable.
 
 ## Controls
 
@@ -23,7 +25,7 @@ F2 opens the complete overview. The first three browser configurations show Hub 
 | 1 at Hub | Buy the next damage tier |
 | 2 at Hub | Buy the next fire-rate tier |
 | 3 at Hub | Buy the next dash-recovery tier |
-| R | Reset the complete match |
+| R | Restart mutable match state on the same fixture map and seed |
 | F1 | Combat regression arena |
 | F2 | Full-map overview and recipe browser |
 | F3 | Detailed match diagnostics |
@@ -162,3 +164,5 @@ ctest --test-dir build --output-on-failure
 ```
 
 The dedicated `stalberg_horde_match_tests` target covers recipe binding and costs, automatic countdown/intermission transitions, puzzle-independent advancement, representative scaling snapshots, bounded and overflow-safe schedules, objective sites, progression-currency reservation, atomic Anchor interaction, exact scaled rewards, gate state, Reward-route safety, geometry-safe spawning/separation, navigation, concurrent Anchor/Hub progression, relay ordering, explicit extraction, tiered upgrades, repeatable Hub repair, and complete reset. Existing generation, geometry, generated-level, collision, combat, and F1 regression tests remain active.
+
+The successor acceptance suite must verify random new-match variation, exact same-seed replay, same-map restart, bounded fallback, actor-relative world-scale targets, larger-map ingress/circulation capacity, and dynamic quest binding to generated semantic anchors.

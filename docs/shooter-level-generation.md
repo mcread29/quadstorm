@@ -4,7 +4,7 @@ This document describes the default `RoomGenerationMethod::ShooterLayout` pipeli
 
 For the input/output types and physical geometry contract, see [`room-generation-model.md`](room-generation-model.md). For candidate validation, scoring, deterministic retries, and tests, see [`layout-quality-and-testing.md`](layout-quality-and-testing.md). For the next topology-archetype, room-grammar, runtime-overview, and landmark pass, see [`level-identity-pass.md`](level-identity-pass.md).
 
-The `stalberg_game` runtime consumes shooter layouts through immutable `GeneratedLevel`, retaining source grid, dual geometry, neutral room graph, recipe metadata, exact floor, and doorway thresholds. `LevelSession` owns the authoritative player and synchronized collision/navigation locks. `HordeMatch` turns published thresholds into point gates and objective locks, routes deterministic rounds across opened cells, and binds high-clearance semantic sites to the Anchor, Hub, relays, upgrades, and Exit. Runtime milestones are tracked in [`game-roadmap.md`](game-roadmap.md), and [`small-puzzle-horde-slice.md`](small-puzzle-horde-slice.md) is the interactive acceptance guide.
+The `stalberg_game` runtime consumes shooter layouts through immutable `GeneratedLevel`, retaining source grid, dual geometry, neutral room graph, recipe metadata, exact floor, and doorway thresholds. The current fixed radius-5 presets are a systems baseline. The target runtime derives a fresh validated layout, physical-scale profile, and quest binding from one replayable match seed for every new match. `LevelSession` owns the authoritative player and synchronized collision/navigation locks; `HordeMatch` owns persistent match state.
 
 ## Goals
 
@@ -24,9 +24,9 @@ The generator works over the irregular dual-cell graph produced by the Stålberg
 
 ### Current identity limitation and next pass
 
-Larger shooter layouts still rely primarily on one noise-perturbed spatial tree and optional loop. Radius-5 layouts now use fixed recipe graphs, but all substantial rooms still share the same compact growth process. Direct links, recipes, dense clusters, and landmark-sized arenas improve global contrast while local silhouettes can still read as oatmeal.
+Larger shooter layouts still rely primarily on one noise-perturbed spatial tree and optional loop. Radius-5 layouts use fixed recipe graphs, but all substantial rooms still share the same compact growth process. The runtime also uses a `0.16` generated-to-world scale, so increasing radius alone would create more of the same actor-relative geometry.
 
-The runtime now exposes the complete layout and six fixed read-only configurations in F2. Radius-5 maps also choose and publish Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing; this is the first mechanics-first anti-oatmeal tier. Larger maps retain the spatial planner. The remaining work in [`level-identity-pass.md`](level-identity-pass.md) is explicit room-shape grammar, broader archetypes, stronger graph signatures, districts, and puzzle-specific geometry.
+The remaining work in [`level-identity-pass.md`](level-identity-pass.md) is a random new-match boundary, larger world-space geometry, explicit room-shape grammar, broader archetypes, stronger graph signatures, districts, semantic quest anchors, and cross-seed validation. The six fixed F2 configurations remain inspection fixtures rather than the normal gameplay pool.
 
 ### Horde-map interpretation
 
@@ -43,7 +43,7 @@ The generated mission graph is spatial structure, not a mandate for one-time roo
 
 Only published doorways may become gates. Opening a gate changes the legal route network for the player and every navigating enemy; incidental physical contacts remain walls. Wide arenas, loops, and multiple approaches support crowd routing, while connectors create controlled pressure and meaningful spending choices.
 
-Shipped maps should use curated, validated generated seeds paired with authored map recipes. A recipe assigns devices, clue families, enemy access, services, and finale behavior to semantic rooms and candidate cells rather than fixed world coordinates. This keeps each map learnable and its mysteries coherent while preserving generated geometry.
+Normal play should generate a fresh validated map from a random replayable match seed. That seed deterministically selects the grid, layout stream, compatible topology/quest recipe, and physical-scale profile; bounded candidate retries reject invalid combinations. Curated seeds are tests and emergency fallback only. A recipe assigns devices, clue families, enemy access, services, and finale behavior to generated semantic rooms and anchors rather than fixed room IDs or world coordinates, allowing coherent quests across random geometry.
 
 ## Seed compatibility
 
@@ -92,6 +92,8 @@ keep the best deterministic candidate
 ```
 
 The demo completes all grid relaxation before calling `makeRoomGrid()`. Production callers should do the same because room sizes, routing costs, portal widths, and the input fingerprint all depend on final geometry.
+
+The production game wraps this room pipeline with an additional acceptance phase: publish room-shape and semantic-anchor capabilities, bind the match seed's selected quest recipe, validate anchor counts/separation/clearance, gated reachability, objective and spawn safety, dependency solvability, extraction availability, and actor-relative physical scale, then reject and retry the whole derived candidate when any requirement fails. This application phase must not be folded into hard-coded coordinates inside the neutral room generator.
 
 ```cpp
 stalberg::StalbergGrid grid;
@@ -445,7 +447,9 @@ Tree connectivity and planned-doorway generation ensure every published room par
 
 ## Scaling behavior
 
-The same formulas support the demo's radius range of 2–14.
+The same topology formulas support the demo's radius range of 2–14, but radius controls available cell count—not gameplay scale. `GeneratedLevelConfig::worldScale` independently converts source geometry into world units and is currently `0.16F` in the game.
+
+The production large-map pass must increase both available extent and actor-relative physical dimensions. Cell spacing, arena footprint, doorway width, connector length, and route distance must grow relative to unchanged player/enemy radii. Uniformly enlarging actors, interactions, projectiles, and geometry would preserve the effective scale and does not qualify. Generation validation should therefore publish/check world-space and player-diameter measurements, while camera, locomotion, dash, projectile reach, spawn visibility, lighting, and detail density are tuned independently for pacing.
 
 ### Compact grids
 

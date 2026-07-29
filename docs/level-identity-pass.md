@@ -1,6 +1,6 @@
-# Level Identity and Legibility Pass
+# Random Large-Map Identity, Scale, and Legibility Pass
 
-This document defines the remaining level-identity slice for the generated game map. The full-level overview and three small-map topology recipes are complete, as are crowd navigation and automatic endless round pacing. Broader topology, room-shape grammar, districts, and authored landmark anchors remain next because combat systems cannot make a structurally repetitive map learnable.
+This document defines the remaining generation slice for the game map. The full-level overview and three small-map topology recipes are complete systems fixtures. The next runtime boundary must generate a fresh validated map per new match, reproduce it from one match seed, and make it physically larger relative to actors—not merely increase the hex radius. Broader topology, room-shape grammar, districts, quest anchors, and world-space validation are required because combat systems cannot make a cramped or structurally repetitive map compelling.
 
 The current shooter generator is valid, deterministic, physically measured, and door-aware, but its accepted layouts often read as variations of the same sequence: arena → connector → arena → connector. The runtime follow camera hides the complete silhouette and circulation graph, while most substantial rooms use similar compact growth and only subtle role colors. Together these produce a “bowl of oatmeal” effect: local irregularity without memorable global or local identity.
 
@@ -8,7 +8,7 @@ For the implemented generator pipeline, see [`shooter-level-generation.md`](shoo
 
 ## Current baseline
 
-- The active game constructs the curated small-map `GeneratedLevelConfig`: radius 5, grid seed 1, and Hub Circuit room seed 7. The other CLI recipe presets use room seeds 2 and 3.
+- The active game currently constructs a fixed small-map `GeneratedLevelConfig`: radius 5, grid seed 1, Hub Circuit room seed 7, and world scale `0.16`. The other CLI recipe presets use room seeds 2 and 3. These are current regression presets, not the target new-match flow.
 - The gameplay camera follows the player. F2 now opens a developer whole-level overview with exact runtime floor, boundaries, role/ID labels, the published room graph, open/locked thresholds, role markers, player position, and generator metadata.
 - Left/Right browses six fixed representative configurations as read-only previews; Home returns to the active session. Preview browsing pauses and never replaces or mutates the active simulation.
 - Until later slices publish archetype and room-shape metadata, the overview explicitly labels the current derived topology and compact/routed baseline rather than pretending the planned grammar already exists.
@@ -18,7 +18,7 @@ For the implemented generator pipeline, see [`shooter-level-generation.md`](shoo
 - Most shooter arenas grow from the same compact-room process. Roles describe gameplay purpose, not a distinct geometry grammar.
 - Runtime room identity now includes stronger role-aware floors, sparse floor traces, wall caps, semantic objective landmarks, and a role label. Broader room-shape and district metadata still does not exist.
 
-The identity pass must preserve deterministic generation, exact dual geometry, authorized doorway pairs, complete reachability, physical clearance, Start/Exit guarantees, and the immutable `GeneratedLevel` boundary.
+The pass must preserve deterministic generation for a requested match seed, exact dual geometry, authorized doorway pairs, complete reachability, physical clearance, Start/Exit guarantees, and the immutable `GeneratedLevel` boundary. A new match normally chooses a fresh seed; restart retains the accepted map; fixed seeds remain replay, regression, and fallback tools.
 
 ## Design principles
 
@@ -28,6 +28,8 @@ The identity pass must preserve deterministic generation, exact dual geometry, a
 4. **Generated variation must remain testable.** Archetype labels and geometry signatures should be published or reproducibly derived rather than inferred by screenshots alone.
 5. **Runtime landmarks use semantic anchors, never hand-authored world coordinates.**
 6. **The overview is an iteration tool first.** A later player-facing map may add discovery or fog rules without weakening the debug view.
+7. **Map extent and physical scale are separate controls.** Radius controls available cell count; generated-to-world scale controls room, doorway, and route size relative to actors. Production generation must increase both where needed.
+8. **Random does not mean unvalidated.** Every new-match seed is deterministic, candidates are retried within a bounded budget, and only geometry-, endurance-, economy-, and quest-valid maps enter play.
 
 ## Slice 1: full-level overview and seed browser — complete
 
@@ -75,7 +77,13 @@ Candidate validation and scoring should measure:
 
 The current prohibition on connector-to-connector doorways may be revisited only if a topology archetype needs a genuine corridor junction. It must not be relaxed accidentally. Any change must keep connector traversal and doorway publication explicit.
 
-## Slice 3: room-shape grammar
+## Slice 3: random new-match generation and physical scale
+
+Normal gameplay should derive grid seed, room seed, topology/quest recipe, candidate stream, and physical-scale profile from one match seed. The same seed must reproduce the accepted candidate and quest binding exactly; different new-match seeds should normally produce different maps. `R` resets the run without regenerating, while a separate new-match action requests a new seed. Fixed representative configurations remain in F2 and tests, and a validated fallback is used only after bounded generation failure.
+
+The production map must be larger in gameplay space, not only in cell count. Increase the generated-to-world conversion above the current `0.16` baseline while keeping player and enemy collision bodies authoritative. Scaling actors and all ranges by the same amount does not count. Candidate acceptance must measure doorway width, arena footprint, connector length, objective clearance, ingress separation, sightline bands, and route travel in world units and player-diameter units. Camera framing, movement/dash, projectile reach, interactions, lighting, detail density, and navigation performance then receive explicit pacing passes rather than one global multiplier.
+
+## Slice 4: room-shape grammar
 
 Shooter arenas should select a geometry grammar compatible with their available cells, role, doorway brief, and topology position.
 
@@ -95,9 +103,9 @@ Generation should publish the selected shape identity rather than forcing the re
 
 A map should contain several distinct substantial-room signatures. Changing only cell count or rotating an otherwise identical blob does not count as meaningful variety.
 
-## Slice 4: landmarks, districts, and presentation — small-map baseline complete
+## Slice 5: landmarks, districts, quests, and presentation — small-map baseline complete
 
-The radius-5 runtime has deterministic Start, Hub, Anchor, Reward-relay, gate, and Exit landmarks plus stronger role-aware surface treatment. Shape-aware landmark variants, authored semantic-anchor metadata, and district language remain pending.
+The radius-5 runtime has deterministic Start, Hub, Anchor, Reward-relay, gate, and Exit landmarks plus stronger role-aware surface treatment. Production generation must publish shape-aware semantic anchors and bind recipe-authored quest devices after candidate acceptance. A quest recipe may constrain role, shape, separation, route order, clearance, or optionality, but must not name fixed room IDs or world coordinates. Candidates that cannot realize the selected quest are invalid.
 
 Current and planned landmark language:
 
@@ -116,6 +124,7 @@ District palettes and symbols should reinforce topology clusters without replaci
 
 ### Per-layout structural checks
 
+- Match seed, derived inputs, accepted candidate, physical-scale profile, and quest binding are reproducible.
 - Archetype-specific graph constraints are satisfied.
 - Every assigned cell remains reachable through authorized doorway pairs.
 - Start and Exit remain distinct and meaningfully separated.
@@ -123,6 +132,8 @@ District palettes and symbols should reinforce topology clusters without replaci
 - Substantial rooms satisfy their published shape grammar.
 - Doorway width and actor-clearance guarantees remain intact.
 - Landmark anchors belong to the advertised room and do not obstruct retained thresholds.
+- World-space room and route dimensions are larger relative to unchanged actors than the radius-5 systems baseline.
+- Opening and expanded components satisfy configured ingress, population, circulation, sightline, and quest-footprint capacity.
 
 ### Cross-seed diversity checks
 
@@ -144,6 +155,6 @@ The overview should support a repeatable screenshot matrix for representative se
 
 ## Acceptance check
 
-From the full-level overview, representative accepted layouts are distinguishable at a glance by silhouette, topology archetype, room-shape distribution, and landmark hierarchy. No representative layout is dominated by a repetitive arena/connector alternation. Each map contains multiple mechanically distinct substantial-room geometries, while exact walls, authorized doorways, navigation, spawn clearance, deterministic generation, and runtime reset remain correct.
+Consecutive new matches normally produce different fully valid maps, while the same match seed reproduces geometry, scale, accepted retry, topology, semantic anchors, and quest binding exactly. `R` preserves that map. Accepted layouts are distinguishable by silhouette, topology, room-shape distribution, and landmark hierarchy; no layout is dominated by repetitive arena/connector alternation. Rooms and routes are demonstrably larger relative to actor bodies than the systems slice, and radius-only growth cannot satisfy the physical-scale checks. Exact walls, authorized doorways, navigation, spawn clearance, bounded fallback, and runtime reset remain correct.
 
-Crowd navigation, local separation, deterministic spawn pacing, enemy roles, and the small-map round director are now complete. After the remaining identity gate passes, continue with puzzle-specific room grammar, authored clue families, and broader recipes rather than adding more seed-only variants.
+Crowd navigation, local separation, deterministic spawn pacing, enemy roles, and the small-map round director are complete. The next work should establish random large-map generation, physical scaling, quest-aware anchors, and validation before adding deeper clue families.

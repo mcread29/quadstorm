@@ -11,17 +11,19 @@ The grid generator:
 
 As a separate pass, the room generator consumes a neutral cell graph with physical cell area, clearance, traversal distance, shared-boundary width, and explicit entrance candidates. Its default shooter method plans a mission graph first, embeds several combat arenas—including occasional dense two-to-three-room clusters or one larger landmark room when the map supports them—and joins them with explicit corridor regions where space permits, side branches, a meaningful start-to-exit route, and at most one deliberate loop. Legacy branching-shape and organic-growth methods remain available. Every method generates several deterministic candidates and keeps the highest-scoring valid layout.
 
-The next generator pass addresses level identity now that the automatic endless director and first bounded combat-scaling profile are complete. The F2 developer overview and read-only representative-seed browser expose the full exact map hidden by the follow camera. The spatial-tree pipeline can still read as repetitive arena → connector → arena structure, and most shooter arenas share similar compact growth. [`docs/level-identity-pass.md`](docs/level-identity-pass.md) specifies the remaining explicit topology archetypes, room-shape grammar, semantic landmark anchors, and structural-diversity acceptance tests.
+The next generator pass turns the systems slice into the normal procedural match flow. Each new match should derive a fresh grid, room layout, topology recipe, and quest binding from one replayable match seed, retrying candidates until the complete map passes geometry, circulation, ingress, economy, and quest validation. Fixed representative seeds remain regression fixtures and an emergency fallback, not the normal content model. The F2 overview and seed browser remain the main inspection tools.
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
-The repository also contains a complete small-map **systems** vertical slice of a top-down 2.5D round-based horde shooter. The current `stalberg_game` executable generates one of three intentional radius-5 gameplay graphs before physical routing, then runs a persistent automatic endless match with bounded recipe-aware pressure, points, purchasable gates, Drifter/Runner/Caster/Elite hordes, door-aware navigation, an Anchor holdout, Hub activation and repair, an optional ordered relay puzzle, tiered upgrades, and voluntary Exit extraction. The required Anchor is a combat pressure objective rather than a logic puzzle; deeper recipe-authored puzzle mechanics remain future work. The focused single-enemy regression arena remains available through **F1**.
+The repository also contains a complete small-map **systems** vertical slice of a top-down 2.5D round-based horde shooter. The current `stalberg_game` executable uses one of three fixed radius-5 gameplay presets, then runs a persistent automatic endless match with bounded recipe-aware pressure, points, gates, hordes, objectives, upgrades, and voluntary extraction. That fixed preset flow is a baseline, not the destination: normal play should create a fresh validated random map per new match, while restart keeps the same seed.
+
+The production map must also be physically larger relative to the actors, not merely contain more cells. `GeneratedLevelConfig::worldScale` currently converts generated geometry at `0.16`; the large-map pass must increase that metric scale while keeping player and enemy body sizes authoritative, then retune camera framing, travel pace, projectile reach, interaction distances, spawn clearance, lighting, and detail density around the larger world. Increasing only `gridRadius`, or scaling actors by the same factor, does not satisfy this requirement.
 
 ## Documentation
 
 - [`docs/game-roadmap.md`](docs/game-roadmap.md) — complete horde-shooter concept, match structure, and milestones.
 - [`docs/game-handoff.md`](docs/game-handoff.md) — current runtime architecture, decisions, limitations, and immediate implementation slice.
-- [`docs/level-identity-pass.md`](docs/level-identity-pass.md) — in-progress topology, room-grammar, landmark, and diversity-validation pass.
+- [`docs/level-identity-pass.md`](docs/level-identity-pass.md) — in-progress random large-map topology, physical-scale, room-grammar, landmark, and diversity-validation pass.
 - [`docs/small-puzzle-horde-slice.md`](docs/small-puzzle-horde-slice.md) — interactive and headless acceptance guide for recipes, economy, rounds, puzzles, enemies, and upgrades.
 - [`docs/demo-and-algorithm.md`](docs/demo-and-algorithm.md) — base mesh mathematics, topology, relaxation, rendering, and source map.
 - [`docs/room-generation-model.md`](docs/room-generation-model.md) — neutral physical input, output API, roles, doorways, and gameplay integration contract.
@@ -66,7 +68,7 @@ Nerd Font Mono; its MIT license is included in `assets/fonts/`.
 
 The runtime starts in the generated horde match. `GeneratedLevel` retains the relaxed source grid, exact dual geometry, neutral room graph, shooter layout, and exact doorway threshold segments together. Assigned dual polygons become a cached floor mesh; floor/void edges and unauthorized cross-room contacts become walls; only exact published doorway cell pairs remain open. Mutable player, room-lifecycle, lock, and active-wall state lives separately in `LevelSession`. The player spawns at a high-clearance cell in Start and can move through the matching door-aware navigation graph without leaving the floor.
 
-Use **WASD** to move, **Space** to dash, the **mouse** to aim, and hold the **left mouse button** to fire. Round 1 starts after a three-second countdown, and every cleared round advances automatically after a five-second intermission. Press **E** to buy nearby gates, activate devices (including atomic Anchor funding/activation when affordable), or repair one missing health at the powered Hub; use **1/2/3** there to buy the next damage, fire-rate, or dash tier. Press **F1** for the combat regression arena. Press **F2** for the fitted full-level overview; Left/Right browses six fixed read-only layouts and Home returns to the active session. Run with `--recipe=hub`, `--recipe=ring`, or `--recipe=wings` to play each graph directly. Simulation runs at a fixed 120 Hz and rendering interpolates simulation state.
+Use **WASD** to move, **Space** to dash, the **mouse** to aim, and hold the **left mouse button** to fire. Round 1 starts after a three-second countdown, and every cleared round advances automatically after a five-second intermission. Press **E** to buy nearby gates, activate devices, or repair at the powered Hub; use **1/2/3** there for upgrades. Press **F1** for the combat regression arena. Press **F2** for the fitted full-level overview; Left/Right browses six fixed regression layouts and Home returns to the active session. `--recipe=hub|ring|wings` forces the current fixture presets for inspection; normal future recipe selection will not imply fixed geometry. Simulation runs at a fixed 120 Hz and rendering interpolates simulation state.
 
 Debug builds apply debugger-friendly optimization to the game runtime and bundled raylib so interactive frame pacing remains representative while symbols and assertions stay enabled. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized stepping is required.
 
@@ -82,7 +84,7 @@ Grid generation and room generation are independent libraries. The room library 
 | Hold left mouse button | Fire on the generated map or in the combat regression arena |
 | E | Buy a gate, activate Anchor/Hub/Exit, or repair one missing health at a powered Hub |
 | 1 / 2 / 3 at Hub | Buy the next damage, fire-rate, or dash tier |
-| R | Reset the complete match, or restart regression combat |
+| R | Restart mutable match state on the same generated map, or restart regression combat |
 | F1 | Toggle generated horde match / combat regression arena |
 | F2 | Toggle the full-level developer overview |
 | Left / Right in overview | Browse fixed representative configurations read-only |
@@ -96,7 +98,7 @@ Grid generation and room generation are independent libraries. The room library 
 
 | Input | Action |
 |---|---|
-| `R` | Generate the next random grid |
+| `R` | Generate the next random grid in the diagnostic demo (unrelated to gameplay restart) |
 | `G` | Generate a new room layout |
 | `M` | Cycle shooter, branching-shape, and organic-growth generation |
 | Left / Right | Change grid seed |

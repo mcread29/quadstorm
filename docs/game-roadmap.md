@@ -1,6 +1,6 @@
 # Game Roadmap
 
-This document tracks the evolution of the procedural-generation demo into a top-down 2.5D round-based horde shooter. The finished game is built around one persistent, learnable map per match: the player survives escalating waves, earns currency, opens routes, powers strange machinery, discovers hidden quests, acquires transformative weapons, and reaches a final confrontation or extraction.
+This document tracks the evolution of the procedural-generation demo into a top-down 2.5D round-based horde shooter. The finished game builds a fresh, replayable-seed procedural map for each new match and keeps that map persistent for the life of the run: the player survives escalating waves, earns currency, opens routes, powers strange machinery, discovers hidden quests, acquires transformative weapons, and reaches a final confrontation or extraction. Restarting a run keeps its map seed; starting a new match requests a new one.
 
 Bullet-hell combat remains part of the identity, but as punctuation rather than the entire game. Most enemies create a moving crowd that the player must route through the map; ranged enemies, elites, objectives, and bosses introduce readable projectile patterns that disrupt comfortable strategies.
 
@@ -68,11 +68,13 @@ A complete match follows this arc:
 6. **Confrontation** — A late round introduces the map's Warden or boss and resolves the main objective under peak pressure.
 7. **Extraction or descent** — The player can secure a completed match or continue into increasingly hostile endless rounds for score and mastery.
 
-Death ends the current match and restores the map, economy, devices, enemies, and quest state to a deterministic starting condition.
+Death ends the run. Restart restores economy, devices, enemies, and quest state while retaining the exact accepted map and match seed; choosing New Match generates another map.
 
 ## Map and quest model
 
-The generator remains the spatial compiler, but shipped maps should be learnable. The intended content model is a set of curated and validated generated seeds, each paired with a map recipe that assigns landmarks, devices, clue families, enemy access, and finale behavior to semantic room roles. Geometry can remain irregular and generated without randomizing away the relationships that make a mystery solvable.
+The generator remains the spatial compiler. Normal play should choose a fresh match seed, deterministically derive grid and room seeds plus a compatible topology/quest recipe, and retry candidates until the complete result is valid. The accepted map is reproducible from its displayed seed, but its geometry, routes, room shapes, and quest sites vary between new matches. Curated seeds are regression fixtures and an emergency fallback only.
+
+Recipes preserve coherent mysteries without fixing layouts: they assign landmarks, devices, clue families, enemy access, and finale behavior to generated semantic room roles and anchor types rather than room IDs or world coordinates. Quest-aware validation rejects maps that cannot realize required separation, route order, objective clearance, holdout capacity, or optional branches.
 
 A representative map recipe is **The Grid Engine**:
 
@@ -149,19 +151,21 @@ Acceptance check: a generated floor can be entered at Start, cleared room by roo
 
 Acceptance check: several generated enemies coexist and can be defeated deterministically in one locked room while the player moves, dashes, and fires without crossing walls or losing shots at encounter transitions.
 
-### Milestone 8B: level identity and legibility — in progress
+### Milestone 8B: level identity, physical scale, and legibility — in progress
 
-The current generator is physically valid but often reads as an alternating arena/connector chain, substantial rooms share similar compact growth, and the runtime follow camera hides the complete layout. Complete the remaining pass in [`level-identity-pass.md`](level-identity-pass.md) before expanding to larger endurance maps and puzzle-specific geometry.
+The current generator is physically valid but often reads as an alternating arena/connector chain, substantial rooms share similar compact growth, and the runtime follow camera hides the complete layout. The active radius-5 preset also converts generated geometry with a `0.16` world scale, producing a systems-test footprint rather than the intended large fortress. Complete the remaining pass in [`level-identity-pass.md`](level-identity-pass.md) before deeper puzzle content.
 
 - **Complete:** add a fitted full-level runtime overview and read-only deterministic representative-seed browser.
 - **Complete for small maps:** select and publish Hub Circuit, Broken Ring, and Twin Wings gameplay recipes before candidate placement and routing.
-- **Next for broader generation:** extend archetypes and room-shape grammar beyond the radius-5 vertical slice.
+- **Next for normal play:** generate a fresh validated map from a replayable match seed instead of selecting a fixed preset.
+- Extend archetypes and room-shape grammar beyond the radius-5 vertical slice.
+- Increase both map extent and the world-space size of cells, rooms, connectors, and travel routes relative to unchanged actor bodies; a larger radius alone is insufficient.
 - Penalize repetitive room/connector alternation and weak graph signatures.
-- Add explicit room-shape grammar and geometry validation.
-- Add role-, shape-, and district-driven semantic anchors and landmarks.
+- Add role-, shape-, district-, and quest-driven semantic anchors and landmarks.
 - Add per-layout and cross-seed structural diversity tests plus repeatable overview screenshots.
+- Validate generation in gameplay units: actor clearance, ingress capacity, objective footprint, sightline range, traversal time, and projectile/camera suitability.
 
-Acceptance check: representative layouts are distinguishable at a glance by silhouette, graph structure, room-shape distribution, and landmark hierarchy; no representative layout is dominated by repetitive arena/connector alternation; and all existing deterministic geometry, doorway, navigation, combat, and reset contracts remain correct.
+Acceptance check: consecutive new matches normally produce different valid maps, entering the same match seed reproduces the same map and quest binding, and restart preserves that seed. Accepted layouts are distinguishable by silhouette, graph structure, room-shape distribution, and landmark hierarchy; their rooms and routes are measurably larger relative to actors than the systems slice; and all deterministic geometry, doorway, navigation, combat, and reset contracts remain correct.
 
 ### Milestone 8C: horde combat continuation — endless small-map slice complete
 
@@ -197,16 +201,16 @@ Acceptance check: players can understand and complete the main objective from in
 - Add score and replace hard-coded Round 2/5 objective checks with recipe-authored requirements.
 - Balance map expansion, economy, quest timing, and combat power across the full match.
 
-Acceptance check: the game supports a complete round-based horde match with a beginning, expanding tactical possibilities, discoverable objectives, a finale, and a reason to replay the same map with greater knowledge.
+Acceptance check: the game supports a complete round-based horde match with a beginning, expanding tactical possibilities, discoverable objectives, a finale, and reasons both to replay a known seed and to explore a newly generated map.
 
-### Milestone 12: maps, mastery, and presentation
+### Milestone 12: procedural mastery and presentation
 
-- Use the seed browser and structural-diversity baseline from Milestone 8B to curate shipped seeds, then pair them with authored map recipes, finished themes, quests, enemy mixes, and wonder weapons.
-- Add alternate routes, optional challenges, hidden audiovisual events, and multiple finale conditions.
+- Ship a bounded random-map pipeline that selects validated generated layouts and dynamically binds authored recipe families; preserve explicit seed replay and fixed diagnostic fixtures.
+- Add alternate routes, optional challenges, hidden audiovisual events, and multiple finale conditions that remain solvable across accepted random layouts.
 - Complete controller support, accessibility options, visual telegraphs, combat audio, and map-state presentation.
-- Evaluate cooperative play only after the solo simulation, content, and readability remain strong at full match scale.
+- Evaluate cooperative play only after the solo simulation, content, and readability remain strong at full physical map scale.
 
-Acceptance check: each shipped map is recognizable, learnable, replayable, and mechanically distinct while preserving the shared horde, economy, quest, and combat rules.
+Acceptance check: each new match is a mechanically viable procedural variation, its seed reproduces geometry and quest binding exactly, and repeated matches remain readable and distinctive while preserving the shared horde, economy, quest, and combat rules.
 
 ## Deferred or excluded systems
 

@@ -324,7 +324,7 @@ Shooter layouts normalize planned arena and corridor roles after common annotati
 
 ### Planned identity metadata
 
-`RoomRole` remains a semantic gameplay classification and is not overloaded to describe geometry. Radius-5 shooter layouts now independently publish `SmallMapRecipe` metadata for Hub Circuit, Broken Ring, or Twin Wings. Room-shape grammar and generator-owned semantic-anchor fields are still future API work; the current game binding deterministically derives high-clearance puzzle sites from published room/cell metadata.
+`RoomRole` remains a semantic gameplay classification and is not overloaded to describe geometry. Radius-5 shooter layouts now independently publish `SmallMapRecipe` metadata for Hub Circuit, Broken Ring, or Twin Wings. These are regression fixtures for the current systems slice. Production random maps need broader topology metadata, room-shape grammar, and generator-owned semantic anchors so a selected quest recipe can bind to generated roles and anchor types without fixed room IDs or world coordinates.
 
 A layout archetype describes graph structure across rooms. A room shape describes the generated geometry of one substantial room. District or landmark metadata describes presentation/gameplay grouping. These concepts remain separate so, for example, two `Combat` rooms can have different shapes and landmarks without inventing new gameplay roles.
 
@@ -366,7 +366,11 @@ Connected entrances are not `Doorway` objects. They do not include an exterior s
 
 ## Gameplay consumption
 
-> Runtime status: `stalberg_game` consumes the complete generation chain through immutable `GeneratedLevel`, renders exact assigned floors, retains exact doorway thresholds, and publishes door-aware navigation. `LevelSession` owns the authoritative player and synchronized collision/traversal locks. `HordeMatch` runs one persistent radius-5 map with points, recipe-scaled permanent gates, tiered upgrades, automatic endless rounds, bounded recipe-aware Drifter/Runner/Caster/Elite pressure, a concurrent Anchor holdout, Hub activation and repeatable repair, an optional ordered relay reward, and voluntary Exit extraction. Small shooter layouts publish Hub Circuit, Broken Ring, or Twin Wings before candidate placement; room-shape grammar and broader recipes remain in [`level-identity-pass.md`](level-identity-pass.md). Regression `CombatState`, the preserved generated-encounter modules, and the hard-coded `F1` arena remain foundations; see [`small-puzzle-horde-slice.md`](small-puzzle-horde-slice.md) for acceptance steps.
+> Runtime status: `stalberg_game` consumes the complete generation chain through immutable `GeneratedLevel`, renders exact assigned floors, retains exact doorway thresholds, and publishes door-aware navigation. It currently runs one fixed radius-5 preset at `worldScale = 0.16F`; this remains the systems/regression baseline. The target new-match boundary chooses a fresh replayable match seed, derives a larger random layout plus quest binding, and retries until gameplay validation passes. `R` resets the same accepted map. Normal production geometry must also use a larger generated-to-world scale relative to unchanged actors, not only a larger radius. See [`level-identity-pass.md`](level-identity-pass.md) and [`game-handoff.md`](game-handoff.md).
+
+### Runtime physical scale
+
+`RoomGrid` and `RoomLayout` preserve source physical metrics. `GeneratedLevelConfig::worldScale` converts those metrics into game-world units; it is independent of grid radius. The large-map pass must raise the actor-relative world scale above the current `0.16F` baseline and validate doorway, room, connector, objective, sightline, and route dimensions after conversion. Scaling player/enemy bodies by the same factor would erase the intended increase and is not equivalent.
 
 ### Walkability
 
@@ -415,4 +419,4 @@ If input is invalid or no candidate passes generation and validation, the result
 - Quality score `0`.
 - Selected candidate index `0`.
 
-Callers should treat `getRoomCount() == 0` as generation failure and either report it, change the seed/settings, or apply an explicit application-level fallback.
+Callers should treat `getRoomCount() == 0` as generation failure. The game-level new-match pipeline should report the rejection and try the next deterministic derivation within a bounded budget. Only after that budget is exhausted may it publish a known-valid emergency fixture, and fallback use must be visible in diagnostics rather than silent.

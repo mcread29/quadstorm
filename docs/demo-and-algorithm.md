@@ -11,7 +11,7 @@ Room-generation details are split into focused documents:
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
 - [`level-identity-pass.md`](level-identity-pass.md) — small-map recipes plus the remaining room-shape, district, and landmark pass.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It consumes the complete generation chain through immutable `GeneratedLevel` geometry and mutable `LevelSession` state, renders exact assigned floors, and keeps doorway collision/navigation synchronized. `HordeMatch` runs the active persistent radius-5 puzzle map with points, recipe-scaled permanent gates, tiered upgrades, automatic endless rounds, bounded recipe-aware Drifter/Runner/Caster/Elite pressure, concurrent Anchor/Hub/relay objectives, and voluntary Exit extraction. The hard-coded deterministic arena remains available through `F1` as a separate regression wrapper.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently consumes the generation chain through one fixed radius-5 systems preset. The target flow creates a fresh validated random map per new match from one replayable seed, preserves that map on restart, dynamically binds a compatible quest recipe, and increases world-space room/route dimensions relative to actors rather than only increasing radius. The hard-coded deterministic arena remains available through `F1` as a separate regression wrapper.
 
 ## Overview
 
@@ -352,7 +352,7 @@ Interior dual-cell polygons are formed by angularly ordering the centers of all 
 
 The default **shooter layout** starts with an abstract mission graph. It anchors start and exit arenas near well-separated selected boundary entrances, distributes additional arena seeds using farthest-point sampling, and grows compact combat rooms around them while retaining negative space. A noise-perturbed Prim-like spatial tree creates the main route and side branches; maps with enough routing capacity may receive one deliberate long-cycle loop. Each planned edge is routed through unoccupied cells with physical costs that penalize low clearance and narrow portals. Longer routes become separate connector rooms and gain lateral cells where space allows. Links shorter than an arena's approximate diameter are folded into an endpoint arena and become direct arena doorways, avoiding a separate tiny connector for every mission-graph edge. At least one route remains an explicit connector, while additional connector identities are reserved for long passages. Opportunistic widening does not mathematically guarantee that every connector is narrower than every arena. Only planned arena/corridor contacts become logical doorways, so incidental physical contact cannot introduce an unintended shortcut.
 
-That pipeline is not the endpoint for map identity. Radius-5 maps now select Hub Circuit, Broken Ring, or Twin Wings before placement and expose the result in the runtime overview, while larger layouts retain the spatial planner. Compact arena growth can still make local geometry read as oatmeal. The next pass publishes puzzle-driven room shapes, districts, additional recipes, semantic anchors, and cross-seed diversity checks. See [`level-identity-pass.md`](level-identity-pass.md).
+That pipeline is not the endpoint for map identity or scale. Radius-5 maps select Hub Circuit, Broken Ring, or Twin Wings before placement and expose the result in the runtime overview; these fixed configurations remain regression fixtures. The production pass must generate random replayable-seed maps, enlarge both topology extent and generated-to-world scale, publish puzzle-driven room shapes, districts, additional recipes and semantic anchors, and reject candidates that fail endurance or quest constraints. See [`level-identity-pass.md`](level-identity-pass.md).
 
 The legacy **branching shapes** method starts with a central room, uses geometric compact, elongated, branching, irregular, and L-shaped masks, and extends radial branches. The **organic growth** method joins the selected entrances to the center, expands a noisy footprint balanced across six angular sectors, and partitions it with weighted multi-source growth. These legacy methods use a quality-weighted spanning tree plus a bounded loop budget over their resulting room contacts.
 
@@ -490,8 +490,10 @@ The generation demo intentionally focuses on a single understandable patch. The 
 - Cross-chunk relaxation.
 - Explicit square-fitting forces.
 - Face-quality optimization after relaxation.
+- Random new-match generation, explicit seed replay, bounded runtime fallback, and same-map restart semantics.
+- Larger actor-relative world geometry beyond the current `0.16F` conversion; increasing radius alone is not sufficient.
 - Large-map crowd/navigation scaling beyond the small deterministic horde slice.
-- Published room-shape grammar, districts, broader archetypes, or cross-seed structural-diversity acceptance. Small-map recipes and the runtime overview are implemented.
+- Published room-shape grammar, districts, broader archetypes, quest-aware semantic anchors, or cross-seed structural-diversity acceptance. Small-map recipes and the runtime overview are implemented.
 - Traps, multiple services, multi-anchor recipe-authored quests, bespoke bosses, or alternate extraction choices. The gate economy, tiered upgrades, automatic endless director, bounded Elite-event scaling, Anchor/Hub/relay quest, and voluntary Exit extraction are implemented.
 - Mesh export.
 - General-purpose three-dimensional asset extrusion beyond runtime floor and wall geometry.
