@@ -39,6 +39,9 @@ public:
         float interpolationAmount, bool showDebug);
 
 private:
+    void drawText(const char* text, float x, float y,
+        float fontSize, Color color) const;
+    float measureText(const char* text, float fontSize) const;
     void drawArena() const;
     void drawGeneratedArchitecture(const GeneratedLevel& level) const;
     void drawLockedDoorways(const GeneratedLevel& level,

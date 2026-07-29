@@ -46,6 +46,19 @@ GameRenderer::GameRenderer(const GeneratedLevel& level)
 
 GameRenderer::~GameRenderer() = default;
 
+void GameRenderer::drawText(const char* text, float x, float y,
+    float fontSize, Color color) const
+{
+    DrawTextEx(resources.uiFont, text, Vector2 { x, y },
+        fontSize, std::max(fontSize * 0.035F, 0.5F), color);
+}
+
+float GameRenderer::measureText(const char* text, float fontSize) const
+{
+    return MeasureTextEx(resources.uiFont, text, fontSize,
+        std::max(fontSize * 0.035F, 0.5F)).x;
+}
+
 void GameRenderer::drawGenerated(const Camera3D& camera,
     const Player& player, Vector3 aimPoint, const GeneratedLevel& level,
     const LevelSession& session, const HordeMatch& match,

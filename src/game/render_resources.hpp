@@ -26,4 +26,6 @@ public:
     Model eliteModel {};
     Model shadowModel {};
     Texture2D projectileGlow {};
+    bool ownsUiFont = false;
+    Font uiFont {};
 };

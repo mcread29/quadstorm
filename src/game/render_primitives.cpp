@@ -15,8 +15,8 @@ void drawVoidGrid()
          coordinate += spacing) {
         const bool major = coordinate % 10 == 0;
         const Color color = major
-            ? Color { 23, 64, 68, 105 }
-            : Color { 12, 30, 36, 58 };
+            ? Color { 18, 48, 52, 68 }
+            : Color { 9, 23, 28, 34 };
         DrawLine3D(Vector3 { static_cast<float>(coordinate), height,
                        static_cast<float>(-extent) },
             Vector3 { static_cast<float>(coordinate), height,

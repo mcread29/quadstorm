@@ -149,8 +149,8 @@ void GameRenderer::drawGeneratedOverview(const GeneratedLevel& level,
     std::size_t selectedConfiguration,
     std::size_t configurationCount) const
 {
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float screenHeight = static_cast<float>(GetScreenHeight());
+    const float screenWidth = UI_CANVAS_WIDTH;
+    const float screenHeight = UI_CANVAS_HEIGHT;
     const Rectangle mapBounds {
         18.0F, 66.0F, std::max(screenWidth - 390.0F, 220.0F),
         std::max(screenHeight - 86.0F, 220.0F)
@@ -166,9 +166,10 @@ void GameRenderer::drawGeneratedOverview(const GeneratedLevel& level,
 
     BeginDrawing();
     ClearBackground(GENERATED_BACKGROUND);
-    DrawText("GENERATED LEVEL OVERVIEW", 20, 17, 24,
+    beginUiCanvas();
+    drawText("GENERATED LEVEL OVERVIEW", 20, 17, 24,
         Color { 205, 229, 224, 255 });
-    DrawText("F2 return  |  LEFT / RIGHT browse  |  HOME active layout",
+    drawText("F2 return  |  LEFT / RIGHT browse  |  HOME active layout",
         410, 22, 17, Color { 151, 193, 190, 255 });
     DrawRectangleRounded(mapBounds, 0.015F, 6, Color { 7, 17, 24, 255 });
 
@@ -224,18 +225,18 @@ void GameRenderer::drawGeneratedOverview(const GeneratedLevel& level,
             Vector2 { center.x, center.y - 22.0F }, room.role, labelColor);
         const char* roomLabel = TextFormat("%s %02i",
             roomRoleName(room.role), room.id + 1);
-        const int labelWidth = MeasureText(roomLabel, 13);
+        const int labelWidth = measureText(roomLabel, 13);
         const char* geometryLabel = baselineGeometryLabel(room.role);
-        const int geometryWidth = MeasureText(geometryLabel, 9);
+        const int geometryWidth = measureText(geometryLabel, 9);
         const int badgeWidth = std::max(labelWidth, geometryWidth) + 10;
         DrawRectangleRounded(Rectangle {
                                  center.x - static_cast<float>(badgeWidth) * 0.5F,
                                  center.y - 10.0F,
                                  static_cast<float>(badgeWidth), 31.0F },
             0.18F, 5, Color { 7, 17, 24, 205 });
-        DrawText(roomLabel, static_cast<int>(center.x) - labelWidth / 2,
+        drawText(roomLabel, static_cast<int>(center.x) - labelWidth / 2,
             static_cast<int>(center.y) - 7, 13, labelColor);
-        DrawText(geometryLabel,
+        drawText(geometryLabel,
             static_cast<int>(center.x) - geometryWidth / 2,
             static_cast<int>(center.y) + 8, 9,
             Color { 207, 218, 213, 235 });
@@ -247,8 +248,8 @@ void GameRenderer::drawGeneratedOverview(const GeneratedLevel& level,
             DrawCircleV(site, 11.0F, Color { 7, 17, 24, 235 });
             DrawCircleLines(static_cast<int>(site.x), static_cast<int>(site.y),
                 12.0F, color);
-            const int width = MeasureText(label, 13);
-            DrawText(label, static_cast<int>(site.x) - width / 2,
+            const int width = measureText(label, 13);
+            drawText(label, static_cast<int>(site.x) - width / 2,
                 static_cast<int>(site.y) - 6, 13, color);
         };
         drawSite(match->plan().anchorPosition, "A",
@@ -290,87 +291,88 @@ void GameRenderer::drawGeneratedOverview(const GeneratedLevel& level,
     const Color primary { 224, 225, 207, 255 };
     const Color secondary { 173, 194, 191, 255 };
 
-    DrawText(session != nullptr ? "ACTIVE SESSION" : "READ-ONLY PREVIEW",
+    drawText(session != nullptr ? "ACTIVE SESSION" : "READ-ONLY PREVIEW",
         detailsX, detailsY, 18,
         session != nullptr ? Color { 255, 211, 91, 255 }
                            : Color { 151, 193, 190, 255 });
     detailsY += 34;
-    DrawText(TextFormat("CONFIGURATION  %02i / %02i",
+    drawText(TextFormat("CONFIGURATION  %02i / %02i",
                  static_cast<int>(selectedConfiguration + 1),
                  static_cast<int>(configurationCount)),
         detailsX, detailsY, 16, heading);
     detailsY += 27;
-    DrawText(TextFormat("radius       %i", level.grid().getRadius()),
+    drawText(TextFormat("radius       %i", level.grid().getRadius()),
         detailsX, detailsY, 16, primary);
     detailsY += 23;
-    DrawText(TextFormat("grid seed    %u", level.grid().getSeed()),
+    drawText(TextFormat("grid seed    %u", level.grid().getSeed()),
         detailsX, detailsY, 16, primary);
     detailsY += 23;
-    DrawText(TextFormat("room seed    %u", level.roomLayout().getSeed()),
+    drawText(TextFormat("room seed    %u", level.roomLayout().getSeed()),
         detailsX, detailsY, 16, primary);
     detailsY += 23;
-    DrawText(TextFormat("candidate    %i",
+    drawText(TextFormat("candidate    %i",
                  static_cast<int>(level.roomLayout().getSelectedCandidate())),
         detailsX, detailsY, 16, primary);
     detailsY += 23;
-    DrawText(TextFormat("quality      %.2f",
+    drawText(TextFormat("quality      %.2f",
                  level.roomLayout().getQualityScore()),
         detailsX, detailsY, 16, primary);
 
     detailsY += 38;
-    DrawText("MAP RECIPE", detailsX, detailsY, 16, heading);
+    drawText("MAP RECIPE", detailsX, detailsY, 16, heading);
     detailsY += 27;
-    DrawText(baselineTopologyLabel(level), detailsX, detailsY, 17, primary);
+    drawText(baselineTopologyLabel(level), detailsX, detailsY, 17, primary);
     detailsY += 25;
     const std::size_t roomCount = level.roomLayout().getRoomCount();
     const std::size_t doorwayCount = level.roomLayout().getDoorways().size();
     const std::size_t cycleRank
         = doorwayCount >= roomCount ? doorwayCount - roomCount + 1U : 0U;
-    DrawText(TextFormat("rooms %i   doors %i   cycles %i",
+    drawText(TextFormat("rooms %i   doors %i   cycles %i",
                  static_cast<int>(roomCount), static_cast<int>(doorwayCount),
                  static_cast<int>(cycleRank)),
         detailsX, detailsY, 15, secondary);
     detailsY += 22;
-    DrawText(TextFormat("locked %i   open %i",
+    drawText(TextFormat("locked %i   open %i",
                  static_cast<int>(lockedDoorways),
                  static_cast<int>(doorwayCount - lockedDoorways)),
         detailsX, detailsY, 15, secondary);
     detailsY += 22;
-    DrawText("puzzle graph: anchor -> hub -> exit", detailsX, detailsY,
+    drawText("puzzle graph: anchor -> hub -> exit", detailsX, detailsY,
         14, Color { 226, 166, 102, 255 });
 
     detailsY += 39;
-    DrawText("MAP KEY", detailsX, detailsY, 16, heading);
+    drawText("MAP KEY", detailsX, detailsY, 16, heading);
     detailsY += 29;
     DrawLineEx(Vector2 { static_cast<float>(detailsX),
                    static_cast<float>(detailsY + 6) },
         Vector2 { static_cast<float>(detailsX + 30),
             static_cast<float>(detailsY + 6) },
         5.0F, Color { 105, 226, 178, 255 });
-    DrawText("open threshold", detailsX + 42, detailsY, 15, secondary);
+    drawText("open threshold", detailsX + 42, detailsY, 15, secondary);
     detailsY += 25;
     DrawLineEx(Vector2 { static_cast<float>(detailsX),
                    static_cast<float>(detailsY + 6) },
         Vector2 { static_cast<float>(detailsX + 30),
             static_cast<float>(detailsY + 6) },
         5.0F, Color { 234, 105, 80, 255 });
-    DrawText("locked threshold", detailsX + 42, detailsY, 15, secondary);
+    drawText("locked threshold", detailsX + 42, detailsY, 15, secondary);
     detailsY += 25;
     DrawLineEx(Vector2 { static_cast<float>(detailsX),
                    static_cast<float>(detailsY + 6) },
         Vector2 { static_cast<float>(detailsX + 30),
             static_cast<float>(detailsY + 6) },
         2.0F, Color { 198, 182, 119, 200 });
-    DrawText("published room graph", detailsX + 42, detailsY, 15, secondary);
+    drawText("published room graph", detailsX + 42, detailsY, 15, secondary);
     detailsY += 25;
     DrawCircleV(Vector2 { static_cast<float>(detailsX + 6),
                     static_cast<float>(detailsY + 6) },
         6.0F, Color { 255, 211, 91, 255 });
-    DrawText("active player", detailsX + 42, detailsY, 15, secondary);
+    drawText("active player", detailsX + 42, detailsY, 15, secondary);
 
-    DrawText("Role markers: triangle Start · hex Hub · diamond Reward · octagon Exit",
+    drawText("Role markers: triangle Start | hex Hub | diamond Reward | octagon Exit",
         static_cast<int>(mapBounds.x + 14.0F),
         static_cast<int>(mapBounds.y + mapBounds.height - 24.0F),
         13, Color { 185, 205, 200, 230 });
+    endUiCanvas();
     EndDrawing();
 }

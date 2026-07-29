@@ -39,7 +39,7 @@ Controls:
 
 The runtime starts in the generated horde match. `GeneratedLevel` retains the relaxed grid, exact dual geometry, neutral room graph, selected small-map recipe, shooter layout, exact floor, walls, doorway thresholds, and immutable navigation. `LevelSession` owns the authoritative player, current room, dynamic doorway collision, and matching traversal state. `HordeMatch` owns points, permanent gate purchases, upgrades, persistent player attack state, the deterministic round schedule, map-wide enemies and hostile projectiles, Anchor/Hub/relay/Exit state, and whole-match reset.
 
-Round 1 guarantees enough points to buy the first gate; Round 2 guarantees the Anchor route. Optional spending stays disabled until the required Anchor route is funded. Drifters and Runners pursue through the currently opened exact cell graph, Casters and the finale Elite use ranged fan patterns, and local separation prevents complete crowd overlap. E resolves contextual gate/device interactions; at the Anchor it can atomically fund a still-closed Anchor gate and begin the holdout when the player has enough points. N starts intermission rounds, and 1/2/3 buys authoritative upgrades at Hub. Locked gates render as one connected barred frame rather than disconnected posts. The F2 overview renders exact floor triangles, recipe graph, live lock state, semantic objective sites, relay order, seeds, candidate, and quality score. Browsing previews never mutates the active match.
+Round 1 guarantees enough points to buy the first gate; Round 2 guarantees the Anchor route. Optional spending stays disabled until the required Anchor route is funded. Drifters and Runners pursue through the currently opened exact cell graph, Casters and the finale Elite use ranged fan patterns, and local separation prevents complete crowd overlap. E resolves contextual gate/device interactions; at the Anchor it can atomically fund a still-closed Anchor gate and begin the holdout when the player has enough points. N starts intermission rounds, and 1/2/3 buys authoritative upgrades at Hub. Locked gates render as one connected barred frame rather than disconnected posts. The presentation pass gives each enemy role a stronger silhouette, ranged wind-up telegraphs, contact shadows, hit/death effects, brighter role-aware floors, high-value wall caps, sparse floor traces, and a quieter void grid. The F2 overview renders exact floor triangles, recipe graph, live lock state, semantic objective sites, relay order, seeds, candidate, and quality score. Browsing previews never mutates the active match.
 
 `F1` switches to the preserved hard-coded 20-by-20 combat regression arena. That path still contains the stationary target, deterministic hostile orb, separate projectile pools, swept wall and damage collision, defeat/victory freeze, restart, effects, HUD, and procedural tones described by the first-enemy milestone.
 
@@ -113,8 +113,11 @@ CombatStepResult / EncounterStepResult ──→ CombatAudio
 | `src/game/target.hpp/.cpp` | Target health/reset state and swept projectile-versus-circle collision |
 | `src/game/game_camera.hpp/.cpp` | Camera creation/following, camera-relative movement, ground projection, and camera interpolation |
 | `src/game/game_input.hpp/.cpp` | All current polling of raylib keyboard and mouse input |
-| `src/game/game_renderer*` | Runtime scene, entity, HUD, landmark, and fitted full-level overview drawing |
-| `src/game/directional_shader.hpp` | Embedded GLSL and shared directional-light vector |
+| `src/game/game_renderer*` | Runtime scene, role-readable entities and telegraphs, scaled HUD, landmark, and fitted full-level overview drawing |
+| `src/game/render_resources.hpp/.cpp` | Procedural model/mesh ownership, sparse floor-detail mesh, projectile glow, and bundled UI-font loading |
+| `src/game/render_style.hpp/.cpp` | Shared world/HUD palette, 1280-by-800 virtual UI canvas, room-role colors, and HUD panels |
+| `src/game/directional_shader.hpp` | Embedded GLSL, floor/wall surface treatment, and shared directional-light vector |
+| `src/game/post_process_*` | Depth-aware ambient grounding, edge treatment, emissive bloom, tone mapping, FXAA, and gameplay screen effects |
 | `tests/generated_level_tests.cpp` | Artifact alignment, exact floor area, wall/door authorization, representative-browser validity, traversal firing/preservation, deterministic multi-spawn filtering/identity, partial/all-enemies clear transitions, hostile cleanup, defeat/reset/Exit, Start spawn, and reachability coverage |
 | `tests/game_tests.cpp` | Headless dash/collision, caller-owned combat, projectile ownership/profile/pool, blocked muzzles, weapon, single-enemy and collection determinism/damage/defeat, earliest-hit/identity tie-breaking, closed-wall containment, player damage/death, interpolation freeze, victory, and restart coverage |
 | `tests/horde_match_tests.cpp` | Recipe sites, economy reserves, atomic Anchor interaction, exact point awards, gate/navigation safety, geometry-safe spawning, round roles/cleanup, Anchor/Hub/Exit, optional Reward routing, relay order/reward, upgrades, and whole-match reset |
@@ -135,7 +138,7 @@ The sphere center stays at `PLAYER_RADIUS` above `Y = 0`. Aim points are ray int
 
 ### Camera and controls
 
-The camera uses orthographic projection with both a 45-degree elevation and diagonal heading. Movement is derived from the camera's planar forward/right vectors; do not restore a hardcoded isometric input matrix.
+The camera uses orthographic projection with both a 45-degree elevation and diagonal heading. Its base orthographic size is 21.5 world units and its target looks 2.15 units ahead along the player's facing direction. Viewports wider than 1.9:1 reduce the vertical orthographic size so ultrawide windows reveal only a bounded amount of additional world. Movement is derived from the camera's planar forward/right vectors; do not restore a hardcoded isometric input matrix.
 
 ### Timing
 
@@ -194,7 +197,9 @@ Projectile collision uses the shared `collision_2d` queries to treat each projec
 
 ### Rendering boundary
 
-Gameplay code does not own raylib `Model`, `Shader`, or `Sound` handles. `GameRenderer` and its rendering subsystems own runtime graphics resources, while `CombatAudio` owns the audio device and generated sounds. Projectiles expose stable simulation state to presentation modules rather than issuing draw or audio calls from simulation code.
+Gameplay code does not own raylib `Model`, `Shader`, `Font`, or `Sound` handles. `GameRenderer` and its rendering subsystems own runtime graphics resources, while `CombatAudio` owns the audio device and generated sounds. Projectiles expose stable simulation state to presentation modules rather than issuing draw or audio calls from simulation code.
+
+HUD and overview drawing use a centered 1280-by-800 virtual canvas scaled uniformly to the current framebuffer. Position HUD elements against `UI_CANVAS_WIDTH` and `UI_CANVAS_HEIGHT`, not the native window dimensions. Text uses the bundled ComicShannsMono Nerd Font Mono loaded by `RenderResources`; CMake copies the asset beside native builds and preloads it into the web virtual filesystem. The Boost bar communicates readiness through its full cyan fill without a redundant text label.
 
 The web build keeps raylib's framebuffer fixed at 1280 by 800 and lets `web/shell.html` scale that 16:10 canvas uniformly within the viewport. Do not enable `FLAG_WINDOW_RESIZABLE` on web: raylib otherwise sizes the framebuffer to the browser aspect ratio while CSS letterboxes the canvas, stretching the image and making GLFW mouse coordinates disagree with `GetScreenWidth()` and `GetScreenHeight()`.
 
@@ -253,7 +258,7 @@ Keep the `F1` hard-coded arena as the focused combat regression path. The destin
 - The required Anchor interaction is a combat holdout: press E, remain inside the gold ring for eight accumulated seconds, and resume after leaving. It is a pressure objective, not a logic puzzle. The optional three-relay sequence is the only current puzzle and exposes the next correct target directly, so puzzle depth remains a primary design gap.
 - Hub Circuit deliberately has no Start → Anchor shortcut: each semantic room receives one distinct Hub branch. Broken Ring and Twin Wings may retain their recipe-specific optional route, but accepted Start and Anchor Hub transitions must be separated by at least about 65 degrees.
 - Round 5 contains an Elite but not a bespoke multi-phase boss, extraction choice, or endless continuation.
-- Lighting is diffuse-only and the player shadow is a projected decal rather than general occlusion.
+- World lighting uses one directional shadow map and two presentation-driven point lights; actor contact shadows remain projected decals rather than full dynamic occlusion.
 - The combat regression ground and debug grid cover a finite 80-by-80 area.
 - Gameplay constants are compiled into their owning modules.
 - Generated-level and combat regression tests retain all prior geometry, doorway, navigation, encounter, projectile, damage, and reset coverage. Room-generation tests enforce exact recipe edges, Hub Circuit's one-branch-per-semantic-room graph, Reward leaf structure, and separated Start/Anchor Hub approaches. `stalberg_horde_match_tests` adds recipe-site validity, reserved progression currency, atomic Anchor purchase/activation, exact one-time point awards, atomic gate traversal, wall-safe spawn/separation behavior, deterministic round roles, holdout-gated cleanup, optional Reward routing, Anchor/Hub/Exit progression, relay ordering/reward, upgrades, and whole-match reset. Audio and rendering remain graphical-smoke coverage.

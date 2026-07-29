@@ -128,6 +128,10 @@ add_executable(stalberg_game
 target_link_libraries(stalberg_game PRIVATE stalberg_game_core)
 enable_project_warnings(stalberg_game)
 enable_debug_runtime_optimization(stalberg_game)
+add_custom_command(TARGET stalberg_game POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets
+        $<TARGET_FILE_DIR:stalberg_game>/assets)
 
 if(EMSCRIPTEN)
     target_compile_definitions(stalberg_game PRIVATE PLATFORM_WEB)
@@ -139,6 +143,8 @@ if(EMSCRIPTEN)
         "-sALLOW_MEMORY_GROWTH=1"
         "-sSTACK_SIZE=4MB"
         "-sEXIT_RUNTIME=0"
+        "-sFORCE_FILESYSTEM=1"
+        "--preload-file=${CMAKE_CURRENT_SOURCE_DIR}/assets@/assets"
     )
     add_custom_command(TARGET stalberg_game POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

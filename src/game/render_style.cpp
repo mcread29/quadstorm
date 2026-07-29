@@ -7,21 +7,41 @@
 
 namespace game_render {
 
+void beginUiCanvas()
+{
+    const float scale = std::max(0.01F, std::min(
+        static_cast<float>(GetScreenWidth()) / UI_CANVAS_WIDTH,
+        static_cast<float>(GetScreenHeight()) / UI_CANVAS_HEIGHT));
+    const Vector2 offset {
+        (static_cast<float>(GetScreenWidth()) - UI_CANVAS_WIDTH * scale) * 0.5F,
+        (static_cast<float>(GetScreenHeight()) - UI_CANVAS_HEIGHT * scale) * 0.5F
+    };
+    Camera2D camera {};
+    camera.offset = offset;
+    camera.zoom = scale;
+    BeginMode2D(camera);
+}
+
+void endUiCanvas()
+{
+    EndMode2D();
+}
+
 Color roomRoleColor(stalberg::rooms::RoomRole role)
 {
     switch (role) {
     case stalberg::rooms::RoomRole::Start:
-        return Color { 43, 64, 62, 255 };
+        return Color { 58, 84, 79, 255 };
     case stalberg::rooms::RoomRole::Combat:
-        return Color { 45, 59, 72, 255 };
+        return Color { 59, 74, 87, 255 };
     case stalberg::rooms::RoomRole::Connector:
-        return Color { 31, 43, 50, 255 };
+        return Color { 42, 56, 63, 255 };
     case stalberg::rooms::RoomRole::Hub:
-        return Color { 35, 73, 76, 255 };
+        return Color { 46, 94, 96, 255 };
     case stalberg::rooms::RoomRole::Reward:
-        return Color { 81, 62, 42, 255 };
+        return Color { 110, 82, 49, 255 };
     case stalberg::rooms::RoomRole::Exit:
-        return Color { 47, 76, 63, 255 };
+        return Color { 58, 101, 78, 255 };
     }
     return Color { 38, 52, 58, 255 };
 }
@@ -83,7 +103,7 @@ Color generatedFloorColor(const GeneratedLevel& level,
     std::uint32_t hash = static_cast<std::uint32_t>(cell) * 747796405U
         + 2891336453U;
     hash ^= hash >> 16U;
-    const float variation = 0.88F
+    const float variation = 0.94F
         + static_cast<float>(hash & 255U) / 255.0F * 0.12F;
     return Color {
         static_cast<unsigned char>(std::clamp(base.r * variation, 0.0F, 255.0F)),

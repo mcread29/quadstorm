@@ -2,6 +2,7 @@
 
 #include "vector2_math.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -9,7 +10,18 @@ namespace {
 constexpr float CAMERA_FOLLOW_SPEED = 10.0F;
 constexpr float CAMERA_HEIGHT = 17.0F;
 constexpr float CAMERA_HORIZONTAL_OFFSET = 12.0F;
-constexpr float CAMERA_FACING_LOOK_AHEAD = 1.15F;
+constexpr float CAMERA_FACING_LOOK_AHEAD = 2.15F;
+constexpr float CAMERA_ORTHOGRAPHIC_SIZE = 21.5F;
+constexpr float MAXIMUM_GAMEPLAY_ASPECT = 1.9F;
+
+float gameplayCameraSize()
+{
+    const float height = static_cast<float>(std::max(GetScreenHeight(), 1));
+    const float aspect = static_cast<float>(std::max(GetScreenWidth(), 1))
+        / height;
+    return CAMERA_ORTHOGRAPHIC_SIZE
+        * std::min(1.0F, MAXIMUM_GAMEPLAY_ASPECT / aspect);
+}
 
 using vector2::lerp;
 using vector2::normalized;
@@ -26,13 +38,14 @@ Camera3D makeGameCamera(const Player& player)
     };
     camera.target = Vector3 { player.position.x, 0.0F, player.position.z };
     camera.up = Vector3 { 0.0F, 1.0F, 0.0F };
-    camera.fovy = 24.0F;
+    camera.fovy = gameplayCameraSize();
     camera.projection = CAMERA_ORTHOGRAPHIC;
     return camera;
 }
 
 void updateGameCamera(Camera3D& camera, const Player& player, float stepTime)
 {
+    camera.fovy = gameplayCameraSize();
     const float followAmount = 1.0F - std::exp(-CAMERA_FOLLOW_SPEED * stepTime);
     const float targetX = player.position.x
         + player.facing.x * CAMERA_FACING_LOOK_AHEAD;

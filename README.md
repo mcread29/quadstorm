@@ -61,7 +61,8 @@ python3 -m http.server 8000 --directory build-web
 
 Open `http://localhost:8000/stalberg_game.html`. The web target keeps a fixed 16:10 framebuffer and scales it uniformly with CSS so letterboxing, rendering, and mouse coordinates remain aligned across browser sizes. It uses an Emscripten browser main loop and WebGL-compatible shaders; the native grid diagnostic and native test executables are intentionally excluded from the web configuration. Combat audio is currently disabled on web because raylib 5.5's
 ScriptProcessor backend cannot be initialized safely before a browser user
-gesture; native builds retain audio.
+gesture; native builds retain audio. The HUD uses the bundled ComicShannsMono
+Nerd Font Mono; its MIT license is included in `assets/fonts/`.
 
 The runtime starts in generated traversal mode. `GeneratedLevel` retains the relaxed source grid, exact dual geometry, neutral room graph, shooter layout, and exact doorway threshold segments together. Assigned dual polygons become a cached floor mesh; floor/void edges and unauthorized cross-room contacts become walls; only exact published doorway cell pairs remain open. Mutable player, room-lifecycle, lock, and active-wall state lives separately in `LevelSession`. The player spawns at a high-clearance cell in Start and can move through the matching door-aware navigation graph without leaving the floor.
 

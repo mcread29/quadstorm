@@ -150,8 +150,8 @@ void main()
     float floorNoise = panelNoise(floor(fragWorldPosition.xz * 0.84));
     float brushed = sin(fragWorldPosition.x * 31.0
         + sin(fragWorldPosition.z * 4.0)) * 0.5 + 0.5;
-    surface.rgb *= mix(1.0, 0.82, panel * 0.22);
-    surface.rgb *= mix(1.0, 0.94, subPanel * 0.07);
+    surface.rgb *= mix(1.0, 0.88, panel * 0.16);
+    surface.rgb *= mix(1.0, 0.97, subPanel * 0.04);
     surface.rgb *= mix(1.0,
         0.94 + floorNoise * 0.07 + brushed * 0.012, floorMaterial);
     vec2 conduitCoordinate = vec2(
@@ -346,8 +346,8 @@ void main()
     float floorNoise = panelNoise(floor(fragWorldPosition.xz * 0.84));
     float brushed = sin(fragWorldPosition.x * 31.0
         + sin(fragWorldPosition.z * 4.0)) * 0.5 + 0.5;
-    surface.rgb *= mix(1.0, 0.82, panel * 0.22);
-    surface.rgb *= mix(1.0, 0.94, subPanel * 0.07);
+    surface.rgb *= mix(1.0, 0.88, panel * 0.16);
+    surface.rgb *= mix(1.0, 0.97, subPanel * 0.04);
     surface.rgb *= mix(1.0,
         0.94 + floorNoise * 0.07 + brushed * 0.012, floorMaterial);
     vec2 conduitCoordinate = vec2(

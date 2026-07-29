@@ -25,11 +25,11 @@ void GameRenderer::drawActorShadow(Vector3 position, float radius) const
             shadowPosition.z },
         Vector3 { 0.0F, 1.0F, 0.0F }, shadowAngle,
         Vector3 { size * 1.68F, 1.0F, size * 1.0F },
-        Color { 3, 7, 10, 30 });
+        Color { 3, 7, 10, 45 });
     DrawModelEx(resources.shadowModel, shadowPosition,
         Vector3 { 0.0F, 1.0F, 0.0F }, shadowAngle,
         Vector3 { size * 1.18F, 1.0F, size * 0.68F },
-        Color { 2, 5, 8, 92 });
+        Color { 2, 5, 8, 125 });
 }
 
 void GameRenderer::drawPlayer(const Player& player) const
@@ -284,81 +284,118 @@ void GameRenderer::drawHordeEnemy(
 
     Color color { 188, 73, 57, 255 };
     Color accent { 255, 116, 61, 255 };
-    Vector3 scale { 0.88F, 0.88F, 0.88F };
+    Vector3 scale { 0.98F, 0.92F, 0.98F };
     switch (entry.role) {
     case HordeEnemyRole::Drifter:
         break;
     case HordeEnemyRole::Runner:
-        color = Color { 213, 104, 43, 255 };
-        accent = Color { 255, 180, 62, 255 };
-        scale = Vector3 { 0.62F, 0.58F, 1.05F };
+        color = Color { 220, 103, 38, 255 };
+        accent = Color { 255, 190, 66, 255 };
+        scale = Vector3 { 0.56F, 0.42F, 1.34F };
         break;
     case HordeEnemyRole::Caster:
         color = Color { 112, 61, 153, 255 };
-        accent = Color { 210, 109, 239, 255 };
-        scale = Vector3 { 0.72F, 1.12F, 0.72F };
+        accent = Color { 218, 113, 247, 255 };
+        scale = Vector3 { 0.62F, 1.55F, 0.62F };
         break;
     case HordeEnemyRole::Elite:
         color = Color { 157, 69, 148, 255 };
         accent = Color { 255, 103, 205, 255 };
-        scale = Vector3 { 1.22F, 1.3F, 1.22F };
+        scale = Vector3 { 1.55F, 1.28F, 1.55F };
         break;
     }
+    const float footprint = std::max(scale.x, scale.z);
     if (!isEnemyAlive(enemy)) {
+        const float deathAmount = std::clamp(
+            enemy.hitFlashRemaining / ENEMY_HIT_FLASH_DURATION,
+            0.0F, 1.0F);
+        if (deathAmount > 0.0F) {
+            DrawCircle3D(ground,
+                ENEMY_RADIUS * footprint * (1.1F + (1.0F - deathAmount)),
+                Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+                Color { accent.r, accent.g, accent.b,
+                    static_cast<unsigned char>(deathAmount * 220.0F) });
+            DrawSphereWires(center,
+                ENEMY_RADIUS * footprint * deathAmount,
+                7, 10, Color { 255, 238, 194,
+                    static_cast<unsigned char>(deathAmount * 190.0F) });
+        }
         return;
     }
-    drawActorShadow(center, ENEMY_RADIUS);
+    drawActorShadow(center, ENEMY_RADIUS * footprint);
     if (enemy.hitFlashRemaining > 0.0F) {
         color = Color { 255, 238, 194, 255 };
         accent = WHITE;
     }
-    const float footprint = std::max(scale.x, scale.z);
     DrawCircle3D(ground, ENEMY_RADIUS * footprint * 1.16F,
         Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
-        Color { accent.r, accent.g, accent.b, 115 });
+        Color { accent.r, accent.g, accent.b, 145 });
+    const bool ranged = entry.role == HordeEnemyRole::Caster
+        || entry.role == HordeEnemyRole::Elite;
+    if (ranged) {
+        const float charge = 1.0F - std::clamp(
+            enemy.shotCooldownRemaining / ENEMY_SHOT_INTERVAL,
+            0.0F, 1.0F);
+        const Color tellColor { accent.r, accent.g, accent.b,
+            static_cast<unsigned char>(55.0F + charge * 145.0F) };
+        DrawCircle3D(ground,
+            ENEMY_RADIUS * footprint * (1.32F + charge * 0.24F),
+            Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F, tellColor);
+        DrawLine3D(ground,
+            Vector3 { ground.x + enemy.facing.x * (1.8F + charge * 0.9F),
+                ground.y, ground.z + enemy.facing.y * (1.8F + charge * 0.9F) },
+            tellColor);
+    }
+
     const float facingAngle = -std::atan2(
         enemy.facing.y, enemy.facing.x) * RAD2DEG;
-    const Model* bodyModel = &resources.enemyModel;
-    switch (entry.role) {
-    case HordeEnemyRole::Drifter:
-        break;
-    case HordeEnemyRole::Runner:
-        bodyModel = &resources.runnerModel;
-        break;
-    case HordeEnemyRole::Caster:
-        bodyModel = &resources.casterModel;
-        break;
-    case HordeEnemyRole::Elite:
-        bodyModel = &resources.eliteModel;
-        break;
+    if (entry.role == HordeEnemyRole::Runner) {
+        const Vector3 rear {
+            center.x - enemy.facing.x * 0.62F, 0.43F,
+            center.z - enemy.facing.y * 0.62F
+        };
+        const Vector3 front {
+            center.x + enemy.facing.x * 0.76F, 0.43F,
+            center.z + enemy.facing.y * 0.76F
+        };
+        DrawCylinderEx(rear, front, 0.43F, 0.12F, 7, color);
+    } else {
+        const Model& bodyModel = entry.role == HordeEnemyRole::Caster
+            ? resources.casterModel
+            : entry.role == HordeEnemyRole::Elite
+                ? resources.eliteModel
+                : resources.enemyModel;
+        DrawModelEx(bodyModel, center, Vector3 { 0.0F, 1.0F, 0.0F },
+            facingAngle, scale, color);
     }
-    DrawModelEx(*bodyModel, center, Vector3 { 0.0F, 1.0F, 0.0F },
-        facingAngle, scale, color);
 
     if (entry.role == HordeEnemyRole::Drifter) {
         const Vector3 eye {
-            center.x + enemy.facing.x * 0.66F,
-            center.y + 0.08F,
-            center.z + enemy.facing.y * 0.66F
+            center.x + enemy.facing.x * 0.72F,
+            center.y + 0.14F,
+            center.z + enemy.facing.y * 0.72F
         };
-        DrawCylinderEx(center, eye, 0.13F, 0.045F, 7, accent);
-        DrawSphere(eye, 0.085F, accent);
+        DrawCylinderEx(center, eye, 0.15F, 0.05F, 7, accent);
+        DrawSphere(eye, 0.12F, accent);
     } else if (entry.role == HordeEnemyRole::Runner) {
-        const Vector3 snout {
-            center.x + enemy.facing.x * 0.85F,
-            center.y * 0.72F,
-            center.z + enemy.facing.y * 0.85F
+        const Vector2 side { -enemy.facing.y, enemy.facing.x };
+        const Vector3 eye {
+            center.x + enemy.facing.x * 0.82F,
+            0.49F,
+            center.z + enemy.facing.y * 0.82F
         };
-        DrawCylinderEx(center, snout, 0.2F, 0.04F, 7, accent);
-        const Vector3 tail {
-            center.x - enemy.facing.x * 0.92F,
-            center.y * 0.72F,
-            center.z - enemy.facing.y * 0.92F
-        };
-        DrawCylinderEx(center, tail, 0.11F, 0.025F, 6,
-            Color { accent.r, accent.g, accent.b, 170 });
+        DrawSphere(eye, 0.13F, accent);
+        for (const float sign : { -1.0F, 1.0F }) {
+            const Vector3 leg {
+                center.x - enemy.facing.x * 0.25F + side.x * 0.42F * sign,
+                0.09F,
+                center.z - enemy.facing.y * 0.25F + side.y * 0.42F * sign
+            };
+            DrawCylinderEx(Vector3 { center.x, 0.36F, center.z },
+                leg, 0.09F, 0.035F, 6, color);
+        }
     } else if (entry.role == HordeEnemyRole::Caster) {
-        const Vector3 crown { center.x, center.y + 0.64F, center.z };
+        const Vector3 crown { center.x, center.y + 1.0F, center.z };
         DrawCircle3D(crown, 0.55F,
             Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F, accent);
         DrawSphere(crown, 0.12F, accent);
@@ -391,6 +428,16 @@ void GameRenderer::drawHordeEnemy(
                     hornBase.z + side.y * 0.38F * sign },
                 0.13F, 0.025F, 6, accent);
         }
+    }
+
+    if (enemy.hitFlashRemaining > 0.0F) {
+        const float flash = std::clamp(
+            enemy.hitFlashRemaining / ENEMY_HIT_FLASH_DURATION,
+            0.0F, 1.0F);
+        DrawSphereWires(center, ENEMY_RADIUS * footprint
+                * (1.1F + (1.0F - flash) * 0.35F),
+            7, 10, Color { 255, 245, 210,
+                static_cast<unsigned char>(120.0F + flash * 110.0F) });
     }
 
     if (entry.role == HordeEnemyRole::Caster

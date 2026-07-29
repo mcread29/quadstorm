@@ -15,7 +15,11 @@ inline constexpr Color HUD_SURFACE { 5, 11, 16, 242 };
 inline constexpr Color HUD_BORDER { 74, 101, 101, 205 };
 inline constexpr Color ENERGY_CYAN { 68, 231, 224, 255 };
 inline constexpr Color MACHINE_GOLD { 245, 177, 54, 255 };
+inline constexpr float UI_CANVAS_WIDTH = 1280.0F;
+inline constexpr float UI_CANVAS_HEIGHT = 800.0F;
 
+void beginUiCanvas();
+void endUiCanvas();
 Color roomRoleColor(stalberg::rooms::RoomRole role);
 const char* smallMapRecipeName(stalberg::rooms::SmallMapRecipe recipe);
 const char* roundPhaseName(RoundPhase phase);

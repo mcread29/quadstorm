@@ -9,10 +9,18 @@
 
 using namespace game_render;
 
+namespace {
+
+constexpr int UI_WIDTH = static_cast<int>(UI_CANVAS_WIDTH);
+constexpr int UI_HEIGHT = static_cast<int>(UI_CANVAS_HEIGHT);
+
+} // namespace
+
 void GameRenderer::drawGeneratedHud(const Player& player,
     const GeneratedLevel& level, const LevelSession& session,
     const HordeMatch& match, bool showDebug) const
 {
+    beginUiCanvas();
     const auto currentCell = level.cellAtWorldPoint(
         Vector2 { player.position.x, player.position.z });
     const int currentRegion = currentCell.has_value()
@@ -24,14 +32,14 @@ void GameRenderer::drawGeneratedHud(const Player& player,
     drawPlayerHud(player);
     drawHudPanel(Rectangle { 292.0F, 16.0F, 350.0F, 64.0F },
         MACHINE_GOLD);
-    DrawText("CREDITS", 309, 25, 13, Color { 132, 165, 164, 255 });
-    DrawText(TextFormat("%05i", match.points()), 382, 22, 23,
+    drawText("CREDITS", 309, 25, 13, Color { 132, 165, 164, 255 });
+    drawText(TextFormat("%05i", match.points()), 382, 22, 23,
         MACHINE_GOLD);
-    DrawText(TextFormat("WAVE %i/%i", match.round(), HORDE_FINAL_ROUND),
+    drawText(TextFormat("WAVE %i/%i", match.round(), HORDE_FINAL_ROUND),
         309, 52, 14, Color { 204, 220, 215, 255 });
-    DrawText(roundPhaseName(match.phase()), 400, 52, 14,
+    drawText(roundPhaseName(match.phase()), 400, 52, 14,
         Color { 132, 165, 164, 255 });
-    DrawText(TextFormat("HOSTILES %02i",
+    drawText(TextFormat("HOSTILES %02i",
                  static_cast<int>(std::ranges::count_if(match.enemies(),
                      [](const HordeEnemy& enemy) {
                          return isEnemyAlive(enemy.enemy);
@@ -41,13 +49,13 @@ void GameRenderer::drawGeneratedHud(const Player& player,
     if (currentRoom != nullptr) {
         const char* label = TextFormat("%s  %02i",
             roomRoleName(currentRoom->role), currentRoom->id + 1);
-        const int width = MeasureText(label, 18) + 30;
+        const int width = measureText(label, 18) + 30;
         const Rectangle roomPanel {
-            static_cast<float>(GetScreenWidth() - width - 18),
+            static_cast<float>(UI_WIDTH - width - 18),
             18.0F, static_cast<float>(width), 38.0F
         };
         drawHudPanel(roomPanel, roomRoleColor(currentRoom->role));
-        DrawText(label, GetScreenWidth() - width - 1, 28, 18,
+        drawText(label, UI_WIDTH - width - 1, 28, 18,
             roomRoleColor(currentRoom->role));
     }
 
@@ -135,16 +143,16 @@ void GameRenderer::drawGeneratedHud(const Player& player,
             = "SHOOT THE GOLD RELAY  -  A WRONG TARGET RESETS THE SEQUENCE";
     }
     if (interactionPrompt != nullptr) {
-        const int promptWidth = MeasureText(interactionPrompt, 18) + 30;
+        const int promptWidth = measureText(interactionPrompt, 18) + 30;
         const Rectangle promptPanel {
-            static_cast<float>(GetScreenWidth() / 2 - promptWidth / 2),
-            static_cast<float>(GetScreenHeight() - 112),
+            static_cast<float>(UI_WIDTH / 2 - promptWidth / 2),
+            static_cast<float>(UI_HEIGHT - 112),
             static_cast<float>(promptWidth), 42.0F
         };
         drawHudPanel(promptPanel, MACHINE_GOLD);
-        DrawText(interactionPrompt,
-            GetScreenWidth() / 2 - promptWidth / 2 + 16,
-            GetScreenHeight() - 100, 18, MACHINE_GOLD);
+        drawText(interactionPrompt,
+            UI_WIDTH / 2 - promptWidth / 2 + 16,
+            UI_HEIGHT - 100, 18, MACHINE_GOLD);
     }
 
     const char* objective = "Survive Round 1 and earn the first gate";
@@ -163,13 +171,13 @@ void GameRenderer::drawGeneratedHud(const Player& player,
         objective = "Reach the Exit monument and press E";
     }
     const Rectangle objectivePanel {
-        16.0F, static_cast<float>(GetScreenHeight() - 60),
+        16.0F, static_cast<float>(UI_HEIGHT - 60),
         700.0F, 42.0F
     };
     drawHudPanel(objectivePanel, Color { 187, 145, 57, 255 });
-    DrawText("DIRECTIVE", 31, GetScreenHeight() - 49, 12,
+    drawText("DIRECTIVE", 31, UI_HEIGHT - 49, 12,
         Color { 132, 165, 164, 255 });
-    DrawText(objective, 115, GetScreenHeight() - 50, 16,
+    drawText(objective, 115, UI_HEIGHT - 50, 16,
         Color { 224, 211, 158, 255 });
 
     const bool progressionAllowsRound
@@ -180,26 +188,26 @@ void GameRenderer::drawGeneratedHud(const Player& player,
     if (match.phase() == RoundPhase::Intermission
         && match.round() < HORDE_FINAL_ROUND && isPlayerAlive(player)
         && progressionAllowsRound) {
-        DrawText("[ N ]  DEPLOY NEXT WAVE", GetScreenWidth() - 280,
-            GetScreenHeight() - 46, 18, ENERGY_CYAN);
+        drawText("[ N ]  DEPLOY NEXT WAVE", UI_WIDTH - 280,
+            UI_HEIGHT - 46, 18, ENERGY_CYAN);
     }
 
     if (showDebug) {
         DrawRectangleRounded(Rectangle { 16.0F, 90.0F, 720.0F, 142.0F },
             0.08F, 6, Color { 7, 17, 24, 225 });
-        DrawText("F3 HIDE DEBUG", 28, 101, 17,
+        drawText("F3 HIDE DEBUG", 28, 101, 17,
             Color { 151, 193, 190, 255 });
-        DrawText("WASD | SPACE dash | LMB fire | E interact | N round | 1/2/3 upgrades",
+        drawText("WASD | SPACE dash | LMB fire | E interact | N round | 1/2/3 upgrades",
             28, 127, 15, Color { 180, 203, 200, 255 });
-        DrawText("R reset | F1 regression arena | F2 overview / recipe browser",
+        drawText("R reset | F1 regression arena | F2 overview / recipe browser",
             28, 150, 15, Color { 180, 203, 200, 255 });
-        DrawText(TextFormat("%s  rooms %i  doors %i  room %i  walls %i",
+        drawText(TextFormat("%s  rooms %i  doors %i  room %i  walls %i",
                      smallMapRecipeName(level.roomLayout().getSmallMapRecipe()),
                      static_cast<int>(level.roomLayout().getRoomCount()),
                      static_cast<int>(level.roomLayout().getDoorways().size()),
                      currentRegion, static_cast<int>(session.activeWalls().size())),
             28, 177, 15, Color { 224, 211, 158, 255 });
-        DrawText(TextFormat("anchor %.1f  relay %i/%i  damage %i  shots %i/%i",
+        drawText(TextFormat("anchor %.1f  relay %i/%i  damage %i  shots %i/%i",
                      match.anchorProgress(),
                      static_cast<int>(match.relayProgress()),
                      static_cast<int>(match.plan().relayTargets.size()),
@@ -207,7 +215,8 @@ void GameRenderer::drawGeneratedHud(const Player& player,
                      static_cast<int>(match.playerProjectiles().activeCount()),
                      static_cast<int>(match.enemyProjectiles().activeCount())),
             28, 201, 15, Color { 180, 203, 200, 255 });
-        DrawFPS(GetScreenWidth() - 96, 70);
+        drawText(TextFormat("%i FPS", GetFPS()), UI_WIDTH - 91, 70, 14,
+            Color { 151, 193, 190, 255 });
     }
 
     const char* statusMessage = nullptr;
@@ -220,18 +229,19 @@ void GameRenderer::drawGeneratedHud(const Player& player,
     }
     if (statusMessage != nullptr) {
         constexpr int fontSize = 30;
-        const int messageWidth = MeasureText(statusMessage, fontSize);
+        const int messageWidth = static_cast<int>(
+            measureText(statusMessage, fontSize));
         DrawRectangleRounded(Rectangle {
-                                 static_cast<float>(GetScreenWidth() / 2
+                                 static_cast<float>(UI_WIDTH / 2
                                      - messageWidth / 2 - 24),
-                                 static_cast<float>(GetScreenHeight() / 2 - 34),
+                                 static_cast<float>(UI_HEIGHT / 2 - 34),
                                  static_cast<float>(messageWidth + 48), 68.0F },
             0.2F, 8, Color { 7, 17, 24, 235 });
-        DrawText(statusMessage, GetScreenWidth() / 2 - messageWidth / 2,
-            GetScreenHeight() / 2 - fontSize / 2, fontSize, statusColor);
+        drawText(statusMessage, UI_WIDTH / 2 - messageWidth / 2,
+            UI_HEIGHT / 2 - fontSize / 2, fontSize, statusColor);
     }
 
-
+    endUiCanvas();
 }
 
 void GameRenderer::drawCombatHud(const Player& player,
@@ -239,30 +249,32 @@ void GameRenderer::drawCombatHud(const Player& player,
     const Enemy& enemy, const ProjectilePool& enemyProjectiles,
     bool showDebug) const
 {
+    beginUiCanvas();
     drawPlayerHud(player);
     const Rectangle trainingPanel {
-        static_cast<float>(GetScreenWidth() - 238),
+        static_cast<float>(UI_WIDTH - 238),
         18.0F, 220.0F, 38.0F
     };
     drawHudPanel(trainingPanel, Color { 180, 112, 220, 255 });
-    DrawText("COMBAT SIMULATION", GetScreenWidth() - 218, 28, 18,
+    drawText("COMBAT SIMULATION", UI_WIDTH - 218, 28, 18,
         Color { 201, 160, 229, 255 });
 
     if (showDebug) {
         DrawRectangleRounded(Rectangle { 16.0F, 82.0F, 570.0F, 118.0F },
             0.08F, 6, Color { 7, 17, 24, 225 });
-        DrawText("F3  HIDE DEBUG", 28, 94, 18,
+        drawText("F3  HIDE DEBUG", 28, 94, 18,
             Color { 151, 193, 190, 255 });
-        DrawText("WASD move | SPACE dash | LMB fire | F1 level | F2 overview",
+        drawText("WASD move | SPACE dash | LMB fire | F1 level | F2 overview",
             28, 123, 16, Color { 180, 203, 200, 255 });
-        DrawText(TextFormat("target %i/%i  player shots %i  hostile shots %i",
+        drawText(TextFormat("target %i/%i  player shots %i  hostile shots %i",
                      target.health, TARGET_MAX_HEALTH,
                      static_cast<int>(playerProjectiles.activeCount()),
                      static_cast<int>(enemyProjectiles.activeCount())),
             28, 150, 16, Color { 224, 211, 158, 255 });
-        DrawText(isEnemyAlive(enemy) ? "enemy active" : "enemy defeated",
+        drawText(isEnemyAlive(enemy) ? "enemy active" : "enemy defeated",
             28, 177, 16, Color { 180, 162, 220, 255 });
-        DrawFPS(GetScreenWidth() - 96, 70);
+        drawText(TextFormat("%i FPS", GetFPS()), UI_WIDTH - 91, 70, 14,
+            Color { 151, 193, 190, 255 });
     }
 
     const char* encounterMessage = nullptr;
@@ -275,19 +287,19 @@ void GameRenderer::drawCombatHud(const Player& player,
     }
     if (encounterMessage != nullptr) {
         const int fontSize = 30;
-        const int messageWidth = MeasureText(encounterMessage, fontSize);
+        const int messageWidth = measureText(encounterMessage, fontSize);
         DrawRectangleRounded(Rectangle {
-                                 static_cast<float>(GetScreenWidth() / 2
+                                 static_cast<float>(UI_WIDTH / 2
                                      - messageWidth / 2 - 24),
-                                 static_cast<float>(GetScreenHeight() / 2 - 34),
+                                 static_cast<float>(UI_HEIGHT / 2 - 34),
                                  static_cast<float>(messageWidth + 48), 68.0F },
             0.2F, 8, Color { 7, 17, 24, 235 });
-        DrawText(encounterMessage, GetScreenWidth() / 2 - messageWidth / 2,
-            GetScreenHeight() / 2 - fontSize / 2, fontSize,
+        drawText(encounterMessage, UI_WIDTH / 2 - messageWidth / 2,
+            UI_HEIGHT / 2 - fontSize / 2, fontSize,
             encounterMessageColor);
     }
 
-
+    endUiCanvas();
 }
 
 void GameRenderer::drawPlayerHud(const Player& player) const
@@ -304,7 +316,7 @@ void GameRenderer::drawPlayerHud(const Player& player) const
 
     drawHudPanel(Rectangle { 16.0F, 16.0F, panelWidth, 64.0F },
         healthColor);
-    DrawText("VITAL", 30, 25, 14, Color { 132, 165, 164, 255 });
+    drawText("VITAL", 30, 25, 14, Color { 132, 165, 164, 255 });
     const float segmentWidth = (meterWidth
         - segmentGap * static_cast<float>(PLAYER_MAX_HEALTH - 1))
         / static_cast<float>(PLAYER_MAX_HEALTH);
@@ -317,7 +329,7 @@ void GameRenderer::drawPlayerHud(const Player& player) const
                                     : Color { 25, 38, 43, 255 });
     }
 
-    DrawText("BOOST", 30, 52, 13, Color { 132, 165, 164, 255 });
+    drawText("BOOST", 30, 52, 13, Color { 132, 165, 164, 255 });
     DrawRectangleRounded(Rectangle { meterX, 54.0F, meterWidth, 10.0F },
         0.45F, 7, Color { 25, 38, 43, 255 });
     if (dashAmount > 0.0F) {
@@ -325,8 +337,5 @@ void GameRenderer::drawPlayerHud(const Player& player) const
                                  meterX, 54.0F,
                                  meterWidth * dashAmount, 10.0F },
             0.45F, 7, ENERGY_CYAN);
-    }
-    if (dashAmount >= 0.999F) {
-        DrawText("READY", 214, 52, 10, Color { 204, 255, 245, 255 });
     }
 }

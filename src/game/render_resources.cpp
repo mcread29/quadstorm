@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace {
@@ -115,15 +116,16 @@ Mesh makeGeneratedFloorDetailMesh(const GeneratedLevel& level)
         const std::uint32_t hash = static_cast<std::uint32_t>(
             connection.cells.a * 2246822519U
             + connection.cells.b * 3266489917U);
-        const bool circuitTrace = hash % 13U == 0U;
+        const bool circuitTrace = hash % 11U == 0U;
+        if (!circuitTrace) {
+            continue;
+        }
         appendStrip(
             Vector2 { connection.first.x * scale,
                 connection.first.y * scale },
             Vector2 { connection.second.x * scale,
                 connection.second.y * scale },
-            circuitTrace ? 0.072F : 0.038F,
-            circuitTrace ? Color { 40, 96, 94, 255 }
-                         : Color { 24, 39, 42, 255 });
+            0.065F, Color { 46, 112, 108, 255 });
     }
 
     Mesh mesh {};
@@ -257,9 +259,9 @@ Mesh makeWallMesh(std::span<const Segment2D> walls)
         appendVertex(fourth, normal, color);
     };
 
-    constexpr Color topColor { 99, 118, 120, 255 };
-    constexpr Color sideColor { 47, 57, 65, 255 };
-    constexpr Color capColor { 66, 87, 91, 255 };
+    constexpr Color topColor { 126, 143, 139, 255 };
+    constexpr Color sideColor { 43, 53, 61, 255 };
+    constexpr Color capColor { 75, 96, 98, 255 };
     constexpr Color stripColor { 55, 94, 97, 255 };
     for (const Segment2D& wall : walls) {
         const float x = wall.end.x - wall.start.x;
@@ -403,6 +405,33 @@ Texture2D makeProjectileGlow()
     return texture;
 }
 
+Font loadUiFont(bool& ownsFont)
+{
+    constexpr const char* relativePath
+        = "assets/fonts/ComicShannsMonoNerdFontMono-Regular.otf";
+    const std::string applicationPath
+        = std::string(GetApplicationDirectory()) + relativePath;
+    const char* fontPath = FileExists(relativePath)
+        ? relativePath
+        : applicationPath.c_str();
+    if (!FileExists(fontPath)) {
+        TraceLog(LOG_WARNING,
+            "UI font was not found; falling back to the raylib font");
+        ownsFont = false;
+        return GetFontDefault();
+    }
+
+    Font font = LoadFontEx(fontPath, 64, nullptr, 0);
+    if (font.texture.id == 0) {
+        TraceLog(LOG_WARNING,
+            "UI font could not be loaded; falling back to the raylib font");
+        ownsFont = false;
+        return GetFontDefault();
+    }
+    SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+    ownsFont = true;
+    return font;
+}
 
 } // namespace
 
@@ -431,6 +460,7 @@ RenderResources::RenderResources(const GeneratedLevel& level, Shader lightingSha
     , shadowModel(LoadModelFromMesh(
           GenMeshCylinder(PLAYER_RADIUS * 1.05F, 0.01F, 24)))
     , projectileGlow(makeProjectileGlow())
+    , uiFont(loadUiFont(ownsUiFont))
 {
     for (Model* model : { &groundModel, &generatedFloorModel,
              &generatedFloorDetailModel, &generatedWallShadowModel,
@@ -442,6 +472,9 @@ RenderResources::RenderResources(const GeneratedLevel& level, Shader lightingSha
 
 RenderResources::~RenderResources()
 {
+    if (ownsUiFont) {
+        UnloadFont(uiFont);
+    }
     UnloadTexture(projectileGlow);
     UnloadModel(shadowModel);
     UnloadModel(eliteModel);
