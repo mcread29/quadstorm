@@ -151,7 +151,7 @@ Acceptance check: several generated enemies coexist and can be defeated determin
 
 ### Milestone 8B: level identity and legibility — in progress
 
-The current generator is physically valid but often reads as an alternating arena/connector chain, substantial rooms share similar compact growth, and the runtime follow camera hides the complete layout. Complete the pass in [`level-identity-pass.md`](level-identity-pass.md) before adding more crowd systems.
+The current generator is physically valid but often reads as an alternating arena/connector chain, substantial rooms share similar compact growth, and the runtime follow camera hides the complete layout. Complete the remaining pass in [`level-identity-pass.md`](level-identity-pass.md) before expanding to larger endurance maps and puzzle-specific geometry.
 
 - **Complete:** add a fitted full-level runtime overview and read-only deterministic representative-seed browser.
 - **Complete for small maps:** select and publish Hub Circuit, Broken Ring, and Twin Wings gameplay recipes before candidate placement and routing.
@@ -166,7 +166,7 @@ Acceptance check: representative layouts are distinguishable at a glance by silh
 ### Milestone 8C: horde combat continuation — endless small-map slice complete
 
 - The radius-5 vertical slice has crowd pursuit through exact opened doorway cells, local separation, wall-safe steering, deterministic spawn control, Drifter/Runner/Caster/Elite roles, and automatic countdown → buildup → peak → cleanup → timed-intermission rounds.
-- A recipe-aware ten-tier profile bounds spawn budget, simultaneous pressure, composition, pacing, health, movement, hostile projectile speed, firing cadence, damage, and rewards. Every fifth round schedules an Elite event, and overflow-safe schedules remain deterministic at the maximum round index.
+- A recipe-aware profile with tier-0 baseline plus ten escalation tiers bounds spawn budget, simultaneous pressure, composition, pacing, health, movement, hostile projectile speed, firing cadence, damage, and rewards. Every fifth round schedules an Elite event, and overflow-safe schedules remain deterministic at the maximum round index.
 - Continue tuning route caching, crowd readability, spawn visibility, bespoke bosses, and larger-map population pressure after the small-map recipe gate.
 
 Acceptance check: generated rooms and connectors support readable crowd movement, deliberate dodging, and escalating round pressure without enemies crossing closed geometry.
@@ -174,7 +174,7 @@ Acceptance check: generated rooms and connectors support readable crowd movement
 ### Milestone 9: persistent map progression — endless small-map vertical slice complete
 
 - The small-map match advances endlessly without input, with one point currency, recipe-scaled permanently purchasable exact-threshold gates, synchronized collision/navigation, pressure-scaled rewards, three tiers each of damage/fire-rate/dash upgrades, and repeatable pressure-scaled health repair at the powered Hub.
-- Fixed services and traps remain broader-milestone work.
+- Additional fixed services, placement variants, and traps remain broader-milestone work beyond the implemented Hub repair.
 - Turn the generated role/shape/district identity established in Milestone 8B into persistent economy, service, trap, and objective locations rather than one-time room-clear labels.
 - Let waves and enemies move across every currently opened part of the map.
 
@@ -183,7 +183,7 @@ Acceptance check: spending, route choice, and gate state materially change both 
 ### Milestone 10: the living map — basic objective slice complete, puzzle depth pending
 
 - The small-map recipe includes one Anchor holdout, Hub activation, an objective-locked Exit, contextual prompts, persistent feedback, and an optional ordered three-relay Reward sequence that grants fire rate.
-- The required Anchor is explicitly a pressure objective—remain in its gold ring for eight accumulated seconds during the objective wave—not a logic puzzle. The optional relay exposes the next correct target and is intentionally shallow.
+- The required Anchor is explicitly a concurrent pressure objective—remain in its gold ring for eight accumulated seconds during active combat rounds—not a logic puzzle. It never authorizes or pauses the director. The optional relay exposes the next correct target and is intentionally shallow.
 - The next puzzle slice must add a readable multi-step dependency with clues and meaningful failure/recovery rather than relabeling another holdout as a puzzle.
 - Multiple distributed Anchors, deeper Easter eggs, traps, authored clue families, and a geometry-driven wonder weapon remain future expansion.
 

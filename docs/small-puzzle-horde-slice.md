@@ -28,7 +28,7 @@ F2 opens the complete overview. The first three browser configurations show Hub 
 | F2 | Full-map overview and recipe browser |
 | F3 | Detailed match diagnostics |
 
-Nearby gates and devices publish contextual prompts with their price or prerequisite. Locked thresholds render as a single connected barred gate frame. During the Anchor wave, the objective explicitly says to stay in the gold ring and that leaving pauses progress; near the optional relays, the prompt explains that the gold target is next and a wrong hit resets the sequence.
+Nearby gates and devices publish contextual prompts with their price or prerequisite. Locked thresholds render as a single connected barred gate frame. While the Anchor holdout is active during ordinary combat rounds, the objective explicitly says to stay in the gold ring and that leaving pauses progress; near the optional relays, the prompt explains that the gold target is next and a wrong hit resets the sequence.
 
 ## Milestone 1: recipe-driven generation
 
@@ -85,7 +85,7 @@ Initial compositions:
 | 4 | 12 Drifters, 3 Runners, 1 Caster |
 | 5 | 16 Drifters, 3 Runners, 1 Caster, 1 Elite |
 
-After Round 5, pressure is recipe-aware and deterministic. Spawn budget rises to 48, living enemies cap at 18, every fifth round has an Elite event, and composition progressively substitutes Runners, Casters, and Elites for Drifters. Ten pressure tiers bound health at 1.8×, movement at 1.25×, hostile projectile speed at 1.4×, firing interval at 0.65×, damage at two, and rewards at 1.5×.
+After Round 5, pressure is recipe-aware and deterministic. Spawn budget rises to 48, living enemies cap at 18, every fifth round has an Elite event, and composition progressively substitutes Runners, Casters, and Elites for Drifters. A tier-0 baseline plus ten escalation tiers bound health at 1.8×, movement at 1.25×, hostile projectile speed at 1.4×, firing interval at 0.65×, damage at two, and rewards at 1.5×.
 
 Headless coverage: `automaticDirectorStartsWithoutInputOrPuzzleState()` verifies countdown/intermission ownership. `deterministicDifficultyScalesAndStaysBounded()` snapshots rounds 1, 5, 10, 25, and 100, verifies recipe-aware deterministic schedules, checks monotonic pressure, and exercises the maximum `std::uint64_t` round.
 
@@ -161,4 +161,4 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-The dedicated `stalberg_horde_match_tests` target covers recipe binding and costs, automatic countdown/intermission transitions, puzzle-independent advancement, representative scaling snapshots, bounded and overflow-safe schedules, objective sites, progression-currency reservation, atomic Anchor interaction, exact scaled rewards, gate state, Reward-route safety, geometry-safe spawning/separation, navigation, concurrent Anchor/Hub progression, relay ordering, explicit extraction, tiered upgrades, and complete reset. Existing generation, geometry, generated-level, collision, combat, and F1 regression tests remain active.
+The dedicated `stalberg_horde_match_tests` target covers recipe binding and costs, automatic countdown/intermission transitions, puzzle-independent advancement, representative scaling snapshots, bounded and overflow-safe schedules, objective sites, progression-currency reservation, atomic Anchor interaction, exact scaled rewards, gate state, Reward-route safety, geometry-safe spawning/separation, navigation, concurrent Anchor/Hub progression, relay ordering, explicit extraction, tiered upgrades, repeatable Hub repair, and complete reset. Existing generation, geometry, generated-level, collision, combat, and F1 regression tests remain active.

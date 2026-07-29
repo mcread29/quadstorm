@@ -1,6 +1,6 @@
 # Level Identity and Legibility Pass
 
-This document defines the next implementation slice for the generated game map. It is intentionally scheduled before crowd navigation and round pacing because combat systems cannot make a structurally repetitive, visually anonymous map learnable.
+This document defines the remaining level-identity slice for the generated game map. The full-level overview and three small-map topology recipes are complete, as are crowd navigation and automatic endless round pacing. Broader topology, room-shape grammar, districts, and authored landmark anchors remain next because combat systems cannot make a structurally repetitive map learnable.
 
 The current shooter generator is valid, deterministic, physically measured, and door-aware, but its accepted layouts often read as variations of the same sequence: arena → connector → arena → connector. The runtime follow camera hides the complete silhouette and circulation graph, while most substantial rooms use similar compact growth and only subtle role colors. Together these produce a “bowl of oatmeal” effect: local irregularity without memorable global or local identity.
 
@@ -16,7 +16,7 @@ For the implemented generator pipeline, see [`shooter-level-generation.md`](shoo
 - At least one explicit connector is required; long routed edges become connector regions.
 - Small-map recipe edges and semantic branch placement are validated, while larger-map direct links and occasional dense clusters still do not select or validate a strong map-level archetype.
 - Most shooter arenas grow from the same compact-room process. Roles describe gameplay purpose, not a distinct geometry grammar.
-- Runtime room identity is currently communicated mainly through modest floor-color differences and a role label.
+- Runtime room identity now includes stronger role-aware floors, sparse floor traces, wall caps, semantic objective landmarks, and a role label. Broader room-shape and district metadata still does not exist.
 
 The identity pass must preserve deterministic generation, exact dual geometry, authorized doorway pairs, complete reachability, physical clearance, Start/Exit guarantees, and the immutable `GeneratedLevel` boundary.
 
@@ -95,11 +95,11 @@ Generation should publish the selected shape identity rather than forcing the re
 
 A map should contain several distinct substantial-room signatures. Changing only cell count or rotating an otherwise identical blob does not count as meaningful variety.
 
-## Slice 4: landmarks, districts, and presentation
+## Slice 4: landmarks, districts, and presentation — small-map baseline complete
 
-Once graph and room geometry carry identity, add role- and shape-aware runtime presentation.
+The radius-5 runtime has deterministic Start, Hub, Anchor, Reward-relay, gate, and Exit landmarks plus stronger role-aware surface treatment. Shape-aware landmark variants, authored semantic-anchor metadata, and district language remain pending.
 
-Planned landmark language:
+Current and planned landmark language:
 
 - Start: unmistakable spawn marker and opening-area boundary.
 - Hub: central machine anchor visible from multiple approaches.

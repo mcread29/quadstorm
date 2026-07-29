@@ -4,7 +4,7 @@ This is the continuation guide for the `stalberg_game` runtime. Read [`game-road
 
 ## Product destination
 
-The first small-map horde **systems** vertical slice and its automatic endless-round rework are complete. Radius-5 shooter generation chooses Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing, then publishes Start, Hub, Anchor-capable Combat, Reward, and Exit structure. The runtime now starts Round 1 after a three-second countdown, advances every cleared round through a five-second intermission without input, and keeps the round index in overflow-safe 64-bit state. Point income, permanent exact-threshold gates, three tiers each of damage/fire-rate/dash upgrades, map-wide Drifter/Runner/Caster/Elite pressure, the Anchor holdout, Hub activation, optional ordered relay puzzle, and voluntary Exit extraction remain persistent match systems. Hub Circuit has exactly one branch per semantic room, and small-map validation rejects Start and Anchor transitions that leave the Hub in nearly the same direction. The F2 overview and command-line recipe selection make every slice directly inspectable.
+The first small-map horde **systems** vertical slice and its automatic endless-round rework are complete. Radius-5 shooter generation chooses Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing, then publishes Start, Hub, Anchor-capable Combat, Reward, and Exit structure. The runtime now starts Round 1 after a three-second countdown, advances every cleared round through a five-second intermission without input, and keeps the round index in overflow-safe 64-bit state. Point income, permanent exact-threshold gates, three tiers each of damage/fire-rate/dash upgrades, repeatable powered-Hub repair, map-wide Drifter/Runner/Caster/Elite pressure, the Anchor holdout, Hub activation, optional ordered relay puzzle, and voluntary Exit extraction remain persistent match systems. Hub Circuit has exactly one branch per semantic room, and small-map validation rejects Start and Anchor transitions that leave the Hub in nearly the same direction. The F2 overview and command-line recipe selection make every slice directly inspectable.
 
 The product direction is an **automatically advancing, endless round-based horde shooter built around one persistent, learnable generated map per match**. Difficulty now escalates deterministically from round index and map recipe through a bounded spawn budget, role substitution, simultaneous-pressure cap, spawn pacing, health, movement, hostile projectile speed, firing cadence, damage, and point rewards. Every fifth round schedules a readable Elite event; pressure and numeric values soft-cap rather than growing indefinitely. Puzzle, gate, Anchor, and Hub state no longer pause or authorize the director. Completing the current Anchor/Hub objective unlocks voluntary extraction from Round 5 onward, while endless rounds remain available until death or explicit extraction.
 
@@ -29,8 +29,8 @@ Controls:
 | Space | Dash in the movement direction, or facing direction while stationary |
 | Mouse | Aim on the XZ ground plane |
 | Hold left mouse button | Fire anywhere on the generated map or in the regression arena |
-| E | Buy a nearby gate or activate the Anchor, Hub, or Exit; at Anchor, fund-and-start atomically when affordable |
-| 1/2/3 at Hub | Buy damage, fire-rate, or dash upgrades |
+| E | Buy a gate, activate Anchor/Hub/Exit, or repair one missing health at the powered Hub; at Anchor, fund-and-start atomically when affordable |
+| 1/2/3 at Hub | Buy the next damage, fire-rate, or dash tier |
 | R | Reset the complete match, or restart regression combat |
 | F1 | Toggle generated horde match / combat regression arena |
 | F2 | Toggle the generated full-level developer overview |
@@ -99,7 +99,7 @@ CombatStepResult / EncounterStepResult ──→ CombatAudio
 | `src/game/main.cpp` | Window lifetime, generated/combat view switching, 120 Hz accumulator, interpolation, audio-event forwarding, and composition |
 | `src/game/generated_level.hpp/.cpp` | Immutable generator artifact package, exact floor triangles, closed walls, retained doorway thresholds, navigation, and Start spawn |
 | `src/game/level_session.hpp/.cpp` | Mutable generated traversal, authoritative generated player, room lifecycle/location, doorway locking, active walls, effect timers, and reset |
-| `src/game/horde_match.hpp/.cpp` | Small-map recipe binding, points/gates/upgrades, rounds, horde roles/navigation/combat, Anchor/Hub/relay/Exit progression, and reset |
+| `src/game/horde_match.hpp/.cpp` | Small-map recipe binding, endless director/difficulty, points/gates/tiered upgrades/Hub repair, scaled horde combat, Anchor/Hub/relay/Exit progression, and reset |
 | `src/game/generated_encounter.hpp/.cpp` | Preserved generated-room regression coordinator and spawn-selection coverage; no longer the active generated runtime path |
 | `src/game/enemy_collection.hpp/.cpp` | Stable enemy identities/order, collection movement and firing, earliest swept-hit selection, and all-defeated queries |
 | `src/game/combat.hpp/.cpp` | Promoted player attack state plus reusable regression combat update order and injected wall geometry |
@@ -229,12 +229,12 @@ The replacement for the finite input-gated director and the first bounded pressu
 One reproducible profile now derives from round index and map recipe:
 
 1. Spawn budget grows from 6 to a cap of 48; simultaneous living pressure grows from 6 to 18 while pacing shortens within fixed bounds.
-2. Composition substitutes Runners, Casters, and up to four Elites for Drifters as pressure tiers rise.
+2. Composition substitutes Runners, Casters, and up to three Elites for Drifters as pressure tiers rise.
 3. Deterministic role ordering and monotonic spawn IDs vary role/ingress sequencing by round and recipe.
-4. Health, movement, hostile projectile speed, firing cadence, damage, and rewards scale through ten bounded pressure tiers.
+4. Health, movement, hostile projectile speed, firing cadence, damage, and rewards scale from tier-0 baseline through ten bounded escalation tiers.
 5. Every fifth round schedules an Elite event without creating a terminal round.
 
-Health tops out at 1.8×, movement at 1.25×, hostile projectile speed at 1.4×, firing interval at 0.65×, damage at two, reward income at 1.5×, and schedules soft-cap by Round 25. Recipe-scaled gate costs preserve the opening economy, three increasingly expensive tiers of each upgrade match the bounded threat curve, and activated-Hub repairs remain a repeatable post-cap sink. Bespoke bosses and mutation events remain future content.
+Health tops out at 1.8×, movement at 1.25×, hostile projectile speed at 1.4×, firing interval at 0.65×, damage at two, and reward income at 1.5×. Spawn budget and simultaneous population cap by Round 25; attribute and role-substitution scaling reaches its final pressure tier at Round 51, while five-round Elite events continue. Recipe-scaled gate costs preserve the opening economy, three increasingly expensive tiers of each upgrade match the bounded threat curve, and activated-Hub repairs remain a repeatable post-cap sink. Bespoke bosses and mutation events remain future content.
 
 ## Next implementation slice: concurrent recipe-authored quests
 
@@ -316,7 +316,7 @@ Keep the `F1` hard-coded arena as the focused combat regression path. The destin
 - World lighting uses one directional shadow map and two presentation-driven point lights; actor contact shadows remain projected decals rather than full dynamic occlusion.
 - The combat regression ground and debug grid cover a finite 80-by-80 area.
 - Gameplay constants are compiled into their owning modules.
-- Generated-level and combat regression tests retain all prior geometry, doorway, navigation, encounter, projectile, damage, and reset coverage. Room-generation tests enforce exact recipe edges, Hub Circuit's one-branch-per-semantic-room graph, Reward leaf structure, and separated Start/Anchor Hub approaches. `stalberg_horde_match_tests` adds automatic countdown/intermission transitions, puzzle-independent advancement, representative difficulty snapshots, monotonic/capped pressure, maximum-round arithmetic, recipe-aware schedules, recipe sites, progression currency, atomic Anchor purchase/activation, exact point awards, gate traversal, wall-safe spawning/separation, concurrent holdout progress, optional Reward routing, extraction, tiered upgrades, and whole-match reset. Audio and rendering remain graphical-smoke coverage.
+- Generated-level and combat regression tests retain all prior geometry, doorway, navigation, encounter, projectile, damage, and reset coverage. Room-generation tests enforce exact recipe edges, Hub Circuit's one-branch-per-semantic-room graph, Reward leaf structure, and separated Start/Anchor Hub approaches. `stalberg_horde_match_tests` adds automatic countdown/intermission transitions, puzzle-independent advancement, representative difficulty snapshots, monotonic/capped pressure, maximum-round arithmetic, recipe-aware schedules, recipe sites, progression currency, atomic Anchor purchase/activation, exact point awards, gate traversal, wall-safe spawning/separation, concurrent holdout progress, optional Reward routing, extraction, tiered upgrades, repeatable Hub repair, and whole-match reset. Audio and rendering remain graphical-smoke coverage.
 - Debug runtime builds use debugger-friendly optimization (`-Og` with GCC/Clang or `/O1` with MSVC) for `stalberg_game` and a bundled raylib while retaining debug symbols and assertions. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized instruction-by-instruction stepping is required. Use a separate Release build when profiling performance.
 
 ## Validation and debugging

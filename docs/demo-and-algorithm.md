@@ -410,7 +410,8 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/game/main.cpp` | Run the fixed-step 2.5D traversal/combat loop and compose runtime modules |
 | `src/game/generated_level.*` | Retain generation artifacts and build exact floors, walls, doorway thresholds, navigation, and Start spawn |
 | `src/game/level_session.*` | Own mutable traversal, room lifecycle/location, dynamic doorway locks, active walls, and reset |
-| `src/game/generated_encounter.*` | Keep generated-player firing active, preserve shots across room activation, filter deterministic multi-spawns, and coordinate collection locking/clearing |
+| `src/game/horde_match.*` | Own the automatic endless director, bounded recipe-aware difficulty, economy/gates/tiered upgrades/Hub repair, scaled horde combat, concurrent objectives, extraction, and reset |
+| `src/game/generated_encounter.*` | Preserve the earlier generated-room regression coordinator, deterministic multi-spawn filtering, and collection locking/clearing coverage |
 | `src/game/combat.*` | Promote player attack state and update caller-owned regression players, enemies, and projectile pools against injected walls |
 | `src/game/encounter.*` | Order regression-arena combat against injected walls and reset the complete encounter deterministically |
 | `src/game/enemy.*` | Enemy movement, health, single-enemy damage, fan pattern, and hostile projectile profile |
@@ -429,6 +430,7 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `tests/room_generation_tests.cpp` | Headless room connectivity, doorway, and determinism tests |
 | `tests/generated_level_tests.cpp` | Headless runtime artifact, floor, wall/door, dynamic locking, lifecycle/reset, traversal firing/preservation, deterministic multi-spawn/identity, partial/all-enemies clear, hostile cleanup, and navigation tests |
 | `tests/game_tests.cpp` | Headless dash/wall collision, projectile ownership/profile/pool, weapon cadence, single-enemy and collection determinism/damage, earliest-hit/identity tie-breaking, simultaneous defeat, closed-wall containment, player damage/invulnerability, death, victory, and restart tests |
+| `tests/horde_match_tests.cpp` | Automatic director, bounded scaling/schedules, overflow safety, recipe economy/gates, scaled enemies, concurrent objectives, extraction, tiered upgrades/Hub repair, and complete reset tests |
 
 ## Compact pseudocode
 
@@ -482,7 +484,7 @@ function relaxOnce():
 
 ## Current scope and limitations
 
-The generation demo intentionally focuses on a single understandable patch. The separate game executable consumes generated layouts for exact floor rendering, closed wall collision, authorized doorway traversal, dynamic doorway locking, navigation, room lifecycle/location state, Start spawning, traversal firing, dashing, and deterministic generated-room encounters. It also preserves the deterministic combat regression arena with injectable walls, profile-separated projectile pools, swept combat collision, player health and invulnerability, death/victory restart, feedback, camera behavior, lighting, audio, and fixed-step timing. The project does not currently implement:
+The generation demo intentionally focuses on a single understandable patch. The separate game executable consumes generated layouts for exact floor rendering, closed wall collision, authorized doorway traversal, dynamic doorway locking, navigation, room lifecycle/location state, Start spawning, traversal firing, dashing, and the active automatic endless horde match. It also preserves the earlier generated-room coordinator and deterministic combat arena as regression paths with injectable walls, profile-separated projectile pools, swept combat collision, player health and invulnerability, death/victory restart, feedback, camera behavior, lighting, audio, and fixed-step timing. The project does not currently implement:
 
 - Infinite chunk generation.
 - Cross-chunk relaxation.
