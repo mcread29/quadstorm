@@ -100,6 +100,16 @@ void GameRenderer::drawGenerated(const Camera3D& camera,
 
     postProcess.beginEmissive();
     BeginMode3D(camera);
+    resources.generatedWallModel.materials[0].shader
+        = lighting.shadowShader();
+    resources.wallModel.materials[0].shader = lighting.shadowShader();
+    BeginBlendMode(BLEND_MULTIPLIED);
+    DrawModel(resources.generatedWallModel, Vector3 {}, 1.0F, WHITE);
+    drawGeneratedArchitecture(level);
+    drawLockedDoorways(level, session);
+    EndBlendMode();
+    resources.generatedWallModel.materials[0].shader = lighting.shader();
+    resources.wallModel.materials[0].shader = lighting.shader();
     drawProjectiles(camera, match.playerProjectiles(),
         interpolationAmount, PLAYER_RADIUS,
         Color { 92, 225, 255, 255 }, Color { 42, 151, 190, 255 });
@@ -221,6 +231,11 @@ void GameRenderer::drawCombat(const Camera3D& camera,
 
     postProcess.beginEmissive();
     BeginMode3D(camera);
+    resources.wallModel.materials[0].shader = lighting.shadowShader();
+    BeginBlendMode(BLEND_MULTIPLIED);
+    drawArena();
+    EndBlendMode();
+    resources.wallModel.materials[0].shader = lighting.shader();
     drawProjectiles(camera, playerProjectiles, interpolationAmount,
         PLAYER_RADIUS, Color { 92, 225, 255, 255 },
         Color { 42, 151, 190, 255 });

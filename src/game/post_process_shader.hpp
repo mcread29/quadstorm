@@ -155,7 +155,11 @@ void main()
     vec3 outlineColor = maskNeighbor / max(neighborMask, 0.001);
     color += outlineColor * actorOutline * 0.42;
 
-    color += texture2D(bloomTexture, uv).rgb * 0.72;
+    float bloomVisibility = depthEnabled < 0.5 ? 1.0
+        : 1.0 - smoothstep(0.9996, 0.99995,
+            texture2D(depthTexture, uv).r);
+    color += texture2D(bloomTexture, uv).rgb
+        * 0.72 * bloomVisibility;
     float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
     color *= mix(vec3(0.88, 0.99, 1.055), vec3(1.055, 1.0, 0.91),
         smoothstep(0.1, 0.82, luminance));
@@ -448,7 +452,11 @@ void main()
     vec3 outlineColor = maskNeighbor / max(neighborMask, 0.001);
     color += outlineColor * actorOutline * 0.42;
 
-    color += texture(bloomTexture, uv).rgb * 0.72;
+    float bloomVisibility = depthEnabled < 0.5 ? 1.0
+        : 1.0 - smoothstep(0.9996, 0.99995,
+            texture(depthTexture, uv).r);
+    color += texture(bloomTexture, uv).rgb
+        * 0.72 * bloomVisibility;
     float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
     color *= mix(vec3(0.88, 0.99, 1.055), vec3(1.055, 1.0, 0.91),
         smoothstep(0.1, 0.82, luminance));
