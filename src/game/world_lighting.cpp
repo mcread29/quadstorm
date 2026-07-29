@@ -19,9 +19,9 @@ Shader loadDirectionalShader()
         DIRECTIONAL_LIGHT.y,
         DIRECTIONAL_LIGHT.z
     };
-    const float lightColor[3] { 0.92F, 0.74F, 0.54F };
-    const float groundAmbient[3] { 0.055F, 0.075F, 0.095F };
-    const float skyAmbient[3] { 0.22F, 0.29F, 0.32F };
+    const float lightColor[3] { 1.05F, 0.78F, 0.52F };
+    const float groundAmbient[3] { 0.025F, 0.042F, 0.055F };
+    const float skyAmbient[3] { 0.19F, 0.27F, 0.31F };
     SetShaderValue(shader, lightDirectionLocation,
         lightDirection, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, lightColorLocation,

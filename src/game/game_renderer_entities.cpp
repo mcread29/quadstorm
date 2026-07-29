@@ -20,9 +20,16 @@ void GameRenderer::drawActorShadow(Vector3 position, float radius) const
     const float shadowAngle = std::atan2(
         DIRECTIONAL_LIGHT.z, DIRECTIONAL_LIGHT.x) * RAD2DEG;
     const float size = radius / PLAYER_RADIUS;
-    DrawModelEx(resources.shadowModel, shadowPosition, Vector3 { 0.0F, 1.0F, 0.0F },
-        shadowAngle, Vector3 { size * 1.35F, 1.0F, size * 0.78F },
-        Color { 5, 10, 14, 88 });
+    DrawModelEx(resources.shadowModel,
+        Vector3 { shadowPosition.x, shadowPosition.y - 0.002F,
+            shadowPosition.z },
+        Vector3 { 0.0F, 1.0F, 0.0F }, shadowAngle,
+        Vector3 { size * 1.68F, 1.0F, size * 1.0F },
+        Color { 3, 7, 10, 30 });
+    DrawModelEx(resources.shadowModel, shadowPosition,
+        Vector3 { 0.0F, 1.0F, 0.0F }, shadowAngle,
+        Vector3 { size * 1.18F, 1.0F, size * 0.68F },
+        Color { 2, 5, 8, 92 });
 }
 
 void GameRenderer::drawPlayer(const Player& player) const

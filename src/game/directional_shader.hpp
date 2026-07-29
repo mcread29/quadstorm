@@ -71,9 +71,13 @@ float panelNoise(vec2 cell)
 vec3 pointLight(vec3 position, vec3 color, vec3 normal)
 {
     vec3 delta = position - fragWorldPosition;
-    float distanceSquared = max(dot(delta, delta), 0.01);
-    float diffuse = max(dot(normal, normalize(delta)), 0.0);
-    return color * diffuse / (1.0 + distanceSquared * 0.22);
+    float distanceToLight = max(length(delta), 0.01);
+    vec3 directionToLight = delta / distanceToLight;
+    float wrappedDiffuse = max(
+        (dot(normal, directionToLight) + 0.22) / 1.22, 0.0);
+    float range = clamp(1.0 - distanceToLight / 8.5, 0.0, 1.0);
+    float attenuation = range * range * (3.0 - 2.0 * range);
+    return color * (0.12 + wrappedDiffuse * 0.88) * attenuation;
 }
 
 void main()
@@ -82,19 +86,29 @@ void main()
     vec3 normal = normalize(fragNormal);
     vec3 viewDirection = normalize(cameraPosition - fragWorldPosition);
     vec3 light = -normalize(lightDirection);
-    float diffuse = max(dot(normal, light), 0.0);
+    float normalLight = dot(normal, light);
+    float diffuse = max(normalLight, 0.0);
+    float wrappedDiffuse = max((normalLight + 0.18) / 1.18, 0.0);
+    float directionalAmount = mix(wrappedDiffuse, diffuse, 0.72);
     float skyAmount = normal.y * 0.5 + 0.5;
-    vec3 ambient = mix(groundAmbient, skyAmbient, skyAmount);
+    float horizonOcclusion = mix(0.7, 1.0,
+        smoothstep(-0.12, 0.58, normal.y));
+    vec3 ambient = mix(groundAmbient, skyAmbient, skyAmount)
+        * horizonOcclusion;
     vec3 halfDirection = normalize(light + viewDirection);
     float materialSpecular = materialKind < 0.5 ? 0.2
-        : materialKind < 1.5 ? 0.11 : 0.065;
+        : materialKind < 1.5 ? 0.11
+        : materialKind < 2.5 ? 0.065 : 0.0;
     float specular = pow(max(dot(normal, halfDirection), 0.0), 28.0)
         * materialSpecular;
     float rim = pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.0)
-        * (materialKind < 0.5 ? 0.2 : 0.12);
+        * (materialKind < 0.5 ? 0.2
+            : materialKind < 2.5 ? 0.12 : 0.0);
 
     float floorMaterial = 1.0 - step(0.45, abs(materialKind - 1.0));
     float wallMaterial = 1.0 - step(0.45, abs(materialKind - 2.0));
+    float detailMaterial = 1.0 - step(0.45, abs(materialKind - 3.0));
+    float shadowMaterial = 1.0 - step(0.45, abs(materialKind - 4.0));
     float panel = max(panelLine(fragWorldPosition.x * 0.42),
         panelLine(fragWorldPosition.z * 0.42)) * floorMaterial;
     float subPanel = max(panelLine(fragWorldPosition.x * 0.84),
@@ -134,14 +148,17 @@ void main()
         pointLightColorA, normal) + pointLight(pointLightPositionB,
         pointLightColorB, normal);
     vec3 litColor = surface.rgb
-        * (ambient + lightColor * diffuse + localLight);
+        * (ambient + lightColor * directionalAmount + localLight);
     litColor += surface.rgb * rim + lightColor * specular;
     litColor += vec3(0.002, 0.012, 0.014) * conduit;
     litColor += vec3(0.008, 0.055, 0.06)
         * wallBand * wallMaterial;
+    litColor = mix(litColor, surface.rgb * 1.08, detailMaterial * 0.84);
+    litColor = mix(litColor, surface.rgb, shadowMaterial);
     litColor = mix(litColor, litColor * vec3(0.88, 1.02, 1.04), 0.28);
     float fogDistance = length(fragWorldPosition.xz - cameraTarget.xz);
-    float fogAmount = smoothstep(13.0, 28.0, fogDistance);
+    float fogAmount = smoothstep(13.0, 28.0, fogDistance)
+        * (1.0 - shadowMaterial);
     gl_FragColor = vec4(mix(litColor, fogColor, fogAmount), surface.a);
 }
 )";
@@ -212,9 +229,13 @@ float panelNoise(vec2 cell)
 vec3 pointLight(vec3 position, vec3 color, vec3 normal)
 {
     vec3 delta = position - fragWorldPosition;
-    float distanceSquared = max(dot(delta, delta), 0.01);
-    float diffuse = max(dot(normal, normalize(delta)), 0.0);
-    return color * diffuse / (1.0 + distanceSquared * 0.22);
+    float distanceToLight = max(length(delta), 0.01);
+    vec3 directionToLight = delta / distanceToLight;
+    float wrappedDiffuse = max(
+        (dot(normal, directionToLight) + 0.22) / 1.22, 0.0);
+    float range = clamp(1.0 - distanceToLight / 8.5, 0.0, 1.0);
+    float attenuation = range * range * (3.0 - 2.0 * range);
+    return color * (0.12 + wrappedDiffuse * 0.88) * attenuation;
 }
 
 void main()
@@ -223,19 +244,29 @@ void main()
     vec3 normal = normalize(fragNormal);
     vec3 viewDirection = normalize(cameraPosition - fragWorldPosition);
     vec3 light = -normalize(lightDirection);
-    float diffuse = max(dot(normal, light), 0.0);
+    float normalLight = dot(normal, light);
+    float diffuse = max(normalLight, 0.0);
+    float wrappedDiffuse = max((normalLight + 0.18) / 1.18, 0.0);
+    float directionalAmount = mix(wrappedDiffuse, diffuse, 0.72);
     float skyAmount = normal.y * 0.5 + 0.5;
-    vec3 ambient = mix(groundAmbient, skyAmbient, skyAmount);
+    float horizonOcclusion = mix(0.7, 1.0,
+        smoothstep(-0.12, 0.58, normal.y));
+    vec3 ambient = mix(groundAmbient, skyAmbient, skyAmount)
+        * horizonOcclusion;
     vec3 halfDirection = normalize(light + viewDirection);
     float materialSpecular = materialKind < 0.5 ? 0.2
-        : materialKind < 1.5 ? 0.11 : 0.065;
+        : materialKind < 1.5 ? 0.11
+        : materialKind < 2.5 ? 0.065 : 0.0;
     float specular = pow(max(dot(normal, halfDirection), 0.0), 28.0)
         * materialSpecular;
     float rim = pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.0)
-        * (materialKind < 0.5 ? 0.2 : 0.12);
+        * (materialKind < 0.5 ? 0.2
+            : materialKind < 2.5 ? 0.12 : 0.0);
 
     float floorMaterial = 1.0 - step(0.45, abs(materialKind - 1.0));
     float wallMaterial = 1.0 - step(0.45, abs(materialKind - 2.0));
+    float detailMaterial = 1.0 - step(0.45, abs(materialKind - 3.0));
+    float shadowMaterial = 1.0 - step(0.45, abs(materialKind - 4.0));
     float panel = max(panelLine(fragWorldPosition.x * 0.42),
         panelLine(fragWorldPosition.z * 0.42)) * floorMaterial;
     float subPanel = max(panelLine(fragWorldPosition.x * 0.84),
@@ -275,14 +306,17 @@ void main()
         pointLightColorA, normal) + pointLight(pointLightPositionB,
         pointLightColorB, normal);
     vec3 litColor = surface.rgb
-        * (ambient + lightColor * diffuse + localLight);
+        * (ambient + lightColor * directionalAmount + localLight);
     litColor += surface.rgb * rim + lightColor * specular;
     litColor += vec3(0.002, 0.012, 0.014) * conduit;
     litColor += vec3(0.008, 0.055, 0.06)
         * wallBand * wallMaterial;
+    litColor = mix(litColor, surface.rgb * 1.08, detailMaterial * 0.84);
+    litColor = mix(litColor, surface.rgb, shadowMaterial);
     litColor = mix(litColor, litColor * vec3(0.88, 1.02, 1.04), 0.28);
     float fogDistance = length(fragWorldPosition.xz - cameraTarget.xz);
-    float fogAmount = smoothstep(13.0, 28.0, fogDistance);
+    float fogAmount = smoothstep(13.0, 28.0, fogDistance)
+        * (1.0 - shadowMaterial);
     finalColor = vec4(mix(litColor, fogColor, fogAmount), surface.a);
 }
 )";

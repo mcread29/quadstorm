@@ -225,25 +225,43 @@ void GameRenderer::drawHordeLandmarks(const GeneratedLevel& level,
     }
 }
 
-void GameRenderer::updateGeneratedLights(const HordeMatch& match) const
+void GameRenderer::updateGeneratedLights(
+    const Player& player, const HordeMatch& match) const
 {
-    const Vector2 hub = match.plan().hubPosition;
-    const Vector2 anchor = match.plan().anchorPosition;
-    const Vector3 hubPosition { hub.x, 1.45F, hub.y };
-    const Vector3 anchorPosition { anchor.x, 1.2F, anchor.y };
-    const Vector3 hubColor {
-        match.hubIsPowered() ? 0.08F : 0.015F,
-        match.hubIsPowered() ? 1.15F : 0.08F,
-        match.hubIsPowered() ? 1.35F : 0.10F
+    const float pulse = 0.5F + 0.5F * std::sin(
+        static_cast<float>(GetTime()) * 3.2F);
+    const Vector3 playerLightPosition {
+        player.position.x,
+        player.position.y + 1.15F,
+        player.position.z
     };
-    const Vector3 anchorColor {
-        match.anchorIsActive() ? 1.35F
-            : match.anchorIsComplete() ? 0.25F : 0.12F,
-        match.anchorIsActive() ? 0.72F
-            : match.anchorIsComplete() ? 0.82F : 0.055F,
-        match.anchorIsActive() ? 0.12F
-            : match.anchorIsComplete() ? 0.48F : 0.02F
+    const Vector3 playerLightColor {
+        0.48F + pulse * 0.08F,
+        0.3F + pulse * 0.035F,
+        0.09F
     };
-    lighting.setPointLights(hubPosition, hubColor,
-        anchorPosition, anchorColor);
+
+    Vector2 objective = match.plan().anchorPosition;
+    Vector3 objectiveColor {
+        match.anchorIsActive() ? 1.65F + pulse * 0.35F : 0.2F,
+        match.anchorIsActive() ? 0.82F + pulse * 0.18F : 0.08F,
+        match.anchorIsActive() ? 0.1F : 0.025F
+    };
+    if (match.anchorIsComplete() && !match.hubIsPowered()) {
+        objective = match.plan().hubPosition;
+        objectiveColor = Vector3 {
+            0.05F, 0.78F + pulse * 0.2F, 0.92F + pulse * 0.25F
+        };
+    } else if (match.hubIsPowered()) {
+        objective = match.plan().exitPosition;
+        objectiveColor = match.matchIsComplete()
+            ? Vector3 { 0.2F, 1.15F, 0.66F }
+            : Vector3 { 0.06F, 1.05F + pulse * 0.18F,
+                  1.22F + pulse * 0.22F };
+    }
+    const Vector3 objectivePosition {
+        objective.x, 1.35F, objective.y
+    };
+    lighting.setPointLights(playerLightPosition, playerLightColor,
+        objectivePosition, objectiveColor);
 }

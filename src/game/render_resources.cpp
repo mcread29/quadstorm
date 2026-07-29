@@ -1,6 +1,7 @@
 #include "render_resources.hpp"
 
 #include "combat.hpp"
+#include "directional_shader.hpp"
 #include "render_style.hpp"
 #include "target.hpp"
 
@@ -123,6 +124,90 @@ Mesh makeGeneratedFloorDetailMesh(const GeneratedLevel& level)
             circuitTrace ? 0.072F : 0.038F,
             circuitTrace ? Color { 40, 96, 94, 255 }
                          : Color { 24, 39, 42, 255 });
+    }
+
+    Mesh mesh {};
+    mesh.vertexCount = static_cast<int>(vertices.size() / 3U);
+    mesh.triangleCount = mesh.vertexCount / 3;
+    mesh.vertices = static_cast<float*>(MemAlloc(
+        static_cast<unsigned int>(vertices.size() * sizeof(float))));
+    mesh.normals = static_cast<float*>(MemAlloc(
+        static_cast<unsigned int>(normals.size() * sizeof(float))));
+    mesh.texcoords = static_cast<float*>(MemAlloc(
+        static_cast<unsigned int>(texcoords.size() * sizeof(float))));
+    mesh.colors = static_cast<unsigned char*>(MemAlloc(
+        static_cast<unsigned int>(colors.size() * sizeof(unsigned char))));
+    std::ranges::copy(vertices, mesh.vertices);
+    std::ranges::copy(normals, mesh.normals);
+    std::ranges::copy(texcoords, mesh.texcoords);
+    std::ranges::copy(colors, mesh.colors);
+    UploadMesh(&mesh, false);
+    return mesh;
+}
+
+Mesh makeWallShadowMesh(std::span<const Segment2D> walls)
+{
+    std::vector<float> vertices;
+    std::vector<float> normals;
+    std::vector<float> texcoords;
+    std::vector<unsigned char> colors;
+    vertices.reserve(walls.size() * 12U * 3U);
+    normals.reserve(walls.size() * 12U * 3U);
+    texcoords.reserve(walls.size() * 12U * 2U);
+    colors.reserve(walls.size() * 12U * 4U);
+
+    const auto appendVertex = [&](Vector2 point, Color color) {
+        vertices.insert(vertices.end(), { point.x, 0.018F, point.y });
+        normals.insert(normals.end(), { 0.0F, 1.0F, 0.0F });
+        texcoords.insert(texcoords.end(), { 0.0F, 0.0F });
+        colors.insert(colors.end(), { color.r, color.g, color.b, color.a });
+    };
+    const auto appendQuad = [&](Vector2 first, Vector2 second,
+                                Vector2 third, Vector2 fourth, Color color) {
+        const float cross = (second.x - first.x) * (third.y - first.y)
+            - (second.y - first.y) * (third.x - first.x);
+        if (cross < 0.0F) {
+            std::swap(second, fourth);
+        }
+        appendVertex(first, color);
+        appendVertex(second, color);
+        appendVertex(third, color);
+        appendVertex(first, color);
+        appendVertex(third, color);
+        appendVertex(fourth, color);
+    };
+
+    const float projection = game_render::WALL_HEIGHT
+        / -DIRECTIONAL_LIGHT.y;
+    const Vector2 innerOffset {
+        DIRECTIONAL_LIGHT.x * projection * 0.7F,
+        DIRECTIONAL_LIGHT.z * projection * 0.7F
+    };
+    const Vector2 outerOffset {
+        DIRECTIONAL_LIGHT.x * projection * 1.08F,
+        DIRECTIONAL_LIGHT.z * projection * 1.08F
+    };
+    for (const Segment2D& wall : walls) {
+        const Vector2 innerStart {
+            wall.start.x + innerOffset.x,
+            wall.start.y + innerOffset.y
+        };
+        const Vector2 innerEnd {
+            wall.end.x + innerOffset.x,
+            wall.end.y + innerOffset.y
+        };
+        const Vector2 outerStart {
+            wall.start.x + outerOffset.x,
+            wall.start.y + outerOffset.y
+        };
+        const Vector2 outerEnd {
+            wall.end.x + outerOffset.x,
+            wall.end.y + outerOffset.y
+        };
+        appendQuad(wall.start, wall.end, innerEnd, innerStart,
+            Color { 2, 6, 9, 54 });
+        appendQuad(innerStart, innerEnd, outerEnd, outerStart,
+            Color { 4, 9, 12, 19 });
     }
 
     Mesh mesh {};
@@ -326,6 +411,8 @@ RenderResources::RenderResources(const GeneratedLevel& level, Shader lightingSha
     , generatedFloorModel(LoadModelFromMesh(makeGeneratedFloorMesh(level)))
     , generatedFloorDetailModel(LoadModelFromMesh(
           makeGeneratedFloorDetailMesh(level)))
+    , generatedWallShadowModel(LoadModelFromMesh(
+          makeWallShadowMesh(level.walls())))
     , generatedWallModel(LoadModelFromMesh(makeWallMesh(level.walls())))
     , wallModel(LoadModelFromMesh(
           GenMeshCube(1.0F, game_render::WALL_HEIGHT, game_render::WALL_THICKNESS)))
@@ -346,8 +433,8 @@ RenderResources::RenderResources(const GeneratedLevel& level, Shader lightingSha
     , projectileGlow(makeProjectileGlow())
 {
     for (Model* model : { &groundModel, &generatedFloorModel,
-             &generatedFloorDetailModel, &generatedWallModel,
-             &wallModel, &playerModel, &targetModel,
+             &generatedFloorDetailModel, &generatedWallShadowModel,
+             &generatedWallModel, &wallModel, &playerModel, &targetModel,
              &enemyModel, &runnerModel, &casterModel, &eliteModel }) {
         model->materials[0].shader = lightingShader;
     }
@@ -365,6 +452,7 @@ RenderResources::~RenderResources()
     UnloadModel(playerModel);
     UnloadModel(wallModel);
     UnloadModel(generatedWallModel);
+    UnloadModel(generatedWallShadowModel);
     UnloadModel(generatedFloorDetailModel);
     UnloadModel(generatedFloorModel);
     UnloadModel(groundModel);

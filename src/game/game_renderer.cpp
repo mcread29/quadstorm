@@ -22,7 +22,7 @@ void GameRenderer::drawGenerated(const Camera3D& camera,
     float interpolationAmount, bool showDebug)
 {
     lighting.update(camera, GENERATED_BACKGROUND);
-    updateGeneratedLights(match);
+    updateGeneratedLights(player, match);
 
     postProcess.beginScene(GENERATED_BACKGROUND);
     BeginMode3D(camera);
@@ -30,6 +30,8 @@ void GameRenderer::drawGenerated(const Camera3D& camera,
     lighting.setMaterial(1.0F);
     DrawModel(resources.generatedFloorModel,
         Vector3 { 0.0F, -0.01F, 0.0F }, 1.0F, WHITE);
+    lighting.setMaterial(4.0F);
+    DrawModel(resources.generatedWallShadowModel, Vector3 {}, 1.0F, WHITE);
     lighting.setMaterial(3.0F);
     DrawModel(resources.generatedFloorDetailModel, Vector3 {}, 1.0F, WHITE);
     lighting.setMaterial(2.0F);

@@ -54,7 +54,8 @@ private:
         const HordeEnemy& enemy, float interpolationAmount) const;
     void drawHordeLandmarks(const GeneratedLevel& level,
         const LevelSession& session, const HordeMatch& match) const;
-    void updateGeneratedLights(const HordeMatch& match) const;
+    void updateGeneratedLights(
+        const Player& player, const HordeMatch& match) const;
     void drawGeneratedHud(const Player& player, const GeneratedLevel& level,
         const LevelSession& session, const HordeMatch& match,
         bool showDebug) const;
