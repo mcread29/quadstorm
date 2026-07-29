@@ -6,6 +6,7 @@
 #include "generated_level.hpp"
 #include "horde_match.hpp"
 #include "level_session.hpp"
+#include "match_generator.hpp"
 #include "game_renderer.hpp"
 
 #include "raylib.h"
@@ -15,10 +16,15 @@
 #endif
 
 #include <algorithm>
+#include <charconv>
+#include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <memory>
+#include <optional>
+#include <stdexcept>
 #include <string_view>
 
 namespace {
@@ -28,27 +34,53 @@ constexpr int WINDOW_HEIGHT = 800;
 constexpr float FIXED_STEP_TIME = 1.0F / 120.0F;
 constexpr float MAX_FRAME_TIME = 0.05F;
 
+std::uint64_t freshMatchSeed()
+{
+    static std::uint64_t state = static_cast<std::uint64_t>(
+        std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    state += 0x9e3779b97f4a7c15ULL;
+    std::uint64_t value = state;
+    value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+    value = (value ^ (value >> 27U)) * 0x94d049bb133111ebULL;
+    return value ^ (value >> 31U);
+}
+
+std::optional<std::uint64_t> parseMatchSeed(std::string_view argument)
+{
+    constexpr std::string_view prefix = "--seed=";
+    if (!argument.starts_with(prefix)) {
+        return std::nullopt;
+    }
+    std::uint64_t seed = 0;
+    const std::string_view digits = argument.substr(prefix.size());
+    const auto result = std::from_chars(
+        digits.data(), digits.data() + digits.size(), seed);
+    if (result.ec != std::errc {} || result.ptr != digits.data() + digits.size()) {
+        throw std::invalid_argument("--seed expects an unsigned decimal integer");
+    }
+    return seed;
+}
+
 class GameApplication {
 public:
-    explicit GameApplication(GeneratedLevelConfig config)
-        : level(config)
-        , renderer(level)
-        , levelSession(level)
-        , previousGeneratedPlayer(levelSession.player())
-        , previousCombatPlayer(encounter.player)
-        , camera(makeGameCamera(levelSession.player()))
-        , previousCamera(camera)
-        , renderCamera(camera)
-        , aimPoint {
-            levelSession.player().position.x - 3.0F,
-            0.0F,
-            levelSession.player().position.z - 3.0F
-        }
+    explicit GameApplication(std::unique_ptr<GeneratedLevel> initialLevel)
+        : previousCombatPlayer(encounter.player)
     {
+        installGeneratedLevel(std::move(initialLevel));
     }
 
     void frame()
     {
+        if (IsKeyPressed(KEY_N)) {
+            installGeneratedLevel(generateMatchLevel(
+                MatchGenerationRequest { freshMatchSeed() }));
+            combatArenaActive = false;
+            overviewActive = false;
+            overviewConfiguration = 0;
+            overviewPreview.reset();
+            clearQueuedInputs();
+            accumulatedTime = 0.0F;
+        }
         if (IsKeyPressed(KEY_F2)) {
             overviewActive = !overviewActive;
             clearQueuedInputs();
@@ -59,18 +91,19 @@ public:
                 selectOverviewConfiguration(0);
             } else if (IsKeyPressed(KEY_LEFT)) {
                 const std::size_t previous = overviewConfiguration == 0
-                    ? REPRESENTATIVE_LEVEL_CONFIGS.size() - 1
+                    ? REPRESENTATIVE_LEVEL_CONFIGS.size()
                     : overviewConfiguration - 1;
                 selectOverviewConfiguration(previous);
             } else if (IsKeyPressed(KEY_RIGHT)) {
                 selectOverviewConfiguration((overviewConfiguration + 1)
-                    % REPRESENTATIVE_LEVEL_CONFIGS.size());
+                    % (REPRESENTATIVE_LEVEL_CONFIGS.size() + 1));
             }
             const GeneratedLevel& overviewLevel = selectedOverviewLevel();
-            renderer.drawGeneratedOverview(overviewLevel,
-                overviewConfiguration == 0 ? &levelSession : nullptr,
-                overviewConfiguration == 0 ? &hordeMatch : nullptr,
-                overviewConfiguration, REPRESENTATIVE_LEVEL_CONFIGS.size());
+            renderer->drawGeneratedOverview(overviewLevel,
+                overviewConfiguration == 0 ? levelSession.get() : nullptr,
+                overviewConfiguration == 0 ? hordeMatch.get() : nullptr,
+                overviewConfiguration,
+                REPRESENTATIVE_LEVEL_CONFIGS.size() + 1);
             return;
         }
 
@@ -90,8 +123,8 @@ public:
                 previousCombatPlayer = encounter.player;
                 camera = makeGameCamera(encounter.player);
             } else {
-                previousGeneratedPlayer = levelSession.player();
-                camera = makeGameCamera(levelSession.player());
+                previousGeneratedPlayer = levelSession->player();
+                camera = makeGameCamera(levelSession->player());
             }
             previousCamera = camera;
             renderCamera = camera;
@@ -136,27 +169,27 @@ public:
         if (combatArenaActive) {
             const Player renderPlayer = interpolatePlayer(
                 previousCombatPlayer, encounter.player, interpolationAmount);
-            renderer.drawCombat(renderCamera, renderPlayer, aimPoint,
+            renderer->drawCombat(renderCamera, renderPlayer, aimPoint,
                 encounter.combat.playerAttack.projectiles, encounter.target,
                 encounter.combat.enemy, encounter.combat.enemyProjectiles,
                 interpolationAmount, showDebug);
         } else {
             const Player renderPlayer = interpolatePlayer(
-                previousGeneratedPlayer, levelSession.player(),
+                previousGeneratedPlayer, levelSession->player(),
                 interpolationAmount);
-            renderer.drawGenerated(renderCamera, renderPlayer, aimPoint,
-                level, levelSession, hordeMatch, interpolationAmount,
+            renderer->drawGenerated(renderCamera, renderPlayer, aimPoint,
+                *level, *levelSession, *hordeMatch, interpolationAmount,
                 showDebug);
         }
     }
 
 private:
-    GeneratedLevel level;
-    GameRenderer renderer;
+    std::unique_ptr<GeneratedLevel> level;
+    std::unique_ptr<GameRenderer> renderer;
     CombatAudio combatAudio;
     Encounter encounter;
-    LevelSession levelSession;
-    HordeMatch hordeMatch { level, levelSession };
+    std::unique_ptr<LevelSession> levelSession;
+    std::unique_ptr<HordeMatch> hordeMatch;
     Player previousGeneratedPlayer;
     Player previousCombatPlayer;
     bool combatArenaActive = false;
@@ -164,10 +197,10 @@ private:
     bool overviewActive = false;
     std::size_t overviewConfiguration = 0;
     std::unique_ptr<GeneratedLevel> overviewPreview;
-    Camera3D camera;
-    Camera3D previousCamera;
-    Camera3D renderCamera;
-    Vector3 aimPoint;
+    Camera3D camera {};
+    Camera3D previousCamera {};
+    Camera3D renderCamera {};
+    Vector3 aimPoint {};
     float accumulatedTime = 0.0F;
     bool restartQueued = false;
     bool dashQueued = false;
@@ -175,6 +208,27 @@ private:
     bool buyDamageQueued = false;
     bool buyFireRateQueued = false;
     bool buyDashQueued = false;
+
+    void installGeneratedLevel(std::unique_ptr<GeneratedLevel> newLevel)
+    {
+        auto newRenderer = std::make_unique<GameRenderer>(*newLevel);
+        auto newSession = std::make_unique<LevelSession>(*newLevel);
+        auto newMatch = std::make_unique<HordeMatch>(*newLevel, *newSession);
+
+        hordeMatch = std::move(newMatch);
+        levelSession = std::move(newSession);
+        renderer = std::move(newRenderer);
+        level = std::move(newLevel);
+        previousGeneratedPlayer = levelSession->player();
+        camera = makeGameCamera(levelSession->player());
+        previousCamera = camera;
+        renderCamera = camera;
+        aimPoint = Vector3 {
+            levelSession->player().position.x - 3.0F,
+            0.0F,
+            levelSession->player().position.z - 3.0F
+        };
+    }
 
     void clearQueuedInputs()
     {
@@ -194,12 +248,12 @@ private:
             return;
         }
         overviewPreview = std::make_unique<GeneratedLevel>(
-            REPRESENTATIVE_LEVEL_CONFIGS[overviewConfiguration]);
+            REPRESENTATIVE_LEVEL_CONFIGS[overviewConfiguration - 1]);
     }
 
     const GeneratedLevel& selectedOverviewLevel() const
     {
-        return overviewPreview != nullptr ? *overviewPreview : level;
+        return overviewPreview != nullptr ? *overviewPreview : *level;
     }
 
     void updateCombatArena(const PlayerInput& input)
@@ -224,16 +278,16 @@ private:
 
     void updateGeneratedLevel(const PlayerInput& input)
     {
-        previousGeneratedPlayer = levelSession.player();
+        previousGeneratedPlayer = levelSession->player();
         const HordeMatchStepResult result = updateHordeMatch(
-            hordeMatch, levelSession, input, FIXED_STEP_TIME);
+            *hordeMatch, *levelSession, input, FIXED_STEP_TIME);
         if (result.reset) {
-            previousGeneratedPlayer = levelSession.player();
-            camera = makeGameCamera(levelSession.player());
+            previousGeneratedPlayer = levelSession->player();
+            camera = makeGameCamera(levelSession->player());
             previousCamera = camera;
             combatAudio.playRestart();
         } else {
-            updateGameCamera(camera, levelSession.player(), FIXED_STEP_TIME);
+            updateGameCamera(camera, levelSession->player(), FIXED_STEP_TIME);
         }
         if (result.enemyFired) {
             combatAudio.playEnemyShot();
@@ -261,17 +315,31 @@ void runWebFrame(void* context)
 
 int main(int argumentCount, char** arguments)
 {
-    GeneratedLevelConfig levelConfig = REPRESENTATIVE_LEVEL_CONFIGS.front();
-    for (int argument = 1; argument < argumentCount; ++argument) {
-        const std::string_view value(arguments[argument]);
-        if (value == "--recipe=hub") {
-            levelConfig.roomSeed = 7;
-        } else if (value == "--recipe=ring") {
-            levelConfig.roomSeed = 2;
-        } else if (value == "--recipe=wings") {
-            levelConfig.roomSeed = 3;
+    std::optional<GeneratedLevelConfig> fixtureConfig;
+    std::optional<std::uint64_t> requestedSeed;
+    try {
+        for (int argument = 1; argument < argumentCount; ++argument) {
+            const std::string_view value(arguments[argument]);
+            if (value == "--recipe=hub") {
+                fixtureConfig = REPRESENTATIVE_LEVEL_CONFIGS[0];
+            } else if (value == "--recipe=ring") {
+                fixtureConfig = REPRESENTATIVE_LEVEL_CONFIGS[1];
+            } else if (value == "--recipe=wings") {
+                fixtureConfig = REPRESENTATIVE_LEVEL_CONFIGS[2];
+            } else if (const auto seed = parseMatchSeed(value);
+                       seed.has_value()) {
+                requestedSeed = *seed;
+            }
         }
+        if (fixtureConfig.has_value() && requestedSeed.has_value()) {
+            throw std::invalid_argument(
+                "--seed cannot be combined with a fixed --recipe fixture");
+        }
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "Invalid game arguments: %s\n", error.what());
+        return 1;
     }
+
     auto windowFlags = FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT;
 #if !defined(PLATFORM_WEB)
     windowFlags |= FLAG_WINDOW_RESIZABLE;
@@ -287,7 +355,14 @@ int main(int argumentCount, char** arguments)
 
     std::unique_ptr<GameApplication> application;
     try {
-        application = std::make_unique<GameApplication>(levelConfig);
+        std::unique_ptr<GeneratedLevel> initialLevel
+            = fixtureConfig.has_value()
+            ? std::make_unique<GeneratedLevel>(*fixtureConfig)
+            : generateMatchLevel(MatchGenerationRequest {
+                requestedSeed.value_or(freshMatchSeed())
+            });
+        application = std::make_unique<GameApplication>(
+            std::move(initialLevel));
     } catch (const std::exception& error) {
         std::fprintf(stderr, "Unable to initialize game: %s\n", error.what());
         CloseWindow();

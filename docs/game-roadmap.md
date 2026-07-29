@@ -157,8 +157,8 @@ The current generator is physically valid but often reads as an alternating aren
 
 - **Complete:** add a fitted full-level runtime overview and read-only deterministic representative-seed browser.
 - **Complete for small maps:** select and publish Hub Circuit, Broken Ring, and Twin Wings gameplay recipes before candidate placement and routing.
-- **Next for normal play:** generate a fresh validated map from a replayable match seed instead of selecting a fixed preset.
-- Extend archetypes and room-shape grammar beyond the radius-5 vertical slice.
+- **Complete at systems scale:** normal play generates from a fresh replayable match seed, supports exact `--seed` replay, separates same-map restart from `N` New Match, retries within a bounded budget, and reports fixture fallback.
+- **Next:** expand validation and generation beyond the radius-5 vertical slice, including archetypes and room-shape grammar.
 - Increase both map extent and the world-space size of cells, rooms, connectors, and travel routes relative to unchanged actor bodies; a larger radius alone is insufficient.
 - Penalize repetitive room/connector alternation and weak graph signatures.
 - Add role-, shape-, district-, and quest-driven semantic anchors and landmarks.

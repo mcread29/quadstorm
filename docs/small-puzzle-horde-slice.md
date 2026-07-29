@@ -1,8 +1,8 @@
 # Small Puzzle Horde Map Vertical Slice
 
-This document is the interactive and headless acceptance guide for the completed small-map horde **systems fixture**. The active generated level uses radius 5, five substantial rooms, fixed recipe seeds, and `worldScale = 0.16F`. Generation selects Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing. This document describes current behavior, not the production map-selection target.
+This document is the interactive and headless acceptance guide for the completed small-map horde **systems tier**. Normal play now derives a radius-5, five-substantial-room map from a fresh replayable match seed at `worldScale = 0.16F`; generation selects Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing. `R` preserves the accepted map, `N` generates another, and `--seed` reproduces one. The fixed recipes below remain deterministic regression and fallback fixtures.
 
-Normal future play must generate a fresh validated random map from a replayable match seed, preserve it on `R`, and use a separate new-match action to regenerate. Production maps must also enlarge cells, rooms, connectors, and routes relative to unchanged actor bodies; increasing radius alone is insufficient. The three maps below remain deterministic regression and fallback fixtures.
+This boundary is not yet the production large-map target. Production maps must enlarge cells, rooms, connectors, and routes relative to unchanged actor bodies; increasing radius alone is insufficient. They must also replace current systems-plan validation with broader endurance and semantic quest validation.
 
 ## Run each recipe
 
@@ -25,7 +25,8 @@ F2 opens the complete overview. The first three browser configurations are fixed
 | 1 at Hub | Buy the next damage tier |
 | 2 at Hub | Buy the next fire-rate tier |
 | 3 at Hub | Buy the next dash-recovery tier |
-| R | Restart mutable match state on the same fixture map and seed |
+| R | Restart mutable match state on the same accepted map and seed |
+| N | Generate and enter a fresh seeded match |
 | F1 | Combat regression arena |
 | F2 | Full-map overview and recipe browser |
 | F3 | Detailed match diagnostics |
@@ -165,4 +166,4 @@ ctest --test-dir build --output-on-failure
 
 The dedicated `stalberg_horde_match_tests` target covers recipe binding and costs, automatic countdown/intermission transitions, puzzle-independent advancement, representative scaling snapshots, bounded and overflow-safe schedules, objective sites, progression-currency reservation, atomic Anchor interaction, exact scaled rewards, gate state, Reward-route safety, geometry-safe spawning/separation, navigation, concurrent Anchor/Hub progression, relay ordering, explicit extraction, tiered upgrades, repeatable Hub repair, and complete reset. Existing generation, geometry, generated-level, collision, combat, and F1 regression tests remain active.
 
-The successor acceptance suite must verify random new-match variation, exact same-seed replay, same-map restart, bounded fallback, actor-relative world-scale targets, larger-map ingress/circulation capacity, and dynamic quest binding to generated semantic anchors.
+`stalberg_match_generation_tests` now verifies different-seed input variation, exact same-seed accepted-layout replay, same-map restart, bounded deterministic fallback, and scale-profile derivation. The successor acceptance work must add actor-relative world-scale targets, larger-map structural diversity and ingress/circulation capacity, and dynamic quest binding to generated semantic anchors.

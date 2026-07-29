@@ -366,7 +366,7 @@ Connected entrances are not `Doorway` objects. They do not include an exterior s
 
 ## Gameplay consumption
 
-> Runtime status: `stalberg_game` consumes the complete generation chain through immutable `GeneratedLevel`, renders exact assigned floors, retains exact doorway thresholds, and publishes door-aware navigation. It currently runs one fixed radius-5 preset at `worldScale = 0.16F`; this remains the systems/regression baseline. The target new-match boundary chooses a fresh replayable match seed, derives a larger random layout plus quest binding, and retries until gameplay validation passes. `R` resets the same accepted map. Normal production geometry must also use a larger generated-to-world scale relative to unchanged actors, not only a larger radius. See [`level-identity-pass.md`](level-identity-pass.md) and [`game-handoff.md`](game-handoff.md).
+> Runtime status: `stalberg_game` consumes the complete generation chain through immutable `GeneratedLevel`, renders exact assigned floors, retains exact doorway thresholds, and publishes door-aware navigation. Normal play now chooses a fresh replayable match seed, derives radius-5 grid/room inputs, retries current systems-valid candidates within a bounded budget, and visibly reports deterministic fixture fallback. `R` resets the same accepted map, `N` requests another, and `--seed` replays one. This is the new-match boundary foundation: production still needs a larger layout and generated-to-world scale relative to unchanged actors, plus semantic quest binding and broader gameplay validation. See [`level-identity-pass.md`](level-identity-pass.md) and [`game-handoff.md`](game-handoff.md).
 
 ### Runtime physical scale
 

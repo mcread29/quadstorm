@@ -239,8 +239,11 @@ SpawnSelection selectPlayerSpawn(const stalberg::DualGrid& dual,
 
 } // namespace
 
-GeneratedLevel::GeneratedLevel(GeneratedLevelConfig config)
-    : gridData(makeGrid(config))
+GeneratedLevel::GeneratedLevel(GeneratedLevelConfig config,
+    std::optional<MatchGenerationInfo> generation)
+    : configData(config)
+    , generationInfo(generation)
+    , gridData(makeGrid(config))
     , dualData(stalberg::buildDualGrid(gridData))
     , roomGridData(stalberg::makeRoomGrid(gridData, dualData))
     , roomLayoutData(stalberg::rooms::RoomGenerator {}.generate(

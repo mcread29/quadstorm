@@ -4,7 +4,7 @@ This document describes the default `RoomGenerationMethod::ShooterLayout` pipeli
 
 For the input/output types and physical geometry contract, see [`room-generation-model.md`](room-generation-model.md). For candidate validation, scoring, deterministic retries, and tests, see [`layout-quality-and-testing.md`](layout-quality-and-testing.md). For the next topology-archetype, room-grammar, runtime-overview, and landmark pass, see [`level-identity-pass.md`](level-identity-pass.md).
 
-The `stalberg_game` runtime consumes shooter layouts through immutable `GeneratedLevel`, retaining source grid, dual geometry, neutral room graph, recipe metadata, exact floor, and doorway thresholds. The current fixed radius-5 presets are a systems baseline. The target runtime derives a fresh validated layout, physical-scale profile, and quest binding from one replayable match seed for every new match. `LevelSession` owns the authoritative player and synchronized collision/navigation locks; `HordeMatch` owns persistent match state.
+The `stalberg_game` runtime consumes shooter layouts through immutable `GeneratedLevel`, retaining source grid, dual geometry, neutral room graph, recipe metadata, exact floor, and doorway thresholds. Normal play now derives radius-5 grid/room inputs and a bounded candidate stream from one replayable match seed; fixed presets remain systems fixtures and deterministic fallback. The target still requires a larger physical-scale profile, broader topology, semantic anchors, and quest binding. `LevelSession` owns the authoritative player and synchronized collision/navigation locks; `HordeMatch` owns persistent match state.
 
 ## Goals
 
@@ -26,7 +26,7 @@ The generator works over the irregular dual-cell graph produced by the Stålberg
 
 Larger shooter layouts still rely primarily on one noise-perturbed spatial tree and optional loop. Radius-5 layouts use fixed recipe graphs, but all substantial rooms still share the same compact growth process. The runtime also uses a `0.16` generated-to-world scale, so increasing radius alone would create more of the same actor-relative geometry.
 
-The remaining work in [`level-identity-pass.md`](level-identity-pass.md) is a random new-match boundary, larger world-space geometry, explicit room-shape grammar, broader archetypes, stronger graph signatures, districts, semantic quest anchors, and cross-seed validation. The six fixed F2 configurations remain inspection fixtures rather than the normal gameplay pool.
+The initial random new-match boundary is implemented. The remaining work in [`level-identity-pass.md`](level-identity-pass.md) is larger world-space geometry, explicit room-shape grammar, broader archetypes, stronger graph signatures, districts, semantic quest anchors, and cross-seed structural validation. The six fixed F2 configurations remain inspection fixtures rather than the normal gameplay pool.
 
 ### Horde-map interpretation
 

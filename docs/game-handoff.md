@@ -17,8 +17,9 @@ Run:
 ```sh
 cmake -S . -B build
 cmake --build build -j
-./build/stalberg_game --recipe=hub
-# alternatives: --recipe=ring, --recipe=wings
+./build/stalberg_game
+./build/stalberg_game --seed=123456789  # replay a generated match
+./build/stalberg_game --recipe=hub      # fixed regression fixture
 ```
 
 Controls:
@@ -32,13 +33,16 @@ Controls:
 | E | Buy a gate, activate Anchor/Hub/Exit, or repair one missing health at the powered Hub; at Anchor, fund-and-start atomically when affordable |
 | 1/2/3 at Hub | Buy the next damage, fire-rate, or dash tier |
 | R | Restart mutable match state on the same immutable generated map, or restart regression combat |
+| N | Generate and enter a fresh match with a new seed |
 | F1 | Toggle generated horde match / combat regression arena |
 | F2 | Toggle the generated full-level developer overview |
 | Left/Right in overview | Browse the fixed representative configurations read-only |
 | Home in overview | Return to the active generated layout |
 | Escape/window close | Exit |
 
-The runtime currently starts in the generated horde match using one fixed radius-5 preset selected by `--recipe`. `GeneratedLevel` retains the relaxed grid, exact dual geometry, neutral room graph, selected small-map recipe, shooter layout, exact floor, walls, doorway thresholds, and immutable navigation. `LevelSession` owns the authoritative player, current room, dynamic doorway collision, and matching traversal state. `HordeMatch` owns points, permanent gate purchases, upgrades, persistent player attack state, the deterministic round schedule, map-wide enemies and hostile projectiles, Anchor/Hub/relay/Exit state, and whole-match reset. Random new-match generation, seed replay, and the larger physical scale described below are not implemented yet.
+The runtime now starts by creating a fresh public match seed and deterministically deriving radius-5 grid and room seeds. The application-level generator has an eight-attempt budget, accepts only candidates that satisfy the complete current systems-map plan, and visibly publishes the known Hub Circuit fixture if that budget is exhausted. `--seed=<unsigned decimal>` reproduces the accepted inputs, retry count, and geometry with the same game build/toolchain; `N` requests another seed, while `R` only resets mutable state. `--recipe=hub|ring|wings` still launches fixed diagnostic fixtures and cannot be combined with `--seed`.
+
+`GeneratedLevel` retains the accepted match metadata, relaxed grid, exact dual geometry, neutral room graph, selected small-map recipe, shooter layout, exact floor, walls, doorway thresholds, and immutable navigation. `LevelSession` owns the authoritative player, current room, dynamic doorway collision, and matching traversal state. `HordeMatch` owns points, permanent gate purchases, upgrades, persistent player attack state, the deterministic round schedule, map-wide enemies and hostile projectiles, Anchor/Hub/relay/Exit state, and whole-match reset. Larger physical scale, broader map generation, semantic anchors, and dynamic quest binding are not implemented yet.
 
 Round 1 guarantees enough points to buy the recipe-scaled first gate; Round 2 guarantees the Anchor route. Optional spending stays disabled until the required Anchor route is funded. Drifters and Runners pursue through the currently opened exact cell graph, while Casters and Elites use difficulty-scaled ranged fan patterns and local separation prevents complete crowd overlap. E resolves contextual gate/device interactions; at the Anchor it can atomically fund a still-closed Anchor gate and begin the holdout when affordable. Rounds continue independently through active or incomplete Anchor/Hub state. The Hub sells three increasingly expensive tiers of each authoritative upgrade through 1/2/3, repairs one missing health per E interaction for a pressure-scaled price after activation, and the relay grants the next fire-rate tier. Locked gates render as one connected barred frame rather than disconnected posts. The F2 overview renders exact floor triangles, recipe graph, live lock state, semantic objective sites, relay order, seeds, candidate, and quality score. Browsing previews never mutates the active match.
 
@@ -48,7 +52,7 @@ Round 1 guarantees enough points to buy the recipe-scaled first gate; Round 2 gu
 
 ```text
 main.cpp
-    ├── constructs immutable GeneratedLevel generation + geometry data
+    ├── requests immutable GeneratedLevel data through MatchGenerator
     ├── reads PlayerInput through game_input
     ├── advances generated room progression or combat-regression fixed state
     ├── interpolates simulation state for rendering
@@ -97,7 +101,8 @@ CombatStepResult / EncounterStepResult ──→ CombatAudio
 | Path | Responsibility |
 |---|---|
 | `src/game/main.cpp` | Window lifetime, generated/combat view switching, 120 Hz accumulator, interpolation, audio-event forwarding, and composition |
-| `src/game/generated_level.hpp/.cpp` | Immutable generator artifact package, exact floor triangles, closed walls, retained doorway thresholds, navigation, and Start spawn |
+| `src/game/match_generator.hpp/.cpp` | Public match-seed derivation, bounded candidate construction/current-plan validation, accepted-attempt metadata, and visible deterministic fallback |
+| `src/game/generated_level.hpp/.cpp` | Immutable generator artifact package, accepted match metadata, exact floor triangles, closed walls, retained doorway thresholds, navigation, and Start spawn |
 | `src/game/level_session.hpp/.cpp` | Mutable generated traversal, authoritative generated player, room lifecycle/location, doorway locking, active walls, effect timers, and reset |
 | `src/game/horde_match.hpp/.cpp` | Small-map recipe binding, endless director/difficulty, points/gates/tiered upgrades/Hub repair, scaled horde combat, Anchor/Hub/relay/Exit progression, and reset |
 | `src/game/generated_encounter.hpp/.cpp` | Preserved generated-room regression coordinator and spawn-selection coverage; no longer the active generated runtime path |
@@ -122,6 +127,7 @@ CombatStepResult / EncounterStepResult ──→ CombatAudio
 | `tests/generated_level_tests.cpp` | Artifact alignment, exact floor area, wall/door authorization, representative-browser validity, traversal firing/preservation, deterministic multi-spawn filtering/identity, partial/all-enemies clear transitions, hostile cleanup, defeat/reset/Exit, Start spawn, and reachability coverage |
 | `tests/game_tests.cpp` | Headless dash/collision, caller-owned combat, projectile ownership/profile/pool, blocked muzzles, weapon, single-enemy and collection determinism/damage/defeat, earliest-hit/identity tie-breaking, closed-wall containment, player damage/death, interpolation freeze, victory, and restart coverage |
 | `tests/horde_match_tests.cpp` | Automatic director transitions, puzzle independence, difficulty/schedule snapshots through maximum round values, recipe sites/costs, economy overflow/reserves, atomic Anchor interaction, gate/navigation safety, scaled spawning, concurrent Anchor/Hub/relay state, explicit extraction, tiered upgrades, and whole-match reset |
+| `tests/match_generation_tests.cpp` | Same-seed accepted-layout/retry replay, cross-seed variation, same-map restart, candidate-stream scale derivation, and deterministic visible fallback |
 | `CMakeLists.txt` | Runtime/test source lists, raylib linkage, warnings, and Debug runtime optimization |
 
 The renderer's destructor unloads models before unloading the shared lighting shader. `CombatAudio` unloads sounds before closing its audio device. Both presentation owners must be destroyed before `CloseWindow()`, which is why they live inside an inner scope in `main.cpp`.
@@ -210,7 +216,9 @@ The game target links the generator libraries only through `GeneratedLevel`. The
 
 Within one room, neighboring assigned cells are traversable. Across rooms, immutable navigation uses only exact cell pairs published by `RoomLayout::getDoorways()`; physical contact between regions is never automatically traversable. `LevelSession` owns mutable lock state and adds locked threshold segments to both active collision walls and traversal checks. Connected exterior entrance cells remain enclosed. The current powered-Exit requirement is still hard-coded to Round 5, but the interaction is now explicit voluntary extraction and never gates automatic round advancement. Replace that requirement with recipe-authored quest metadata in the next slice.
 
-The active runtime uses radius 5, grid seed 1, room seed 7 by default, and `GeneratedLevelConfig::worldScale = 0.16F`. Recipe selection follows `(roomSeed - 1) % 3`; the launch presets use room seeds 7/2/3 for Hub Circuit/Broken Ring/Twin Wings. `--recipe=hub|ring|wings` launches each directly. These presets and the six F2 previews are deterministic regression fixtures. The target new-match flow instead chooses a random replayable match seed and builds a validated map from it; explicit seed and recipe overrides remain debugging/replay tools.
+Normal runtime generation currently keeps radius 5 and `GeneratedLevelConfig::worldScale = 0.16F`, but derives grid and room seeds from a fresh 64-bit match seed. Recipe selection still follows `(roomSeed - 1) % 3`. `MatchGenerator` derives a deterministic candidate stream, attempts at most eight current systems-valid layouts, records the accepted attempt, and visibly uses the radius-5 Hub Circuit fixture only after exhaustion. Validation requires all current semantic rooms, three relay targets, and Expansion, Anchor, Reward, and Exit gates. `--seed` supplies the public match seed explicitly. The launch presets use room seeds 7/2/3 for Hub Circuit/Broken Ring/Twin Wings; `--recipe=hub|ring|wings` and the six F2 previews remain deterministic regression tools.
+
+Current replay determinism is scoped to the same game build/toolchain. Lower-level grid and room generation still use standard-library shuffle and distribution implementations, so reproducing a seed across a different C++ standard library is not guaranteed. Production seed compatibility needs fixed project-owned random algorithms or an explicit generation-version contract before seeds can be promised portable across releases.
 
 ## Completed implementation slice: automatic endless rounds and scaling
 
@@ -236,17 +244,18 @@ One reproducible profile now derives from round index and map recipe:
 
 Health tops out at 1.8×, movement at 1.25×, hostile projectile speed at 1.4×, firing interval at 0.65×, damage at two, and reward income at 1.5×. Spawn budget and simultaneous population cap by Round 25; attribute and role-substitution scaling reaches its final pressure tier at Round 51, while five-round Elite events continue. Recipe-scaled gate costs preserve the opening economy, three increasingly expensive tiers of each upgrade match the bounded threat curve, and activated-Hub repairs remain a repeatable post-cap sink. Bespoke bosses and mutation events remain future content.
 
-## Next implementation slice: random, physically larger, quest-valid maps
+## In-progress implementation slice: random, physically larger, quest-valid maps
 
-### 3. Add the new-match generation boundary
+### 3. Add the new-match generation boundary — systems-scale foundation complete
 
-Normal play must generate rather than select a preset:
+- Normal play now creates one 64-bit match seed and deterministically derives grid seed, room seed, and candidate retries from it.
+- `N` requests a fresh match. `R` continues to reset the current match on the same accepted map.
+- `--seed=<unsigned decimal>` replays a match, and the HUD/F2 overview display the accepted seed, attempt count, and fallback status.
+- Candidate construction and current small-map plan validation use an eight-attempt budget. Exhaustion selects the known-valid Hub Circuit fixture and marks fallback use visibly.
+- Representative configurations remain tests and F2 previews rather than the normal runtime selection pool.
+- Headless coverage verifies same-seed reproduction, cross-seed input variation, same-map restart, deterministic fallback, and scale-profile participation in derivation.
 
-- Create one match seed and deterministically derive grid seed, room seed, topology/quest recipe selection, candidate retries, and scale profile from it.
-- Starting a new match requests a fresh seed. `R` continues to reset the current match on the same accepted map; add a distinct new-match action for regeneration.
-- Expose an explicit seed override and display the accepted seed for replay and bug reports.
-- Retry invalid candidates within a bounded budget. Use a fixed validated fallback only when that budget is exhausted, and report fallback use visibly.
-- Keep representative configurations as tests and F2 previews, not the normal runtime selection pool.
+This is deliberately the boundary foundation, not completion of the production map pass. Radius remains 5, scale remains `0.16F`, topology/quest choice is still coupled to the current room-seed recipe, and validation only proves compatibility with the existing Anchor/Hub/relay/Exit systems plan. The next implementation should add actor-relative physical metrics and larger-map profiles before broadening semantic quest binding.
 
 ### 4. Increase physical map scale, not only grid radius
 
@@ -289,12 +298,10 @@ Keep the three small recipes as deterministic regression fixtures. Normal endura
 
 Headless coverage now verifies automatic Round 1 startup, cleanup → intermission → next-round transitions, input and puzzle independence, deterministic recipe-aware schedules, snapshots at rounds 1/5/10/25/100, monotonic bounded pressure, maximum-round arithmetic, concurrent Anchor progress, explicit extraction, tiered upgrades, scaled economy rewards, and reset of countdown/difficulty/match state.
 
-The next slices must add coverage for:
+The new match-generation suite now covers different seeds deriving different geometry inputs, exact same-seed accepted-layout and retry reproduction, `R` preserving the accepted map, the separate generation path used by `N`, scale-profile derivation, and deterministic visible fallback. The next slices must add coverage for:
 
-- Different new-match seeds normally producing different accepted geometry and quest bindings.
-- Exact reproduction from the same match seed, including retry winner, scale profile, and quest placement.
-- `R` preserving the accepted map while a distinct new-match action regenerates it.
-- Bounded retry and explicit deterministic fallback behavior.
+- Different new-match seeds producing structurally distinct larger geometry and semantic quest bindings, beyond the current radius-5 recipe tier.
+- Exact reproduction of future semantic anchors and quest placement.
 - Physical room, doorway, objective, sightline, and route measurements relative to unchanged actor dimensions; radius growth alone must not pass these checks.
 - Recipe-authored minimum-round puzzle unlocks that neither reset nor stop the director.
 - Quest completion with continued spawning before voluntary extraction.
@@ -332,7 +339,7 @@ Keep the `F1` hard-coded arena as the focused combat regression path. The destin
 
 ## Known limitations
 
-- Normal runtime selection is still a fixed radius-5 preset; fresh random new-match generation and replayable seed input are not implemented.
+- Normal runtime selection is now fresh and replayable, but still generates within the radius-5 systems tier and validates only the current fixed Anchor/Hub/relay/Exit plan.
 - Runtime geometry still uses `worldScale = 0.16F`; both world-space scale and map extent need to grow relative to unchanged actors.
 - Small maps publish three intentional graph recipes, but substantial rooms still use the compact baseline growth process. Room-shape grammar, districts, negative-space briefs, and puzzle-specific geometry remain the main oatmeal risk.
 - Navigation recomputes a cell BFS per enemy update and is appropriate for the small population cap; larger maps should cache reverse distance fields by player cell and topology revision.

@@ -22,7 +22,13 @@ struct GeneratedLevelConfig {
     float worldScale = 0.16F;
 };
 
-// Fixed read-only browser matrix; the first entry also configures the active level.
+struct MatchGenerationInfo {
+    std::uint64_t matchSeed = 0;
+    std::size_t attempts = 0;
+    bool usedFallback = false;
+};
+
+// Fixed read-only browser and deterministic fallback matrix.
 inline constexpr std::array<GeneratedLevelConfig, 6>
     REPRESENTATIVE_LEVEL_CONFIGS {{
         { 5, 1, 7, 0.16F },
@@ -52,7 +58,8 @@ struct DoorwayThreshold {
 
 class GeneratedLevel {
 public:
-    explicit GeneratedLevel(GeneratedLevelConfig config = {});
+    explicit GeneratedLevel(GeneratedLevelConfig config = {},
+        std::optional<MatchGenerationInfo> generation = std::nullopt);
 
     const stalberg::StalbergGrid& grid() const { return gridData; }
     const stalberg::DualGrid& dualGrid() const { return dualData; }
@@ -74,8 +81,15 @@ public:
     Vector2 playerSpawn() const { return spawn; }
     stalberg::rooms::CellIndex playerSpawnCell() const { return spawnCell; }
     float worldScale() const { return scale; }
+    const GeneratedLevelConfig& config() const { return configData; }
+    const std::optional<MatchGenerationInfo>& matchGeneration() const
+    {
+        return generationInfo;
+    }
 
 private:
+    GeneratedLevelConfig configData;
+    std::optional<MatchGenerationInfo> generationInfo;
     stalberg::StalbergGrid gridData;
     stalberg::DualGrid dualData;
     stalberg::rooms::RoomGrid roomGridData;

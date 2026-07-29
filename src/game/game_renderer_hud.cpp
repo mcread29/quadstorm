@@ -75,6 +75,23 @@ void GameRenderer::drawGeneratedHud(const Player& player,
         drawText(label, UI_WIDTH - width - 1, 28, 18,
             roomRoleColor(currentRoom->role));
     }
+    if (level.matchGeneration().has_value()) {
+        const MatchGenerationInfo& generation = *level.matchGeneration();
+        const std::string seedLabel = "SEED "
+            + std::to_string(generation.matchSeed)
+            + (generation.usedFallback ? "  FALLBACK" : "");
+        const int width = measureText(seedLabel.c_str(), 13) + 22;
+        const Rectangle seedPanel {
+            static_cast<float>(UI_WIDTH - width - 18),
+            62.0F, static_cast<float>(width), 30.0F
+        };
+        drawHudPanel(seedPanel, generation.usedFallback
+                ? Color { 234, 105, 80, 255 }
+                : Color { 151, 193, 190, 255 });
+        drawText(seedLabel.c_str(), UI_WIDTH - width - 7, 70, 13,
+            generation.usedFallback ? Color { 255, 174, 92, 255 }
+                                    : Color { 151, 193, 190, 255 });
+    }
 
     const Vector2 playerMapPosition {
         player.position.x, player.position.z
@@ -221,7 +238,7 @@ void GameRenderer::drawGeneratedHud(const Player& player,
             Color { 151, 193, 190, 255 });
         drawText("WASD | SPACE dash | LMB fire | E interact | 1/2/3 upgrades",
             28, 127, 15, Color { 180, 203, 200, 255 });
-        drawText("R reset | F1 regression arena | F2 overview / recipe browser",
+        drawText("R restart | N new match | F1 arena | F2 overview / fixtures",
             28, 150, 15, Color { 180, 203, 200, 255 });
         drawText(TextFormat("%s  rooms %i  doors %i  room %i  walls %i",
                      smallMapRecipeName(level.roomLayout().getSmallMapRecipe()),

@@ -11,7 +11,7 @@ Room-generation details are split into focused documents:
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
 - [`level-identity-pass.md`](level-identity-pass.md) — small-map recipes plus the remaining room-shape, district, and landmark pass.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It currently consumes the generation chain through one fixed radius-5 systems preset. The target flow creates a fresh validated random map per new match from one replayable seed, preserves that map on restart, dynamically binds a compatible quest recipe, and increases world-space room/route dimensions relative to actors rather than only increasing radius. The hard-coded deterministic arena remains available through `F1` as a separate regression wrapper.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It now wraps the generation chain in a replayable match-seed boundary with bounded radius-5 candidate retries, same-map restart, distinct New Match, and visible fixture fallback. The next target dynamically binds a compatible quest recipe and increases map extent plus world-space room/route dimensions relative to actors rather than only varying current systems-scale geometry. The hard-coded deterministic arena remains available through `F1` as a separate regression wrapper.
 
 ## Overview
 

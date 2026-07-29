@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <limits>
+#include <string>
 #include <vector>
 
 using namespace game_render;
@@ -301,6 +302,20 @@ void GameRenderer::drawGeneratedOverview(const GeneratedLevel& level,
                  static_cast<int>(configurationCount)),
         detailsX, detailsY, 16, heading);
     detailsY += 27;
+    if (level.matchGeneration().has_value()) {
+        const MatchGenerationInfo& generation = *level.matchGeneration();
+        const std::string seedLabel = "match seed   "
+            + std::to_string(generation.matchSeed);
+        drawText(seedLabel.c_str(), detailsX, detailsY, 16, primary);
+        detailsY += 23;
+        const std::string attemptLabel = "attempts     "
+            + std::to_string(generation.attempts)
+            + (generation.usedFallback ? "  FALLBACK" : "");
+        drawText(attemptLabel.c_str(), detailsX, detailsY, 16,
+            generation.usedFallback
+                ? Color { 234, 105, 80, 255 } : secondary);
+        detailsY += 23;
+    }
     drawText(TextFormat("radius       %i", level.grid().getRadius()),
         detailsX, detailsY, 16, primary);
     detailsY += 23;

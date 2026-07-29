@@ -8,7 +8,7 @@ For the implemented generator pipeline, see [`shooter-level-generation.md`](shoo
 
 ## Current baseline
 
-- The active game currently constructs a fixed small-map `GeneratedLevelConfig`: radius 5, grid seed 1, Hub Circuit room seed 7, and world scale `0.16`. The other CLI recipe presets use room seeds 2 and 3. These are current regression presets, not the target new-match flow.
+- The active game now creates a fresh public match seed and deterministically derives radius-5 grid and room seeds, with eight bounded attempts and a visible Hub Circuit fixture fallback. `--seed` reproduces an accepted match, `N` generates another, and `R` preserves the current map. World scale remains `0.16`; fixed CLI recipes and F2 configurations are regression presets.
 - The gameplay camera follows the player. F2 now opens a developer whole-level overview with exact runtime floor, boundaries, role/ID labels, the published room graph, open/locked thresholds, role markers, player position, and generator metadata.
 - Left/Right browses six fixed representative configurations as read-only previews; Home returns to the active session. Preview browsing pauses and never replaces or mutates the active simulation.
 - Until later slices publish archetype and room-shape metadata, the overview explicitly labels the current derived topology and compact/routed baseline rather than pretending the planned grammar already exists.
@@ -77,11 +77,11 @@ Candidate validation and scoring should measure:
 
 The current prohibition on connector-to-connector doorways may be revisited only if a topology archetype needs a genuine corridor junction. It must not be relaxed accidentally. Any change must keep connector traversal and doorway publication explicit.
 
-## Slice 3: random new-match generation and physical scale
+## Slice 3: random new-match generation and physical scale — boundary foundation complete
 
-Normal gameplay should derive grid seed, room seed, topology/quest recipe, candidate stream, and physical-scale profile from one match seed. The same seed must reproduce the accepted candidate and quest binding exactly; different new-match seeds should normally produce different maps. `R` resets the run without regenerating, while a separate new-match action requests a new seed. Fixed representative configurations remain in F2 and tests, and a validated fallback is used only after bounded generation failure.
+Normal gameplay now derives grid seed, room seed, current small-map recipe, and an eight-attempt candidate stream from one match seed. The same seed reproduces accepted inputs, layout, retry count, and fallback status; different seeds vary normal generation inputs. `R` resets without regenerating, `N` requests a new seed, `--seed` supports replay, and fixed representative configurations remain in F2 and tests. The fallback is used and visibly marked only after bounded failure.
 
-The production map must be larger in gameplay space, not only in cell count. Increase the generated-to-world conversion above the current `0.16` baseline while keeping player and enemy collision bodies authoritative. Scaling actors and all ranges by the same amount does not count. Candidate acceptance must measure doorway width, arena footprint, connector length, objective clearance, ingress separation, sightline bands, and route travel in world units and player-diameter units. Camera framing, movement/dash, projectile reach, interactions, lighting, detail density, and navigation performance then receive explicit pacing passes rather than one global multiplier.
+The production-scale half of this slice remains open. The map must be larger in gameplay space, not only in cell count. Increase the generated-to-world conversion above the current `0.16` baseline while keeping player and enemy collision bodies authoritative. Scaling actors and all ranges by the same amount does not count. Candidate acceptance must measure doorway width, arena footprint, connector length, objective clearance, ingress separation, sightline bands, and route travel in world units and player-diameter units. Camera framing, movement/dash, projectile reach, interactions, lighting, detail density, and navigation performance then receive explicit pacing passes rather than one global multiplier. Quest recipe and semantic-anchor derivation also remain pending; the current boundary validates only compatibility with the systems fixture plan.
 
 ## Slice 4: room-shape grammar
 

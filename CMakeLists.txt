@@ -97,6 +97,7 @@ add_library(stalberg_game_core
     src/game/horde_match.cpp
     src/game/horde_match_plan.cpp
     src/game/level_session.cpp
+    src/game/match_generator.cpp
     src/game/player.cpp
     src/game/projectile_pool.cpp
     src/game/target.cpp
@@ -193,4 +194,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     target_link_libraries(stalberg_horde_match_tests PRIVATE stalberg_game_core)
     enable_project_warnings(stalberg_horde_match_tests)
     add_test(NAME stalberg_horde_match_tests COMMAND stalberg_horde_match_tests)
+
+    add_executable(stalberg_match_generation_tests
+        tests/match_generation_tests.cpp)
+    target_link_libraries(stalberg_match_generation_tests
+        PRIVATE stalberg_game_core)
+    enable_project_warnings(stalberg_match_generation_tests)
+    add_test(NAME stalberg_match_generation_tests
+        COMMAND stalberg_match_generation_tests)
 endif()

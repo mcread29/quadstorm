@@ -184,9 +184,9 @@ This rejects layouts that are topologically valid but do not provide a meaningfu
 
 ## Planned random-match, physical-scale, quest, and diversity expansion
 
-Current validation proves local correctness and small-map recipe conformance. It does not yet prove that a random runtime seed produces an endurance-ready map, that the map is physically larger relative to actors, or that an authored quest recipe can bind safely. The next pass in [`level-identity-pass.md`](level-identity-pass.md) adds a bounded application-level retry pipeline and expands per-layout geometry conformance and cross-seed diversity gates.
+Current validation proves local correctness and small-map recipe conformance. The game now wraps it in a bounded eight-attempt application-level pipeline: one public match seed derives candidate grid/room seeds, same-seed runs reproduce the accepted layout and retry count, `R` preserves the result, `N` requests another seed, and exhaustion visibly selects a deterministic fixture fallback. This first boundary only validates compatibility with the existing small-map systems plan; it does not yet prove that a result is endurance-ready, physically larger relative to actors, or able to bind a future authored quest safely.
 
-The same match seed must reproduce derived grid/room seeds, selected recipe, candidate winner, world-scale profile, semantic anchors, and quest binding. Different new-match seeds should normally produce different accepted maps. `R` must preserve the accepted map; only a distinct new-match action requests another seed. Fixed configurations remain regression fixtures and deterministic fallback coverage.
+The expanded boundary must additionally reproduce a selected quest, broader topology profile, world-scale profile, semantic anchors, and quest binding. Different new-match seeds should produce structurally different accepted maps rather than merely varying current radius-5 geometry. Fixed configurations remain regression fixtures and deterministic fallback coverage.
 
 Planned graph measurements include:
 
