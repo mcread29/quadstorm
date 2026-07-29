@@ -104,7 +104,7 @@ void GameRenderer::drawGeneratedHud(const Player& player,
         || anchorGate->open;
     const char* interactionPrompt = nullptr;
     std::string interactionPromptStorage;
-    float nearestGate = 2.2F;
+    float nearestGate = HORDE_GATE_INTERACTION_DISTANCE;
     const auto thresholds = level.doorwayThresholds();
     for (const MapGate& gate : match.plan().gates) {
         if (gate.open || gate.doorway >= thresholds.size()) {
@@ -134,7 +134,9 @@ void GameRenderer::drawGeneratedHud(const Player& player,
     const auto nearDevice = [&](Vector2 position) {
         const float x = position.x - playerMapPosition.x;
         const float y = position.y - playerMapPosition.y;
-        return x * x + y * y <= 2.2F * 2.2F;
+        return x * x + y * y
+            <= HORDE_DEVICE_INTERACTION_DISTANCE
+                * HORDE_DEVICE_INTERACTION_DISTANCE;
     };
     if (interactionPrompt == nullptr
         && nearDevice(match.plan().anchorPosition)

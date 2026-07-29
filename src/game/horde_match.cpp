@@ -15,8 +15,6 @@
 
 namespace {
 
-constexpr float INTERACTION_DISTANCE = 1.8F;
-constexpr float DEVICE_INTERACTION_DISTANCE = 2.2F;
 constexpr float RELAY_TARGET_RADIUS = 0.42F;
 constexpr float CONTACT_DAMAGE_DISTANCE = ENEMY_RADIUS + PLAYER_RADIUS;
 
@@ -425,7 +423,7 @@ std::optional<std::size_t> nearestClosedGate(
     const HordeMatch& match, Vector2 playerPosition)
 {
     std::optional<std::size_t> selected;
-    float selectedDistance = INTERACTION_DISTANCE;
+    float selectedDistance = HORDE_GATE_INTERACTION_DISTANCE;
     const auto thresholds = match.level->doorwayThresholds();
     for (std::size_t gate = 0; gate < match.mapPlan.gates.size(); ++gate) {
         const MapGate& candidate = match.mapPlan.gates[gate];
@@ -451,7 +449,7 @@ void handleInteraction(HordeMatch& match, LevelSession& session,
         return;
     }
     if (closeTo(playerPosition, match.mapPlan.anchorPosition,
-            DEVICE_INTERACTION_DISTANCE)) {
+            HORDE_DEVICE_INTERACTION_DISTANCE)) {
         const auto anchorGate = std::ranges::find(match.mapPlan.gates,
             GatePurpose::Anchor, &MapGate::purpose);
         if (anchorGate != match.mapPlan.gates.end() && !anchorGate->open) {
@@ -464,13 +462,13 @@ void handleInteraction(HordeMatch& match, LevelSession& session,
         return;
     }
     if (closeTo(playerPosition, match.mapPlan.hubPosition,
-            DEVICE_INTERACTION_DISTANCE)) {
+            HORDE_DEVICE_INTERACTION_DISTANCE)) {
         result.objectiveAdvanced = match.activateHub(session)
             || match.purchaseHubRepair(session);
         return;
     }
     if (closeTo(playerPosition, match.mapPlan.exitPosition,
-            DEVICE_INTERACTION_DISTANCE)
+            HORDE_DEVICE_INTERACTION_DISTANCE)
         && match.hubPowered
         && match.currentRound >= HORDE_EXTRACTION_MINIMUM_ROUND) {
         match.victory = true;
@@ -483,7 +481,7 @@ void handleUpgradeInput(HordeMatch& match, LevelSession& session,
     HordeMatchStepResult& result)
 {
     if (!closeTo(playerPosition, match.mapPlan.hubPosition,
-            DEVICE_INTERACTION_DISTANCE)) {
+            HORDE_DEVICE_INTERACTION_DISTANCE)) {
         return;
     }
     if (input.buyDamagePressed) {

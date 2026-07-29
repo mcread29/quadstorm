@@ -1,4 +1,6 @@
+#include "game/generated_level_queries.hpp"
 #include "game/horde_match.hpp"
+#include "game/match_generator.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -264,6 +266,48 @@ bool pointsPurchaseGatesAtomically(
                 threshold.secondCell, threshold.firstCell),
         "purchased gate opens player and enemy navigation in both directions");
     return valid;
+}
+
+bool fortressGateInteractionMatchesTheHudRange()
+{
+    const auto level = generateMatchLevel(MatchGenerationRequest { 101 });
+    LevelSession session(*level);
+    HordeMatch match(*level, session);
+    const std::size_t expansion = gateIndex(match, GatePurpose::Expansion);
+    if (expansion >= match.plan().gates.size()) {
+        return check(false, "Fortress V1 publishes an expansion gate");
+    }
+
+    const MapGate& gate = match.plan().gates[expansion];
+    const DoorwayThreshold& threshold
+        = level->doorwayThresholds()[gate.doorway];
+    const Vector2 midpoint {
+        (threshold.segment.start.x + threshold.segment.end.x) * 0.5F,
+        (threshold.segment.start.y + threshold.segment.end.y) * 0.5F
+    };
+    const Vector2 firstCenter = generated_level::worldCellCenter(
+        *level, threshold.firstCell);
+    const float x = firstCenter.x - midpoint.x;
+    const float y = firstCenter.y - midpoint.y;
+    const float length = std::sqrt(x * x + y * y);
+    if (length <= 0.001F) {
+        return check(false, "gate threshold has an interior approach direction");
+    }
+    constexpr float promptRangePosition
+        = HORDE_GATE_INTERACTION_DISTANCE - 0.1F;
+    session.player().position = Vector3 {
+        midpoint.x + x / length * promptRangePosition,
+        PLAYER_RADIUS,
+        midpoint.y + y / length * promptRangePosition
+    };
+    match.grantPoints(gate.cost);
+    PlayerInput input;
+    input.interactPressed = true;
+    const HordeMatchStepResult result = updateHordeMatch(
+        match, session, input, 1.0F / 120.0F);
+    return check(result.gatePurchased && gate.open
+            && !session.doorwayIsLocked(gate.doorway),
+        "the full HUD gate-prompt range opens a Fortress V1 doorway");
 }
 
 bool automaticDirectorStartsWithoutInputOrPuzzleState(
@@ -825,6 +869,7 @@ int main()
     valid &= optionalSpendingCannotConsumeRequiredProgression(level);
     valid &= anchorInteractionFundsAndStartsHoldout(level);
     valid &= pointsPurchaseGatesAtomically(level, session, match);
+    valid &= fortressGateInteractionMatchesTheHudRange();
     valid &= automaticDirectorStartsWithoutInputOrPuzzleState(level);
     valid &= deterministicDifficultyScalesAndStaysBounded();
     valid &= difficultyProfileAppliesToSpawnedEnemies(level);

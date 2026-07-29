@@ -16,6 +16,8 @@ inline constexpr float HORDE_INTERMISSION_DURATION = 5.0F;
 inline constexpr std::uint64_t HORDE_EXTRACTION_MINIMUM_ROUND = 5;
 inline constexpr float ANCHOR_HOLDOUT_DURATION = 8.0F;
 inline constexpr float ANCHOR_HOLDOUT_RADIUS = 3.2F;
+inline constexpr float HORDE_GATE_INTERACTION_DISTANCE = 2.2F;
+inline constexpr float HORDE_DEVICE_INTERACTION_DISTANCE = 2.2F;
 inline constexpr std::uint8_t HORDE_MAX_UPGRADE_LEVEL = 3;
 
 enum class HordeEnemyRole : std::uint8_t {
