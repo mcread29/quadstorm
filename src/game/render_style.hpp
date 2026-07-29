@@ -9,12 +9,12 @@ namespace game_render {
 
 inline constexpr float WALL_HEIGHT = 2.15F;
 inline constexpr float WALL_THICKNESS = 0.24F;
-inline constexpr Color GENERATED_BACKGROUND { 8, 14, 20, 255 };
-inline constexpr Color ARENA_BACKGROUND { 10, 16, 22, 255 };
-inline constexpr Color HUD_SURFACE { 6, 13, 19, 238 };
-inline constexpr Color HUD_BORDER { 66, 96, 101, 180 };
-inline constexpr Color ENERGY_CYAN { 76, 224, 226, 255 };
-inline constexpr Color MACHINE_GOLD { 238, 171, 62, 255 };
+inline constexpr Color GENERATED_BACKGROUND { 5, 10, 15, 255 };
+inline constexpr Color ARENA_BACKGROUND { 7, 12, 17, 255 };
+inline constexpr Color HUD_SURFACE { 5, 11, 16, 242 };
+inline constexpr Color HUD_BORDER { 74, 101, 101, 205 };
+inline constexpr Color ENERGY_CYAN { 68, 231, 224, 255 };
+inline constexpr Color MACHINE_GOLD { 245, 177, 54, 255 };
 
 Color roomRoleColor(stalberg::rooms::RoomRole role);
 const char* smallMapRecipeName(stalberg::rooms::SmallMapRecipe recipe);

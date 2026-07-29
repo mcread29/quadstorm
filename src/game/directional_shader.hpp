@@ -102,10 +102,10 @@ void main()
     float floorNoise = panelNoise(floor(fragWorldPosition.xz * 0.84));
     float brushed = sin(fragWorldPosition.x * 31.0
         + sin(fragWorldPosition.z * 4.0)) * 0.5 + 0.5;
-    surface.rgb *= mix(1.0, 0.62, panel * 0.68);
-    surface.rgb *= mix(1.0, 0.88, subPanel * 0.18);
+    surface.rgb *= mix(1.0, 0.82, panel * 0.22);
+    surface.rgb *= mix(1.0, 0.94, subPanel * 0.07);
     surface.rgb *= mix(1.0,
-        0.9 + floorNoise * 0.12 + brushed * 0.025, floorMaterial);
+        0.94 + floorNoise * 0.07 + brushed * 0.012, floorMaterial);
     vec2 conduitCoordinate = vec2(
         fragWorldPosition.x + fragWorldPosition.z,
         fragWorldPosition.x - fragWorldPosition.z) * 0.105;
@@ -136,8 +136,8 @@ void main()
     vec3 litColor = surface.rgb
         * (ambient + lightColor * diffuse + localLight);
     litColor += surface.rgb * rim + lightColor * specular;
-    litColor += vec3(0.005, 0.14, 0.16) * conduit;
-    litColor += vec3(0.01, 0.08, 0.085)
+    litColor += vec3(0.002, 0.012, 0.014) * conduit;
+    litColor += vec3(0.008, 0.055, 0.06)
         * wallBand * wallMaterial;
     litColor = mix(litColor, litColor * vec3(0.88, 1.02, 1.04), 0.28);
     float fogDistance = length(fragWorldPosition.xz - cameraTarget.xz);
@@ -243,10 +243,10 @@ void main()
     float floorNoise = panelNoise(floor(fragWorldPosition.xz * 0.84));
     float brushed = sin(fragWorldPosition.x * 31.0
         + sin(fragWorldPosition.z * 4.0)) * 0.5 + 0.5;
-    surface.rgb *= mix(1.0, 0.62, panel * 0.68);
-    surface.rgb *= mix(1.0, 0.88, subPanel * 0.18);
+    surface.rgb *= mix(1.0, 0.82, panel * 0.22);
+    surface.rgb *= mix(1.0, 0.94, subPanel * 0.07);
     surface.rgb *= mix(1.0,
-        0.9 + floorNoise * 0.12 + brushed * 0.025, floorMaterial);
+        0.94 + floorNoise * 0.07 + brushed * 0.012, floorMaterial);
     vec2 conduitCoordinate = vec2(
         fragWorldPosition.x + fragWorldPosition.z,
         fragWorldPosition.x - fragWorldPosition.z) * 0.105;
@@ -277,8 +277,8 @@ void main()
     vec3 litColor = surface.rgb
         * (ambient + lightColor * diffuse + localLight);
     litColor += surface.rgb * rim + lightColor * specular;
-    litColor += vec3(0.005, 0.14, 0.16) * conduit;
-    litColor += vec3(0.01, 0.08, 0.085)
+    litColor += vec3(0.002, 0.012, 0.014) * conduit;
+    litColor += vec3(0.008, 0.055, 0.06)
         * wallBand * wallMaterial;
     litColor = mix(litColor, litColor * vec3(0.88, 1.02, 1.04), 0.28);
     float fogDistance = length(fragWorldPosition.xz - cameraTarget.xz);

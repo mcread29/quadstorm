@@ -64,6 +64,24 @@ void GameRenderer::drawPlayer(const Player& player) const
     DrawModelEx(resources.playerModel, player.position,
         Vector3 { 0.0F, 1.0F, 0.0F }, 0.0F,
         Vector3 { bodyScale, bodyScale * 0.82F, bodyScale }, bodyColor);
+    const Vector3 helmet {
+        player.position.x,
+        player.position.y + 0.46F * bodyScale,
+        player.position.z
+    };
+    DrawSphere(helmet, 0.27F * bodyScale, armorColor);
+    DrawCylinderEx(helmet,
+        Vector3 { helmet.x + player.facing.x * 0.31F * bodyScale,
+            helmet.y, helmet.z + player.facing.y * 0.31F * bodyScale },
+        0.13F * bodyScale, 0.09F * bodyScale, 7,
+        isPlayerAlive(player) ? ENERGY_CYAN : armorEdge);
+    const Vector3 backpack {
+        player.position.x - player.facing.x * 0.43F * bodyScale,
+        player.position.y + 0.02F,
+        player.position.z - player.facing.y * 0.43F * bodyScale
+    };
+    DrawCube(backpack, 0.38F * bodyScale, 0.5F * bodyScale,
+        0.38F * bodyScale, armorColor);
     for (const float sign : { -1.0F, 1.0F }) {
         const Vector3 shoulder {
             player.position.x + side.x * 0.5F * sign,
@@ -100,7 +118,16 @@ void GameRenderer::drawPlayer(const Player& player) const
         player.position.y + 0.06F,
         player.position.z + player.facing.y * PLAYER_FACING_MARKER_DISTANCE
     };
-    DrawCylinderEx(noseStart, noseEnd, 0.15F, 0.045F, 8, armorColor);
+    DrawCylinderEx(noseStart, noseEnd, 0.17F, 0.05F, 8, armorColor);
+    DrawCylinderEx(Vector3 {
+                       noseStart.x + side.x * 0.16F,
+                       noseStart.y + 0.07F,
+                       noseStart.z + side.y * 0.16F },
+        Vector3 {
+            noseEnd.x + side.x * 0.16F,
+            noseEnd.y + 0.07F,
+            noseEnd.z + side.y * 0.16F },
+        0.07F, 0.025F, 7, MACHINE_GOLD);
     DrawCylinderEx(Vector3 {
                        noseStart.x + side.x * 0.22F,
                        noseStart.y + 0.2F,
@@ -324,16 +351,39 @@ void GameRenderer::drawHordeEnemy(
         DrawCylinderEx(center, tail, 0.11F, 0.025F, 6,
             Color { accent.r, accent.g, accent.b, 170 });
     } else if (entry.role == HordeEnemyRole::Caster) {
-        DrawCircle3D(Vector3 { center.x, center.y + 0.64F, center.z },
-            0.55F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F, accent);
-        DrawSphere(Vector3 { center.x, center.y + 0.64F, center.z },
-            0.12F, accent);
+        const Vector3 crown { center.x, center.y + 0.64F, center.z };
+        DrawCircle3D(crown, 0.55F,
+            Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F, accent);
+        DrawSphere(crown, 0.12F, accent);
+        const float orbit = static_cast<float>(GetTime()) * 2.2F
+            + static_cast<float>(entry.id % 11U);
+        for (int mote = 0; mote < 3; ++mote) {
+            const float angle = orbit + static_cast<float>(mote) * 2.0F * PI / 3.0F;
+            DrawSphere(Vector3 {
+                           crown.x + std::cos(angle) * 0.52F,
+                           crown.y + std::sin(angle * 2.0F) * 0.11F,
+                           crown.z + std::sin(angle) * 0.52F },
+                0.075F, accent);
+        }
     } else if (entry.role == HordeEnemyRole::Elite) {
         DrawCircle3D(Vector3 { center.x, center.y + 0.12F, center.z },
             ENEMY_RADIUS * 1.38F,
             Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F, accent);
         DrawSphereWires(center, ENEMY_RADIUS * 1.4F,
             7, 10, Color { accent.r, accent.g, accent.b, 180 });
+        const Vector2 side { -enemy.facing.y, enemy.facing.x };
+        for (const float sign : { -1.0F, 1.0F }) {
+            const Vector3 hornBase {
+                center.x + side.x * 0.7F * sign,
+                center.y + 0.5F,
+                center.z + side.y * 0.7F * sign
+            };
+            DrawCylinderEx(hornBase,
+                Vector3 { hornBase.x + side.x * 0.38F * sign,
+                    hornBase.y + 0.48F,
+                    hornBase.z + side.y * 0.38F * sign },
+                0.13F, 0.025F, 6, accent);
+        }
     }
 
     if (entry.role == HordeEnemyRole::Caster

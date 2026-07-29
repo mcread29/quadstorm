@@ -40,6 +40,7 @@ public:
 
 private:
     void drawArena() const;
+    void drawGeneratedArchitecture(const GeneratedLevel& level) const;
     void drawLockedDoorways(const GeneratedLevel& level,
         const LevelSession& session) const;
     void drawActorShadow(Vector3 position, float radius) const;

@@ -14,6 +14,7 @@ public:
 
     Model groundModel {};
     Model generatedFloorModel {};
+    Model generatedFloorDetailModel {};
     Model generatedWallModel {};
     Model wallModel {};
     Model playerModel {};

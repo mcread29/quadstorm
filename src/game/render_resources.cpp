@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <span>
 #include <vector>
 
@@ -54,6 +55,91 @@ Mesh makeGeneratedFloorMesh(const GeneratedLevel& level)
         }
     }
 
+    UploadMesh(&mesh, false);
+    return mesh;
+}
+
+Mesh makeGeneratedFloorDetailMesh(const GeneratedLevel& level)
+{
+    std::vector<float> vertices;
+    std::vector<float> normals;
+    std::vector<float> texcoords;
+    std::vector<unsigned char> colors;
+    const auto assignments = level.roomLayout().getCellAssignments();
+    const float scale = level.worldScale();
+
+    const auto appendVertex = [&](Vector3 point, Color color) {
+        vertices.insert(vertices.end(), { point.x, point.y, point.z });
+        normals.insert(normals.end(), { 0.0F, 1.0F, 0.0F });
+        texcoords.insert(texcoords.end(), { 0.0F, 0.0F });
+        colors.insert(colors.end(), { color.r, color.g, color.b, color.a });
+    };
+    const auto appendStrip = [&](Vector2 start, Vector2 end,
+                                 float width, Color color) {
+        const float x = end.x - start.x;
+        const float z = end.y - start.y;
+        const float length = std::sqrt(x * x + z * z);
+        if (length <= 0.0001F) {
+            return;
+        }
+        const Vector2 side {
+            -z / length * width * 0.5F,
+            x / length * width * 0.5F
+        };
+        constexpr float height = 0.024F;
+        const Vector3 first { start.x + side.x, height, start.y + side.y };
+        const Vector3 second { end.x + side.x, height, end.y + side.y };
+        const Vector3 third { end.x - side.x, height, end.y - side.y };
+        const Vector3 fourth { start.x - side.x, height, start.y - side.y };
+        appendVertex(first, color);
+        appendVertex(second, color);
+        appendVertex(third, color);
+        appendVertex(first, color);
+        appendVertex(third, color);
+        appendVertex(fourth, color);
+    };
+
+    for (const stalberg::DualConnection& connection
+        : level.dualGrid().connections) {
+        if (connection.cells.a >= assignments.size()
+            || connection.cells.b >= assignments.size()) {
+            continue;
+        }
+        const int firstRoom = assignments[connection.cells.a];
+        const int secondRoom = assignments[connection.cells.b];
+        if (firstRoom == stalberg::rooms::EMPTY_CELL
+            || firstRoom != secondRoom) {
+            continue;
+        }
+        const std::uint32_t hash = static_cast<std::uint32_t>(
+            connection.cells.a * 2246822519U
+            + connection.cells.b * 3266489917U);
+        const bool circuitTrace = hash % 13U == 0U;
+        appendStrip(
+            Vector2 { connection.first.x * scale,
+                connection.first.y * scale },
+            Vector2 { connection.second.x * scale,
+                connection.second.y * scale },
+            circuitTrace ? 0.072F : 0.038F,
+            circuitTrace ? Color { 40, 96, 94, 255 }
+                         : Color { 24, 39, 42, 255 });
+    }
+
+    Mesh mesh {};
+    mesh.vertexCount = static_cast<int>(vertices.size() / 3U);
+    mesh.triangleCount = mesh.vertexCount / 3;
+    mesh.vertices = static_cast<float*>(MemAlloc(
+        static_cast<unsigned int>(vertices.size() * sizeof(float))));
+    mesh.normals = static_cast<float*>(MemAlloc(
+        static_cast<unsigned int>(normals.size() * sizeof(float))));
+    mesh.texcoords = static_cast<float*>(MemAlloc(
+        static_cast<unsigned int>(texcoords.size() * sizeof(float))));
+    mesh.colors = static_cast<unsigned char*>(MemAlloc(
+        static_cast<unsigned int>(colors.size() * sizeof(unsigned char))));
+    std::ranges::copy(vertices, mesh.vertices);
+    std::ranges::copy(normals, mesh.normals);
+    std::ranges::copy(texcoords, mesh.texcoords);
+    std::ranges::copy(colors, mesh.colors);
     UploadMesh(&mesh, false);
     return mesh;
 }
@@ -238,6 +324,8 @@ Texture2D makeProjectileGlow()
 RenderResources::RenderResources(const GeneratedLevel& level, Shader lightingShader)
     : groundModel(LoadModelFromMesh(GenMeshPlane(80.0F, 80.0F, 1, 1)))
     , generatedFloorModel(LoadModelFromMesh(makeGeneratedFloorMesh(level)))
+    , generatedFloorDetailModel(LoadModelFromMesh(
+          makeGeneratedFloorDetailMesh(level)))
     , generatedWallModel(LoadModelFromMesh(makeWallMesh(level.walls())))
     , wallModel(LoadModelFromMesh(
           GenMeshCube(1.0F, game_render::WALL_HEIGHT, game_render::WALL_THICKNESS)))
@@ -258,7 +346,8 @@ RenderResources::RenderResources(const GeneratedLevel& level, Shader lightingSha
     , projectileGlow(makeProjectileGlow())
 {
     for (Model* model : { &groundModel, &generatedFloorModel,
-             &generatedWallModel, &wallModel, &playerModel, &targetModel,
+             &generatedFloorDetailModel, &generatedWallModel,
+             &wallModel, &playerModel, &targetModel,
              &enemyModel, &runnerModel, &casterModel, &eliteModel }) {
         model->materials[0].shader = lightingShader;
     }
@@ -276,6 +365,7 @@ RenderResources::~RenderResources()
     UnloadModel(playerModel);
     UnloadModel(wallModel);
     UnloadModel(generatedWallModel);
+    UnloadModel(generatedFloorDetailModel);
     UnloadModel(generatedFloorModel);
     UnloadModel(groundModel);
 }

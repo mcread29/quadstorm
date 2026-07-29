@@ -9,6 +9,7 @@ namespace {
 constexpr float CAMERA_FOLLOW_SPEED = 10.0F;
 constexpr float CAMERA_HEIGHT = 17.0F;
 constexpr float CAMERA_HORIZONTAL_OFFSET = 12.0F;
+constexpr float CAMERA_FACING_LOOK_AHEAD = 1.15F;
 
 using vector2::lerp;
 using vector2::normalized;
@@ -33,8 +34,12 @@ Camera3D makeGameCamera(const Player& player)
 void updateGameCamera(Camera3D& camera, const Player& player, float stepTime)
 {
     const float followAmount = 1.0F - std::exp(-CAMERA_FOLLOW_SPEED * stepTime);
-    camera.target.x += (player.position.x - camera.target.x) * followAmount;
-    camera.target.z += (player.position.z - camera.target.z) * followAmount;
+    const float targetX = player.position.x
+        + player.facing.x * CAMERA_FACING_LOOK_AHEAD;
+    const float targetZ = player.position.z
+        + player.facing.y * CAMERA_FACING_LOOK_AHEAD;
+    camera.target.x += (targetX - camera.target.x) * followAmount;
+    camera.target.z += (targetZ - camera.target.z) * followAmount;
 
     camera.position.x = camera.target.x + CAMERA_HORIZONTAL_OFFSET;
     camera.position.y = CAMERA_HEIGHT;

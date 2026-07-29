@@ -30,8 +30,11 @@ void GameRenderer::drawGenerated(const Camera3D& camera,
     lighting.setMaterial(1.0F);
     DrawModel(resources.generatedFloorModel,
         Vector3 { 0.0F, -0.01F, 0.0F }, 1.0F, WHITE);
+    lighting.setMaterial(3.0F);
+    DrawModel(resources.generatedFloorDetailModel, Vector3 {}, 1.0F, WHITE);
     lighting.setMaterial(2.0F);
     DrawModel(resources.generatedWallModel, Vector3 {}, 1.0F, WHITE);
+    drawGeneratedArchitecture(level);
     drawLockedDoorways(level, session);
     drawHordeLandmarks(level, session, match);
     drawWorldReticle(aimPoint);
@@ -56,7 +59,9 @@ void GameRenderer::drawGenerated(const Camera3D& camera,
         player.dashRemaining / PLAYER_DASH_DURATION, 0.0F, 1.0F);
     const float energyPulse = match.anchorIsActive()
         ? 0.5F + 0.5F * std::sin(static_cast<float>(GetTime()) * 4.0F)
-        : 0.0F;
+        : match.hubIsPowered()
+            ? 0.16F + 0.08F * std::sin(static_cast<float>(GetTime()) * 2.0F)
+            : 0.0F;
     postProcess.present(PostProcessEffects {
         damageAmount, dashAmount, energyPulse });
     drawGeneratedHud(player, level, session, match, showDebug);
@@ -135,6 +140,40 @@ void GameRenderer::drawArena() const
         const float angle = -std::atan2(direction.y, direction.x) * RAD2DEG;
         DrawModelEx(resources.wallModel, center, Vector3 { 0.0F, 1.0F, 0.0F }, angle,
             Vector3 { wallLength, 1.0F, 1.0F }, wallColor);
+    }
+}
+
+void GameRenderer::drawGeneratedArchitecture(
+    const GeneratedLevel& level) const
+{
+    constexpr Color pylonColor { 30, 39, 45, 255 };
+    constexpr Color pylonEdge { 116, 128, 123, 255 };
+    constexpr Color signalColor { 38, 103, 105, 255 };
+    const auto walls = level.walls();
+
+    for (std::size_t index = 0; index < walls.size(); ++index) {
+        if (index % 7U != 0U) {
+            continue;
+        }
+        const Segment2D& wall = walls[index];
+        const Vector3 center {
+            (wall.start.x + wall.end.x) * 0.5F,
+            WALL_HEIGHT * 0.62F,
+            (wall.start.y + wall.end.y) * 0.5F
+        };
+        DrawModelEx(resources.wallModel, center,
+            Vector3 { 0.0F, 1.0F, 0.0F }, 0.0F,
+            Vector3 { 0.42F, 1.24F, 1.78F }, pylonColor);
+        DrawModelEx(resources.wallModel,
+            Vector3 { center.x, WALL_HEIGHT + 0.22F, center.z },
+            Vector3 { 0.0F, 1.0F, 0.0F }, 0.0F,
+            Vector3 { 0.58F, 0.1F, 2.35F }, pylonEdge);
+        if (index % 21U == 0U) {
+            DrawCylinder(Vector3 { center.x, WALL_HEIGHT * 0.62F, center.z },
+                0.055F, 0.055F, WALL_HEIGHT * 1.06F, 6, signalColor);
+            DrawSphere(Vector3 { center.x, WALL_HEIGHT + 0.34F, center.z },
+                0.1F, Color { 69, 173, 171, 255 });
+        }
     }
 }
 

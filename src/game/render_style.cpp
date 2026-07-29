@@ -11,19 +11,19 @@ Color roomRoleColor(stalberg::rooms::RoomRole role)
 {
     switch (role) {
     case stalberg::rooms::RoomRole::Start:
-        return Color { 50, 78, 76, 255 };
+        return Color { 43, 64, 62, 255 };
     case stalberg::rooms::RoomRole::Combat:
-        return Color { 49, 62, 76, 255 };
+        return Color { 45, 59, 72, 255 };
     case stalberg::rooms::RoomRole::Connector:
-        return Color { 40, 53, 62, 255 };
+        return Color { 31, 43, 50, 255 };
     case stalberg::rooms::RoomRole::Hub:
-        return Color { 45, 72, 78, 255 };
+        return Color { 35, 73, 76, 255 };
     case stalberg::rooms::RoomRole::Reward:
-        return Color { 78, 67, 45, 255 };
+        return Color { 81, 62, 42, 255 };
     case stalberg::rooms::RoomRole::Exit:
-        return Color { 55, 78, 64, 255 };
+        return Color { 47, 76, 63, 255 };
     }
-    return Color { 43, 58, 64, 255 };
+    return Color { 38, 52, 58, 255 };
 }
 
 const char* smallMapRecipeName(stalberg::rooms::SmallMapRecipe recipe)
@@ -95,18 +95,32 @@ Color generatedFloorColor(const GeneratedLevel& level,
 
 void drawHudPanel(Rectangle bounds, Color accent)
 {
-    DrawRectangleRounded(Rectangle {
-                             bounds.x + 4.0F, bounds.y + 5.0F,
-                             bounds.width, bounds.height },
-        0.16F, 7, Color { 0, 0, 0, 105 });
-    DrawRectangleRounded(bounds, 0.16F, 7, HUD_BORDER);
-    DrawRectangleRounded(Rectangle {
-                             bounds.x + 1.0F, bounds.y + 1.0F,
-                             bounds.width - 2.0F, bounds.height - 2.0F },
-        0.16F, 7, HUD_SURFACE);
+    DrawRectangleRec(Rectangle {
+        bounds.x + 4.0F, bounds.y + 5.0F,
+        bounds.width, bounds.height }, Color { 0, 0, 0, 110 });
+    DrawRectangleRec(bounds, HUD_BORDER);
+    DrawRectangleRec(Rectangle {
+        bounds.x + 1.0F, bounds.y + 1.0F,
+        bounds.width - 2.0F, bounds.height - 2.0F }, HUD_SURFACE);
     DrawRectangle(static_cast<int>(bounds.x + 1.0F),
-        static_cast<int>(bounds.y + 9.0F), 3,
-        static_cast<int>(bounds.height - 18.0F), accent);
+        static_cast<int>(bounds.y + 8.0F), 3,
+        static_cast<int>(bounds.height - 16.0F), accent);
+    DrawRectangle(static_cast<int>(bounds.x + 10.0F),
+        static_cast<int>(bounds.y + 1.0F),
+        static_cast<int>(std::min(bounds.width * 0.22F, 74.0F)), 2, accent);
+
+    constexpr float corner = 7.0F;
+    const Color bracket { accent.r, accent.g, accent.b, 190 };
+    DrawLineEx(Vector2 { bounds.x + bounds.width - corner, bounds.y + 1.0F },
+        Vector2 { bounds.x + bounds.width - 1.0F, bounds.y + 1.0F },
+        1.0F, bracket);
+    DrawLineEx(Vector2 { bounds.x + bounds.width - 1.0F, bounds.y + 1.0F },
+        Vector2 { bounds.x + bounds.width - 1.0F, bounds.y + corner },
+        1.0F, bracket);
+    DrawLineEx(Vector2 { bounds.x + bounds.width - corner,
+                   bounds.y + bounds.height - 1.0F },
+        Vector2 { bounds.x + bounds.width - 1.0F,
+            bounds.y + bounds.height - 1.0F }, 1.0F, bracket);
 }
 
 } // namespace game_render

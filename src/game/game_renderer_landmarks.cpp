@@ -13,8 +13,26 @@ void GameRenderer::drawHordeLandmarks(const GeneratedLevel& level,
 {
     const float pulse = 0.5F + 0.5F * std::sin(
         static_cast<float>(GetTime()) * 2.4F);
-    constexpr Color darkMetal { 31, 42, 48, 255 };
-    constexpr Color edgeMetal { 76, 91, 94, 255 };
+    constexpr Color darkMetal { 24, 34, 40, 255 };
+    constexpr Color edgeMetal { 92, 103, 103, 255 };
+
+    const Vector2 start = level.playerSpawn();
+    drawRadialFloorDecal(start, 1.05F, 3,
+        Color { MACHINE_GOLD.r, MACHINE_GOLD.g, MACHINE_GOLD.b, 105 });
+    DrawCircle3D(Vector3 { start.x, 0.04F, start.y }, 0.78F,
+        Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+        Color { MACHINE_GOLD.r, MACHINE_GOLD.g, MACHINE_GOLD.b, 140 });
+    for (int fin = 0; fin < 3; ++fin) {
+        const float angle = static_cast<float>(fin) * 2.0F * PI / 3.0F;
+        const Vector3 position {
+            start.x + std::cos(angle) * 0.78F,
+            0.28F,
+            start.y + std::sin(angle) * 0.78F
+        };
+        DrawCube(position, 0.18F, 0.55F, 0.18F, darkMetal);
+        DrawSphere(Vector3 { position.x, 0.59F, position.z },
+            0.08F, MACHINE_GOLD);
+    }
 
     const Vector2 hub = match.plan().hubPosition;
     const Color hubEnergy = match.hubIsPowered()
@@ -37,8 +55,14 @@ void GameRenderer::drawHordeLandmarks(const GeneratedLevel& level,
             Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
             Color { hubEnergy.r, hubEnergy.g, hubEnergy.b, 215 });
     }
-    DrawSphere(Vector3 { hub.x, 2.72F, hub.y },
-        0.3F + pulse * 0.04F, hubEnergy);
+    const Vector3 hubCore { hub.x, 2.72F, hub.y };
+    DrawCircle3D(hubCore, 0.62F + pulse * 0.04F,
+        Vector3 { 0.0F, 1.0F, 0.0F }, 0.0F,
+        Color { hubEnergy.r, hubEnergy.g, hubEnergy.b, 185 });
+    DrawCircle3D(hubCore, 0.78F - pulse * 0.05F,
+        Vector3 { 0.0F, 1.0F, 0.0F }, 58.0F,
+        Color { hubEnergy.r, hubEnergy.g, hubEnergy.b, 135 });
+    DrawSphere(hubCore, 0.3F + pulse * 0.04F, hubEnergy);
 
     const Vector2 anchor = match.plan().anchorPosition;
     const float anchorAmount = std::clamp(
@@ -92,6 +116,13 @@ void GameRenderer::drawHordeLandmarks(const GeneratedLevel& level,
     DrawCircle3D(Vector3 { exit.x, 0.04F, exit.y }, 1.15F,
         Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
         Color { exitEnergy.r, exitEnergy.g, exitEnergy.b, 150 });
+    DrawCylinderEx(Vector3 { exit.x, 3.05F, exit.y },
+        Vector3 { exit.x, 5.8F, exit.y },
+        0.07F + pulse * 0.025F, 0.015F, 8,
+        Color { exitEnergy.r, exitEnergy.g, exitEnergy.b,
+            static_cast<unsigned char>(match.hubIsPowered() ? 170 : 45) });
+    DrawSphere(Vector3 { exit.x, 5.8F, exit.y },
+        0.11F + pulse * 0.04F, exitEnergy);
 
     for (std::size_t target = 0;
          target < match.plan().relayTargets.size(); ++target) {

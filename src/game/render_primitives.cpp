@@ -15,8 +15,8 @@ void drawVoidGrid()
          coordinate += spacing) {
         const bool major = coordinate % 10 == 0;
         const Color color = major
-            ? Color { 27, 63, 70, 120 }
-            : Color { 15, 34, 41, 78 };
+            ? Color { 23, 64, 68, 105 }
+            : Color { 12, 30, 36, 58 };
         DrawLine3D(Vector3 { static_cast<float>(coordinate), height,
                        static_cast<float>(-extent) },
             Vector3 { static_cast<float>(coordinate), height,
@@ -25,6 +25,19 @@ void drawVoidGrid()
                        static_cast<float>(coordinate) },
             Vector3 { static_cast<float>(extent), height,
                 static_cast<float>(coordinate) }, color);
+    }
+
+    const float pulse = 0.5F + 0.5F * std::sin(
+        static_cast<float>(GetTime()) * 0.85F);
+    for (const Vector2 position : { Vector2 { -28.0F, -20.0F },
+             Vector2 { 26.0F, -24.0F }, Vector2 { -24.0F, 26.0F },
+             Vector2 { 30.0F, 20.0F }, Vector2 { 4.0F, -34.0F } }) {
+        DrawCube(Vector3 { position.x, -1.7F, position.y },
+            0.42F, 3.0F, 0.42F, Color { 11, 25, 30, 210 });
+        DrawCube(Vector3 { position.x, -0.24F, position.y },
+            0.72F, 0.08F, 0.72F, Color { 34, 77, 78, 150 });
+        DrawSphere(Vector3 { position.x, -0.08F, position.y },
+            0.055F + pulse * 0.025F, Color { 49, 142, 140, 175 });
     }
 }
 
@@ -55,8 +68,11 @@ void drawRadialFloorDecal(Vector2 center, float radius,
 
 void drawWorldReticle(Vector3 aimPoint)
 {
+    const float pulse = 0.5F + 0.5F * std::sin(
+        static_cast<float>(GetTime()) * 6.0F);
     const Vector3 center { aimPoint.x, 0.045F, aimPoint.z };
-    DrawCircle3D(center, 0.28F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+    DrawCircle3D(center, 0.25F + pulse * 0.05F,
+        Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
         Color { ENERGY_CYAN.r, ENERGY_CYAN.g, ENERGY_CYAN.b, 185 });
     DrawCircle3D(center, 0.08F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
         Color { 214, 255, 249, 225 });

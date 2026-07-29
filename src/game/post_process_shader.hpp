@@ -109,6 +109,12 @@ void main()
 
     float grain = hash(floor(uv * resolution) + floor(time * 24.0)) - 0.5;
     color += grain * (1.6 / 255.0);
+    float scanline = sin(uv.y * resolution.y * 1.5708) * 0.5 + 0.5;
+    color *= 0.994 + scanline * 0.006;
+    float signalSweep = 1.0 - smoothstep(0.0, 0.018,
+        abs(fract(uv.y - time * 0.045) - 0.5));
+    color += vec3(0.01, 0.09, 0.085)
+        * signalSweep * energyPulse * 0.09;
     gl_FragColor = vec4(color, 1.0) * colDiffuse * fragColor;
 }
 )";
@@ -221,6 +227,12 @@ void main()
 
     float grain = hash(floor(uv * resolution) + floor(time * 24.0)) - 0.5;
     color += grain * (1.6 / 255.0);
+    float scanline = sin(uv.y * resolution.y * 1.5708) * 0.5 + 0.5;
+    color *= 0.994 + scanline * 0.006;
+    float signalSweep = 1.0 - smoothstep(0.0, 0.018,
+        abs(fract(uv.y - time * 0.045) - 0.5));
+    color += vec3(0.01, 0.09, 0.085)
+        * signalSweep * energyPulse * 0.09;
     finalColor = vec4(color, 1.0) * colDiffuse * fragColor;
 }
 )";
