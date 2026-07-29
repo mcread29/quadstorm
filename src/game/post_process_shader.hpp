@@ -1,19 +1,6 @@
 #pragma once
 
 #if defined(PLATFORM_WEB)
-inline constexpr const char* ACTOR_MASK_FRAGMENT_SHADER = R"(
-#version 100
-precision mediump float;
-
-varying vec4 fragColor;
-uniform vec4 colDiffuse;
-
-void main()
-{
-    gl_FragColor = vec4(colDiffuse.rgb * fragColor.rgb, 1.0);
-}
-)";
-
 inline constexpr const char* BLOOM_EXTRACT_FRAGMENT_SHADER = R"(
 #version 100
 precision mediump float;
@@ -66,7 +53,6 @@ varying vec4 fragColor;
 uniform sampler2D texture0;
 uniform sampler2D depthTexture;
 uniform sampler2D bloomTexture;
-uniform sampler2D actorMaskTexture;
 uniform vec4 colDiffuse;
 uniform vec2 resolution;
 uniform float depthEnabled;
@@ -149,24 +135,6 @@ void main()
     float grounding = ambientOcclusion(uv, texel);
     color *= mix(vec3(1.0), vec3(0.48, 0.62, 0.67), grounding * 0.48);
     color *= 1.0 - depthEdge(uv, texel) * 0.1;
-
-    vec3 maskCenter = texture2D(actorMaskTexture, uv).rgb;
-    vec3 maskNeighbor = vec3(0.0);
-    vec2 outlineStep = texel * 2.1;
-    maskNeighbor = max(maskNeighbor,
-        texture2D(actorMaskTexture, uv + vec2(outlineStep.x, 0.0)).rgb);
-    maskNeighbor = max(maskNeighbor,
-        texture2D(actorMaskTexture, uv - vec2(outlineStep.x, 0.0)).rgb);
-    maskNeighbor = max(maskNeighbor,
-        texture2D(actorMaskTexture, uv + vec2(0.0, outlineStep.y)).rgb);
-    maskNeighbor = max(maskNeighbor,
-        texture2D(actorMaskTexture, uv - vec2(0.0, outlineStep.y)).rgb);
-    float centerMask = max(maskCenter.r, max(maskCenter.g, maskCenter.b));
-    float neighborMask = max(maskNeighbor.r,
-        max(maskNeighbor.g, maskNeighbor.b));
-    float actorOutline = smoothstep(0.04, 0.3, neighborMask - centerMask);
-    vec3 outlineColor = maskNeighbor / max(neighborMask, 0.001);
-    color += outlineColor * actorOutline * 0.42;
 
     float bloomVisibility = depthEnabled < 0.5 ? 1.0
         : 1.0 - smoothstep(0.9996, 0.99995,
@@ -311,19 +279,6 @@ void main()
 }
 )";
 #else
-inline constexpr const char* ACTOR_MASK_FRAGMENT_SHADER = R"(
-#version 330
-
-in vec4 fragColor;
-uniform vec4 colDiffuse;
-out vec4 finalColor;
-
-void main()
-{
-    finalColor = vec4(colDiffuse.rgb * fragColor.rgb, 1.0);
-}
-)";
-
 inline constexpr const char* BLOOM_EXTRACT_FRAGMENT_SHADER = R"(
 #version 330
 
@@ -375,7 +330,6 @@ in vec4 fragColor;
 uniform sampler2D texture0;
 uniform sampler2D depthTexture;
 uniform sampler2D bloomTexture;
-uniform sampler2D actorMaskTexture;
 uniform vec4 colDiffuse;
 uniform vec2 resolution;
 uniform float depthEnabled;
@@ -459,24 +413,6 @@ void main()
     float grounding = ambientOcclusion(uv, texel);
     color *= mix(vec3(1.0), vec3(0.48, 0.62, 0.67), grounding * 0.48);
     color *= 1.0 - depthEdge(uv, texel) * 0.1;
-
-    vec3 maskCenter = texture(actorMaskTexture, uv).rgb;
-    vec3 maskNeighbor = vec3(0.0);
-    vec2 outlineStep = texel * 2.1;
-    maskNeighbor = max(maskNeighbor,
-        texture(actorMaskTexture, uv + vec2(outlineStep.x, 0.0)).rgb);
-    maskNeighbor = max(maskNeighbor,
-        texture(actorMaskTexture, uv - vec2(outlineStep.x, 0.0)).rgb);
-    maskNeighbor = max(maskNeighbor,
-        texture(actorMaskTexture, uv + vec2(0.0, outlineStep.y)).rgb);
-    maskNeighbor = max(maskNeighbor,
-        texture(actorMaskTexture, uv - vec2(0.0, outlineStep.y)).rgb);
-    float centerMask = max(maskCenter.r, max(maskCenter.g, maskCenter.b));
-    float neighborMask = max(maskNeighbor.r,
-        max(maskNeighbor.g, maskNeighbor.b));
-    float actorOutline = smoothstep(0.04, 0.3, neighborMask - centerMask);
-    vec3 outlineColor = maskNeighbor / max(neighborMask, 0.001);
-    color += outlineColor * actorOutline * 0.42;
 
     float bloomVisibility = depthEnabled < 0.5 ? 1.0
         : 1.0 - smoothstep(0.9996, 0.99995,

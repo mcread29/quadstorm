@@ -67,9 +67,7 @@ Vector2 normalizedScreenPosition(Vector2 position, int width, int height)
 } // namespace
 
 PostProcessPipeline::PostProcessPipeline()
-    : maskShader(LoadShaderFromMemory(
-          nullptr, ACTOR_MASK_FRAGMENT_SHADER))
-    , bloomExtractShader(LoadShaderFromMemory(
+    : bloomExtractShader(LoadShaderFromMemory(
           nullptr, BLOOM_EXTRACT_FRAGMENT_SHADER))
     , bloomBlurShader(LoadShaderFromMemory(
           nullptr, BLOOM_BLUR_FRAGMENT_SHADER))
@@ -86,8 +84,6 @@ PostProcessPipeline::PostProcessPipeline()
           compositeShader, "depthTexture"))
     , compositeBloomTextureLocation(GetShaderLocation(
           compositeShader, "bloomTexture"))
-    , compositeActorMaskTextureLocation(GetShaderLocation(
-          compositeShader, "actorMaskTexture"))
     , compositeDepthEnabledLocation(GetShaderLocation(
           compositeShader, "depthEnabled"))
     , compositeEnergyLocation(GetShaderLocation(
@@ -111,7 +107,6 @@ PostProcessPipeline::~PostProcessPipeline()
         UnloadRenderTexture(compositeTarget);
         UnloadRenderTexture(bloomTargetB);
         UnloadRenderTexture(bloomTargetA);
-        UnloadRenderTexture(actorMaskTarget);
         UnloadRenderTexture(emissiveTarget);
         UnloadRenderTexture(sceneTarget);
     }
@@ -119,7 +114,6 @@ PostProcessPipeline::~PostProcessPipeline()
     UnloadShader(compositeShader);
     UnloadShader(bloomBlurShader);
     UnloadShader(bloomExtractShader);
-    UnloadShader(maskShader);
 }
 
 void PostProcessPipeline::beginScene(Color background)
@@ -146,18 +140,6 @@ void PostProcessPipeline::endEmissive() const
     EndTextureMode();
 }
 
-void PostProcessPipeline::beginActorMask()
-{
-    ensureTargets();
-    BeginTextureMode(actorMaskTarget);
-    ClearBackground(BLACK);
-}
-
-void PostProcessPipeline::endActorMask() const
-{
-    EndTextureMode();
-}
-
 void PostProcessPipeline::ensureTargets()
 {
     const int targetWidth = std::max(GetScreenWidth(), 1);
@@ -170,7 +152,6 @@ void PostProcessPipeline::ensureTargets()
         UnloadRenderTexture(compositeTarget);
         UnloadRenderTexture(bloomTargetB);
         UnloadRenderTexture(bloomTargetA);
-        UnloadRenderTexture(actorMaskTarget);
         UnloadRenderTexture(emissiveTarget);
         UnloadRenderTexture(sceneTarget);
     }
@@ -180,15 +161,13 @@ void PostProcessPipeline::ensureTargets()
     sceneTarget = loadDepthTextureTarget(
         width, height, depthTextureAvailable);
     emissiveTarget = LoadRenderTexture(width, height);
-    actorMaskTarget = LoadRenderTexture(width, height);
     bloomTargetA = LoadRenderTexture(
         std::max(width / 2, 1), std::max(height / 2, 1));
     bloomTargetB = LoadRenderTexture(
         std::max(width / 2, 1), std::max(height / 2, 1));
     compositeTarget = LoadRenderTexture(width, height);
     for (Texture2D texture : { sceneTarget.texture,
-             emissiveTarget.texture, actorMaskTarget.texture,
-             bloomTargetA.texture, bloomTargetB.texture,
+             emissiveTarget.texture, bloomTargetA.texture, bloomTargetB.texture,
              compositeTarget.texture }) {
         SetTextureFilter(texture, TEXTURE_FILTER_BILINEAR);
         SetTextureWrap(texture, TEXTURE_WRAP_CLAMP);
@@ -252,8 +231,6 @@ void PostProcessPipeline::process(PostProcessEffects effects)
     }
     SetShaderValueTexture(compositeShader,
         compositeBloomTextureLocation, bloomTargetA.texture);
-    SetShaderValueTexture(compositeShader,
-        compositeActorMaskTextureLocation, actorMaskTarget.texture);
     drawRenderTexture(sceneTarget,
         static_cast<float>(width), static_cast<float>(height));
     EndShaderMode();

@@ -22,23 +22,18 @@ public:
     void endScene() const;
     void beginEmissive();
     void endEmissive() const;
-    void beginActorMask();
-    void endActorMask() const;
     void process(PostProcessEffects effects);
     void present() const;
-    Shader actorMaskShader() const { return maskShader; }
 
 private:
     void ensureTargets();
 
-    Shader maskShader {};
     Shader bloomExtractShader {};
     Shader bloomBlurShader {};
     Shader compositeShader {};
     Shader finalShader {};
     RenderTexture2D sceneTarget {};
     RenderTexture2D emissiveTarget {};
-    RenderTexture2D actorMaskTarget {};
     RenderTexture2D bloomTargetA {};
     RenderTexture2D bloomTargetB {};
     RenderTexture2D compositeTarget {};
@@ -47,7 +42,6 @@ private:
     int compositeResolutionLocation = -1;
     int compositeDepthTextureLocation = -1;
     int compositeBloomTextureLocation = -1;
-    int compositeActorMaskTextureLocation = -1;
     int compositeDepthEnabledLocation = -1;
     int compositeEnergyLocation = -1;
     int finalResolutionLocation = -1;
