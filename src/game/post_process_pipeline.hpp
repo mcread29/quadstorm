@@ -26,10 +26,12 @@ public:
     void endActorMask() const;
     void process(PostProcessEffects effects);
     void present() const;
+    Shader actorMaskShader() const { return maskShader; }
 
 private:
     void ensureTargets();
 
+    Shader maskShader {};
     Shader bloomExtractShader {};
     Shader bloomBlurShader {};
     Shader compositeShader {};

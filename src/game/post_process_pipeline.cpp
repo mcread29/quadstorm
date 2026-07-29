@@ -67,7 +67,9 @@ Vector2 normalizedScreenPosition(Vector2 position, int width, int height)
 } // namespace
 
 PostProcessPipeline::PostProcessPipeline()
-    : bloomExtractShader(LoadShaderFromMemory(
+    : maskShader(LoadShaderFromMemory(
+          nullptr, ACTOR_MASK_FRAGMENT_SHADER))
+    , bloomExtractShader(LoadShaderFromMemory(
           nullptr, BLOOM_EXTRACT_FRAGMENT_SHADER))
     , bloomBlurShader(LoadShaderFromMemory(
           nullptr, BLOOM_BLUR_FRAGMENT_SHADER))
@@ -117,6 +119,7 @@ PostProcessPipeline::~PostProcessPipeline()
     UnloadShader(compositeShader);
     UnloadShader(bloomBlurShader);
     UnloadShader(bloomExtractShader);
+    UnloadShader(maskShader);
 }
 
 void PostProcessPipeline::beginScene(Color background)

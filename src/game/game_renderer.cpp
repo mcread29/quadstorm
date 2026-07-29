@@ -22,6 +22,20 @@ Vector2 activeObjectivePosition(const HordeMatch& match)
     return match.plan().exitPosition;
 }
 
+Color outlineMaskColor(Color color, bool emphasized)
+{
+    if (emphasized) {
+        return color;
+    }
+    constexpr float normalIntensity = 0.2F;
+    return Color {
+        static_cast<unsigned char>(color.r * normalIntensity),
+        static_cast<unsigned char>(color.g * normalIntensity),
+        static_cast<unsigned char>(color.b * normalIntensity),
+        255
+    };
+}
+
 Color hordeOutlineColor(HordeEnemyRole role)
 {
     switch (role) {
@@ -151,9 +165,27 @@ void GameRenderer::drawGenerated(const Camera3D& camera,
 
     postProcess.beginActorMask();
     BeginMode3D(camera);
+    resources.generatedWallModel.materials[0].shader
+        = lighting.shadowShader();
+    resources.wallModel.materials[0].shader = lighting.shadowShader();
+    BeginBlendMode(BLEND_MULTIPLIED);
+    DrawModel(resources.generatedWallModel, Vector3 {}, 1.0F, WHITE);
+    drawGeneratedArchitecture(level);
+    drawLockedDoorways(level, session);
+    EndBlendMode();
+    resources.generatedWallModel.materials[0].shader = lighting.shader();
+    resources.wallModel.materials[0].shader = lighting.shader();
+
+    const Shader maskShader = postProcess.actorMaskShader();
     if (isPlayerAlive(player)) {
-        DrawSphere(player.position, PLAYER_RADIUS * 0.88F,
-            Color { 47, 225, 235, 255 });
+        resources.playerModel.materials[0].shader = maskShader;
+        DrawModelEx(resources.playerModel, player.position,
+            Vector3 { 0.0F, 1.0F, 0.0F }, 0.0F,
+            Vector3 { 1.0F, 0.82F, 1.0F },
+            outlineMaskColor(Color { 47, 225, 235, 255 },
+                player.hitFlashRemaining > 0.0F
+                    || player.invulnerabilityRemaining > 0.0F));
+        resources.playerModel.materials[0].shader = lighting.shader();
     }
     for (const HordeEnemy& entry : match.enemies()) {
         if (!isEnemyAlive(entry.enemy)) {
@@ -161,9 +193,37 @@ void GameRenderer::drawGenerated(const Camera3D& camera,
         }
         const Vector2 position = interpolateEnemyPosition(
             entry.enemy, interpolationAmount);
-        DrawSphere(Vector3 { position.x, ENEMY_RADIUS, position.y },
-            ENEMY_RADIUS * (entry.role == HordeEnemyRole::Elite ? 1.28F : 0.9F),
-            hordeOutlineColor(entry.role));
+        Vector3 scale { 0.88F, 0.88F, 0.88F };
+        Model* bodyModel = &resources.enemyModel;
+        switch (entry.role) {
+        case HordeEnemyRole::Drifter:
+            break;
+        case HordeEnemyRole::Runner:
+            bodyModel = &resources.runnerModel;
+            scale = Vector3 { 0.62F, 0.58F, 1.05F };
+            break;
+        case HordeEnemyRole::Caster:
+            bodyModel = &resources.casterModel;
+            scale = Vector3 { 0.72F, 1.12F, 0.72F };
+            break;
+        case HordeEnemyRole::Elite:
+            bodyModel = &resources.eliteModel;
+            scale = Vector3 { 1.22F, 1.3F, 1.22F };
+            break;
+        }
+        const float facingAngle = -std::atan2(
+            entry.enemy.facing.y, entry.enemy.facing.x) * RAD2DEG;
+        bodyModel->materials[0].shader = maskShader;
+        const bool charging = (entry.role == HordeEnemyRole::Caster
+                || entry.role == HordeEnemyRole::Elite)
+            && entry.enemy.shotCooldownRemaining
+                < ENEMY_SHOT_INTERVAL * 0.2F;
+        DrawModelEx(*bodyModel,
+            Vector3 { position.x, ENEMY_RADIUS, position.y },
+            Vector3 { 0.0F, 1.0F, 0.0F }, facingAngle, scale,
+            outlineMaskColor(hordeOutlineColor(entry.role),
+                entry.enemy.hitFlashRemaining > 0.0F || charging));
+        bodyModel->materials[0].shader = lighting.shader();
     }
     EndMode3D();
     postProcess.endActorMask();
@@ -259,21 +319,46 @@ void GameRenderer::drawCombat(const Camera3D& camera,
 
     postProcess.beginActorMask();
     BeginMode3D(camera);
+    resources.wallModel.materials[0].shader = lighting.shadowShader();
+    BeginBlendMode(BLEND_MULTIPLIED);
+    drawArena();
+    EndBlendMode();
+    resources.wallModel.materials[0].shader = lighting.shader();
+
+    const Shader maskShader = postProcess.actorMaskShader();
     if (isPlayerAlive(player)) {
-        DrawSphere(player.position, PLAYER_RADIUS * 0.88F,
-            Color { 47, 225, 235, 255 });
+        resources.playerModel.materials[0].shader = maskShader;
+        DrawModelEx(resources.playerModel, player.position,
+            Vector3 { 0.0F, 1.0F, 0.0F }, 0.0F,
+            Vector3 { 1.0F, 0.82F, 1.0F },
+            outlineMaskColor(Color { 47, 225, 235, 255 },
+                player.hitFlashRemaining > 0.0F
+                    || player.invulnerabilityRemaining > 0.0F));
+        resources.playerModel.materials[0].shader = lighting.shader();
     }
     if (target.health > 0) {
-        DrawSphere(Vector3 { target.position.x, TARGET_RADIUS,
-                       target.position.y },
-            TARGET_RADIUS, Color { 255, 91, 61, 255 });
+        resources.targetModel.materials[0].shader = maskShader;
+        DrawModel(resources.targetModel,
+            Vector3 { target.position.x, TARGET_RADIUS,
+                target.position.y },
+            1.0F, outlineMaskColor(Color { 255, 91, 61, 255 },
+                target.hitFlashRemaining > 0.0F));
+        resources.targetModel.materials[0].shader = lighting.shader();
     }
     if (isEnemyAlive(enemy)) {
         const Vector2 enemyPosition = interpolateEnemyPosition(
             enemy, interpolationAmount);
-        DrawSphere(Vector3 { enemyPosition.x, ENEMY_RADIUS,
-                       enemyPosition.y },
-            ENEMY_RADIUS, Color { 211, 91, 255, 255 });
+        resources.enemyModel.materials[0].shader = maskShader;
+        DrawModelEx(resources.enemyModel,
+            Vector3 { enemyPosition.x, ENEMY_RADIUS,
+                enemyPosition.y },
+            Vector3 { 0.0F, 1.0F, 0.0F }, 0.0F,
+            Vector3 { 1.0F, 1.18F, 1.0F },
+            outlineMaskColor(Color { 211, 91, 255, 255 },
+                enemy.hitFlashRemaining > 0.0F
+                    || enemy.shotCooldownRemaining
+                        < ENEMY_SHOT_INTERVAL * 0.2F));
+        resources.enemyModel.materials[0].shader = lighting.shader();
     }
     EndMode3D();
     postProcess.endActorMask();

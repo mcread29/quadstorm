@@ -1,6 +1,19 @@
 #pragma once
 
 #if defined(PLATFORM_WEB)
+inline constexpr const char* ACTOR_MASK_FRAGMENT_SHADER = R"(
+#version 100
+precision mediump float;
+
+varying vec4 fragColor;
+uniform vec4 colDiffuse;
+
+void main()
+{
+    gl_FragColor = vec4(colDiffuse.rgb * fragColor.rgb, 1.0);
+}
+)";
+
 inline constexpr const char* BLOOM_EXTRACT_FRAGMENT_SHADER = R"(
 #version 100
 precision mediump float;
@@ -298,6 +311,19 @@ void main()
 }
 )";
 #else
+inline constexpr const char* ACTOR_MASK_FRAGMENT_SHADER = R"(
+#version 330
+
+in vec4 fragColor;
+uniform vec4 colDiffuse;
+out vec4 finalColor;
+
+void main()
+{
+    finalColor = vec4(colDiffuse.rgb * fragColor.rgb, 1.0);
+}
+)";
+
 inline constexpr const char* BLOOM_EXTRACT_FRAGMENT_SHADER = R"(
 #version 330
 
