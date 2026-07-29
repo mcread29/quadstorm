@@ -3,6 +3,7 @@
 #include "arena.hpp"
 #include "directional_shader.hpp"
 #include "generated_level_queries.hpp"
+#include "post_process_shader.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -13,28 +14,32 @@
 
 namespace {
 
-constexpr float WALL_HEIGHT = 2.0F;
-constexpr float WALL_THICKNESS = 0.18F;
-constexpr Color GENERATED_BACKGROUND { 15, 23, 31, 255 };
-constexpr Color ARENA_BACKGROUND { 18, 27, 34, 255 };
+constexpr float WALL_HEIGHT = 2.15F;
+constexpr float WALL_THICKNESS = 0.24F;
+constexpr Color GENERATED_BACKGROUND { 8, 14, 20, 255 };
+constexpr Color ARENA_BACKGROUND { 10, 16, 22, 255 };
+constexpr Color HUD_SURFACE { 6, 13, 19, 238 };
+constexpr Color HUD_BORDER { 66, 96, 101, 180 };
+constexpr Color ENERGY_CYAN { 76, 224, 226, 255 };
+constexpr Color MACHINE_GOLD { 238, 171, 62, 255 };
 
 Color roomRoleColor(stalberg::rooms::RoomRole role)
 {
     switch (role) {
     case stalberg::rooms::RoomRole::Start:
-        return Color { 72, 125, 116, 255 };
+        return Color { 50, 78, 76, 255 };
     case stalberg::rooms::RoomRole::Combat:
-        return Color { 76, 99, 128, 255 };
+        return Color { 49, 62, 76, 255 };
     case stalberg::rooms::RoomRole::Connector:
-        return Color { 64, 89, 104, 255 };
+        return Color { 40, 53, 62, 255 };
     case stalberg::rooms::RoomRole::Hub:
-        return Color { 75, 116, 123, 255 };
+        return Color { 45, 72, 78, 255 };
     case stalberg::rooms::RoomRole::Reward:
-        return Color { 128, 111, 73, 255 };
+        return Color { 78, 67, 45, 255 };
     case stalberg::rooms::RoomRole::Exit:
-        return Color { 91, 125, 91, 255 };
+        return Color { 55, 78, 64, 255 };
     }
-    return Color { 70, 95, 105, 255 };
+    return Color { 43, 58, 64, 255 };
 }
 
 const char* smallMapRecipeName(stalberg::rooms::SmallMapRecipe recipe)
@@ -90,12 +95,12 @@ Color generatedFloorColor(const GeneratedLevel& level,
     const auto* room = generated_level::findRoomById(level, region);
     const Color base = room != nullptr
         ? roomRoleColor(room->role)
-        : Color { 70, 95, 105, 255 };
+        : Color { 43, 58, 64, 255 };
     std::uint32_t hash = static_cast<std::uint32_t>(cell) * 747796405U
         + 2891336453U;
     hash ^= hash >> 16U;
-    const float variation = 0.95F
-        + static_cast<float>(hash & 255U) / 255.0F * 0.10F;
+    const float variation = 0.88F
+        + static_cast<float>(hash & 255U) / 255.0F * 0.12F;
     return Color {
         static_cast<unsigned char>(std::clamp(base.r * variation, 0.0F, 255.0F)),
         static_cast<unsigned char>(std::clamp(base.g * variation, 0.0F, 255.0F)),
@@ -178,8 +183,10 @@ Mesh makeWallMesh(std::span<const Segment2D> walls)
         appendVertex(fourth, normal, color);
     };
 
-    constexpr Color topColor { 116, 133, 137, 255 };
-    constexpr Color sideColor { 76, 91, 98, 255 };
+    constexpr Color topColor { 99, 118, 120, 255 };
+    constexpr Color sideColor { 47, 57, 65, 255 };
+    constexpr Color capColor { 66, 87, 91, 255 };
+    constexpr Color stripColor { 55, 94, 97, 255 };
     for (const Segment2D& wall : walls) {
         const float x = wall.end.x - wall.start.x;
         const float z = wall.end.y - wall.start.y;
@@ -217,6 +224,80 @@ Mesh makeWallMesh(std::span<const Segment2D> walls)
         appendQuad(b0, c0, c1, b1, along, sideColor);
         appendQuad(d0, a0, a1, d1,
             Vector3 { -along.x, 0.0F, -along.z }, sideColor);
+
+        const Vector3 stripA { a0.x + leftNormal.x * 0.004F,
+            WALL_HEIGHT * 0.72F, a0.z + leftNormal.z * 0.004F };
+        const Vector3 stripB { b0.x + leftNormal.x * 0.004F,
+            WALL_HEIGHT * 0.72F, b0.z + leftNormal.z * 0.004F };
+        const Vector3 stripC { stripB.x, WALL_HEIGHT * 0.76F, stripB.z };
+        const Vector3 stripD { stripA.x, WALL_HEIGHT * 0.76F, stripA.z };
+        appendQuad(stripA, stripB, stripC, stripD, leftNormal, stripColor);
+
+        const Vector3 capSide {
+            side.x * 1.34F, 0.0F, side.z * 1.34F
+        };
+        const Vector3 capA { wall.start.x + capSide.x,
+            WALL_HEIGHT - 0.08F, wall.start.y + capSide.z };
+        const Vector3 capB { wall.end.x + capSide.x,
+            WALL_HEIGHT - 0.08F, wall.end.y + capSide.z };
+        const Vector3 capC { wall.end.x - capSide.x,
+            WALL_HEIGHT - 0.08F, wall.end.y - capSide.z };
+        const Vector3 capD { wall.start.x - capSide.x,
+            WALL_HEIGHT - 0.08F, wall.start.y - capSide.z };
+        const Vector3 capTopA { capA.x, WALL_HEIGHT + 0.04F, capA.z };
+        const Vector3 capTopB { capB.x, WALL_HEIGHT + 0.04F, capB.z };
+        const Vector3 capTopC { capC.x, WALL_HEIGHT + 0.04F, capC.z };
+        const Vector3 capTopD { capD.x, WALL_HEIGHT + 0.04F, capD.z };
+        appendQuad(capTopA, capTopB, capTopC, capTopD,
+            Vector3 { 0.0F, 1.0F, 0.0F }, topColor);
+        appendQuad(capA, capB, capTopB, capTopA, leftNormal, capColor);
+        appendQuad(capD, capTopD, capTopC, capC, rightNormal, capColor);
+
+        const float ribHalfWidth = std::min(0.14F, length * 0.18F);
+        const Vector3 middle {
+            (wall.start.x + wall.end.x) * 0.5F,
+            0.0F,
+            (wall.start.y + wall.end.y) * 0.5F
+        };
+        const Vector3 ribAlong {
+            along.x * ribHalfWidth, 0.0F, along.z * ribHalfWidth
+        };
+        const Vector3 ribSide {
+            leftNormal.x * WALL_THICKNESS * 0.95F,
+            0.0F,
+            leftNormal.z * WALL_THICKNESS * 0.95F
+        };
+        const Vector3 ribA {
+            middle.x - ribAlong.x + ribSide.x, 0.0F,
+            middle.z - ribAlong.z + ribSide.z
+        };
+        const Vector3 ribB {
+            middle.x + ribAlong.x + ribSide.x, 0.0F,
+            middle.z + ribAlong.z + ribSide.z
+        };
+        const Vector3 ribC {
+            middle.x + ribAlong.x - ribSide.x, 0.0F,
+            middle.z + ribAlong.z - ribSide.z
+        };
+        const Vector3 ribD {
+            middle.x - ribAlong.x - ribSide.x, 0.0F,
+            middle.z - ribAlong.z - ribSide.z
+        };
+        constexpr float ribHeight = WALL_HEIGHT * 0.82F;
+        const Vector3 ribTopA { ribA.x, ribHeight, ribA.z };
+        const Vector3 ribTopB { ribB.x, ribHeight, ribB.z };
+        const Vector3 ribTopC { ribC.x, ribHeight, ribC.z };
+        const Vector3 ribTopD { ribD.x, ribHeight, ribD.z };
+        appendQuad(ribA, ribB, ribTopB, ribTopA,
+            leftNormal, capColor);
+        appendQuad(ribD, ribTopD, ribTopC, ribC,
+            rightNormal, capColor);
+        appendQuad(ribB, ribC, ribTopC, ribTopB,
+            along, capColor);
+        appendQuad(ribD, ribA, ribTopA, ribTopD,
+            Vector3 { -along.x, 0.0F, -along.z }, capColor);
+        appendQuad(ribTopA, ribTopB, ribTopC, ribTopD,
+            Vector3 { 0.0F, 1.0F, 0.0F }, topColor);
     }
 
     Mesh mesh {};
@@ -248,6 +329,21 @@ Texture2D makeProjectileGlow()
     return texture;
 }
 
+Shader loadPostProcessShader(const char* fragmentShader)
+{
+    return LoadShaderFromMemory(nullptr, fragmentShader);
+}
+
+void drawRenderTexture(RenderTexture2D target, float width, float height)
+{
+    DrawTexturePro(target.texture,
+        Rectangle { 0.0F, 0.0F,
+            static_cast<float>(target.texture.width),
+            -static_cast<float>(target.texture.height) },
+        Rectangle { 0.0F, 0.0F, width, height },
+        Vector2 {}, 0.0F, WHITE);
+}
+
 Shader loadDirectionalShader()
 {
     Shader shader = LoadShaderFromMemory(
@@ -263,9 +359,9 @@ Shader loadDirectionalShader()
         DIRECTIONAL_LIGHT.y,
         DIRECTIONAL_LIGHT.z
     };
-    const float lightColor[3] { 0.72F, 0.66F, 0.56F };
-    const float groundAmbient[3] { 0.11F, 0.14F, 0.17F };
-    const float skyAmbient[3] { 0.28F, 0.33F, 0.37F };
+    const float lightColor[3] { 0.92F, 0.74F, 0.54F };
+    const float groundAmbient[3] { 0.055F, 0.075F, 0.095F };
+    const float skyAmbient[3] { 0.22F, 0.29F, 0.32F };
     SetShaderValue(shader, lightDirectionLocation,
         lightDirection, SHADER_UNIFORM_VEC3);
     SetShaderValue(shader, lightColorLocation,
@@ -407,18 +503,120 @@ void drawOverviewLandmark(Vector2 center,
     DrawPolyLines(center, sides, radius, rotation, color);
 }
 
+void drawHudPanel(Rectangle bounds, Color accent)
+{
+    DrawRectangleRounded(Rectangle {
+                             bounds.x + 4.0F, bounds.y + 5.0F,
+                             bounds.width, bounds.height },
+        0.16F, 7, Color { 0, 0, 0, 105 });
+    DrawRectangleRounded(bounds, 0.16F, 7, HUD_BORDER);
+    DrawRectangleRounded(Rectangle {
+                             bounds.x + 1.0F, bounds.y + 1.0F,
+                             bounds.width - 2.0F, bounds.height - 2.0F },
+        0.16F, 7, HUD_SURFACE);
+    DrawRectangle(static_cast<int>(bounds.x + 1.0F),
+        static_cast<int>(bounds.y + 9.0F), 3,
+        static_cast<int>(bounds.height - 18.0F), accent);
+}
+
+void drawVoidGrid()
+{
+    constexpr int extent = 42;
+    constexpr int spacing = 2;
+    constexpr float height = -0.16F;
+    for (int coordinate = -extent; coordinate <= extent;
+         coordinate += spacing) {
+        const bool major = coordinate % 10 == 0;
+        const Color color = major
+            ? Color { 27, 63, 70, 120 }
+            : Color { 15, 34, 41, 78 };
+        DrawLine3D(Vector3 { static_cast<float>(coordinate), height,
+                       static_cast<float>(-extent) },
+            Vector3 { static_cast<float>(coordinate), height,
+                static_cast<float>(extent) }, color);
+        DrawLine3D(Vector3 { static_cast<float>(-extent), height,
+                       static_cast<float>(coordinate) },
+            Vector3 { static_cast<float>(extent), height,
+                static_cast<float>(coordinate) }, color);
+    }
+}
+
+void drawRadialFloorDecal(Vector2 center, float radius,
+    int spokes, Color color)
+{
+    const Vector3 origin { center.x, 0.045F, center.y };
+    for (const float scale : { 0.55F, 0.78F, 1.0F }) {
+        DrawCircle3D(origin, radius * scale,
+            Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+            Color { color.r, color.g, color.b,
+                static_cast<unsigned char>(color.a * scale) });
+    }
+    for (int spoke = 0; spoke < spokes; ++spoke) {
+        const float angle = static_cast<float>(spoke)
+            / static_cast<float>(spokes) * 2.0F * PI;
+        const Vector2 direction { std::cos(angle), std::sin(angle) };
+        DrawLine3D(Vector3 {
+                       center.x + direction.x * radius * 0.78F,
+                       0.046F,
+                       center.y + direction.y * radius * 0.78F },
+            Vector3 {
+                center.x + direction.x * radius * 1.18F,
+                0.046F,
+                center.y + direction.y * radius * 1.18F }, color);
+    }
+}
+
+void drawWorldReticle(Vector3 aimPoint)
+{
+    const Vector3 center { aimPoint.x, 0.045F, aimPoint.z };
+    DrawCircle3D(center, 0.28F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+        Color { ENERGY_CYAN.r, ENERGY_CYAN.g, ENERGY_CYAN.b, 185 });
+    DrawCircle3D(center, 0.08F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+        Color { 214, 255, 249, 225 });
+    constexpr float inner = 0.12F;
+    constexpr float outer = 0.38F;
+    for (const Vector2 direction
+        : { Vector2 { 1.0F, 0.0F }, Vector2 { 0.0F, 1.0F } }) {
+        for (const float sign : { -1.0F, 1.0F }) {
+            DrawLine3D(Vector3 {
+                           center.x + direction.x * inner * sign,
+                           center.y,
+                           center.z + direction.y * inner * sign },
+                Vector3 {
+                    center.x + direction.x * outer * sign,
+                    center.y,
+                    center.z + direction.y * outer * sign },
+                Color { ENERGY_CYAN.r, ENERGY_CYAN.g,
+                    ENERGY_CYAN.b, 180 });
+        }
+    }
+}
+
 } // namespace
 
 PrototypeRenderer::PrototypeRenderer(const GeneratedLevel& level)
     : lightingShader(loadDirectionalShader())
+    , bloomExtractShader(loadPostProcessShader(
+          BLOOM_EXTRACT_FRAGMENT_SHADER))
+    , bloomBlurShader(loadPostProcessShader(BLOOM_BLUR_FRAGMENT_SHADER))
+    , compositeShader(loadPostProcessShader(COMPOSITE_FRAGMENT_SHADER))
     , groundModel(LoadModelFromMesh(GenMeshPlane(80.0F, 80.0F, 1, 1)))
     , generatedFloorModel(LoadModelFromMesh(makeGeneratedFloorMesh(level)))
     , generatedWallModel(LoadModelFromMesh(makeWallMesh(level.walls())))
     , wallModel(LoadModelFromMesh(
           GenMeshCube(1.0F, WALL_HEIGHT, WALL_THICKNESS)))
-    , playerModel(LoadModelFromMesh(GenMeshSphere(PLAYER_RADIUS, 8, 12)))
+    , playerModel(LoadModelFromMesh(GenMeshCylinder(
+          PLAYER_RADIUS * 0.72F, PLAYER_RADIUS * 1.45F, 8)))
     , targetModel(LoadModelFromMesh(GenMeshSphere(TARGET_RADIUS, 8, 12)))
-    , enemyModel(LoadModelFromMesh(GenMeshSphere(ENEMY_RADIUS, 7, 10)))
+    , enemyModel(LoadModelFromMesh(GenMeshCylinder(
+          ENEMY_RADIUS * 0.78F, ENEMY_RADIUS * 1.25F, 7)))
+    , runnerModel(LoadModelFromMesh(GenMeshCone(
+          ENEMY_RADIUS * 0.72F, ENEMY_RADIUS * 1.65F, 6)))
+    , casterModel(LoadModelFromMesh(GenMeshCylinder(
+          ENEMY_RADIUS * 0.68F, ENEMY_RADIUS * 1.85F, 8)))
+    , eliteModel(LoadModelFromMesh(GenMeshCube(
+          ENEMY_RADIUS * 1.45F, ENEMY_RADIUS * 1.55F,
+          ENEMY_RADIUS * 1.45F)))
     , shadowModel(LoadModelFromMesh(
           GenMeshCylinder(PLAYER_RADIUS * 1.05F, 0.01F, 24)))
     , projectileGlow(makeProjectileGlow())
@@ -426,6 +624,26 @@ PrototypeRenderer::PrototypeRenderer(const GeneratedLevel& level)
           lightingShader, "cameraPosition"))
     , cameraTargetLocation(GetShaderLocation(lightingShader, "cameraTarget"))
     , fogColorLocation(GetShaderLocation(lightingShader, "fogColor"))
+    , materialKindLocation(GetShaderLocation(lightingShader, "materialKind"))
+    , pointLightPositionALocation(GetShaderLocation(
+          lightingShader, "pointLightPositionA"))
+    , pointLightColorALocation(GetShaderLocation(
+          lightingShader, "pointLightColorA"))
+    , pointLightPositionBLocation(GetShaderLocation(
+          lightingShader, "pointLightPositionB"))
+    , pointLightColorBLocation(GetShaderLocation(
+          lightingShader, "pointLightColorB"))
+    , blurDirectionLocation(GetShaderLocation(
+          bloomBlurShader, "blurDirection"))
+    , compositeResolutionLocation(GetShaderLocation(
+          compositeShader, "resolution"))
+    , compositeTimeLocation(GetShaderLocation(compositeShader, "time"))
+    , compositeDamageLocation(GetShaderLocation(
+          compositeShader, "damageAmount"))
+    , compositeDashLocation(GetShaderLocation(
+          compositeShader, "dashAmount"))
+    , compositeEnergyLocation(GetShaderLocation(
+          compositeShader, "energyPulse"))
 {
     groundModel.materials[0].shader = lightingShader;
     generatedFloorModel.materials[0].shader = lightingShader;
@@ -434,12 +652,26 @@ PrototypeRenderer::PrototypeRenderer(const GeneratedLevel& level)
     playerModel.materials[0].shader = lightingShader;
     targetModel.materials[0].shader = lightingShader;
     enemyModel.materials[0].shader = lightingShader;
+    runnerModel.materials[0].shader = lightingShader;
+    casterModel.materials[0].shader = lightingShader;
+    eliteModel.materials[0].shader = lightingShader;
+    clearLocalLights();
+    setMaterial(0.0F);
+    ensurePostProcessTargets();
 }
 
 PrototypeRenderer::~PrototypeRenderer()
 {
+    if (sceneTarget.id != 0) {
+        UnloadRenderTexture(sceneTarget);
+        UnloadRenderTexture(bloomTargetA);
+        UnloadRenderTexture(bloomTargetB);
+    }
     UnloadTexture(projectileGlow);
     UnloadModel(shadowModel);
+    UnloadModel(eliteModel);
+    UnloadModel(casterModel);
+    UnloadModel(runnerModel);
     UnloadModel(enemyModel);
     UnloadModel(targetModel);
     UnloadModel(playerModel);
@@ -447,26 +679,33 @@ PrototypeRenderer::~PrototypeRenderer()
     UnloadModel(generatedWallModel);
     UnloadModel(generatedFloorModel);
     UnloadModel(groundModel);
+    UnloadShader(compositeShader);
+    UnloadShader(bloomBlurShader);
+    UnloadShader(bloomExtractShader);
     UnloadShader(lightingShader);
 }
 
 void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     const Player& player, Vector3 aimPoint, const GeneratedLevel& level,
     const LevelSession& session, const HordeMatch& match,
-    float interpolationAmount, bool showDebug) const
+    float interpolationAmount, bool showDebug)
 {
-    BeginDrawing();
-    ClearBackground(GENERATED_BACKGROUND);
+    ensurePostProcessTargets();
     updateLighting(camera, GENERATED_BACKGROUND);
+    updateGeneratedLights(match);
 
+    BeginTextureMode(sceneTarget);
+    ClearBackground(GENERATED_BACKGROUND);
     BeginMode3D(camera);
+    drawVoidGrid();
+    setMaterial(1.0F);
     DrawModel(generatedFloorModel, Vector3 { 0.0F, -0.01F, 0.0F }, 1.0F,
         WHITE);
+    setMaterial(2.0F);
     DrawModel(generatedWallModel, Vector3 {}, 1.0F, WHITE);
     drawLockedDoorways(level, session);
     drawHordeLandmarks(level, session, match);
-    DrawSphere(Vector3 { aimPoint.x, 0.06F, aimPoint.z }, 0.12F,
-        Color { 205, 242, 236, 210 });
+    drawWorldReticle(aimPoint);
     drawProjectiles(camera, match.playerProjectiles(),
         interpolationAmount, PLAYER_RADIUS,
         Color { 92, 225, 255, 255 }, Color { 92, 225, 255, 155 });
@@ -478,6 +717,18 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
         Color { 255, 93, 55, 255 }, Color { 255, 153, 70, 175 });
     drawPlayer(player);
     EndMode3D();
+    EndTextureMode();
+
+    buildBloom();
+    BeginDrawing();
+    const float damageAmount = std::clamp(
+        player.hitFlashRemaining / PLAYER_HIT_FLASH_DURATION, 0.0F, 1.0F);
+    const float dashAmount = std::clamp(
+        player.dashRemaining / PLAYER_DASH_DURATION, 0.0F, 1.0F);
+    const float energyPulse = match.anchorIsActive()
+        ? 0.5F + 0.5F * std::sin(static_cast<float>(GetTime()) * 4.0F)
+        : 0.0F;
+    drawPostProcessedScene(damageAmount, dashAmount, energyPulse);
 
     const auto currentCell = level.cellAtWorldPoint(
         Vector2 { player.position.x, player.position.z });
@@ -488,28 +739,32 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
         = generated_level::findRoomById(level, currentRegion);
 
     drawPlayerHud(player);
-    DrawRectangleRounded(Rectangle { 292.0F, 16.0F, 330.0F, 64.0F },
-        0.18F, 8, Color { 7, 17, 24, 225 });
-    DrawText(TextFormat("POINTS  %i", match.points()), 308, 25, 20,
-        Color { 255, 211, 91, 255 });
-    DrawText(TextFormat("ROUND %i/%i  %s  ENEMIES %i",
-                 match.round(), HORDE_FINAL_ROUND,
-                 roundPhaseName(match.phase()),
+    drawHudPanel(Rectangle { 292.0F, 16.0F, 350.0F, 64.0F },
+        MACHINE_GOLD);
+    DrawText("CREDITS", 309, 25, 13, Color { 132, 165, 164, 255 });
+    DrawText(TextFormat("%05i", match.points()), 382, 22, 23,
+        MACHINE_GOLD);
+    DrawText(TextFormat("WAVE %i/%i", match.round(), HORDE_FINAL_ROUND),
+        309, 52, 14, Color { 204, 220, 215, 255 });
+    DrawText(roundPhaseName(match.phase()), 400, 52, 14,
+        Color { 132, 165, 164, 255 });
+    DrawText(TextFormat("HOSTILES %02i",
                  static_cast<int>(std::ranges::count_if(match.enemies(),
                      [](const HordeEnemy& enemy) {
                          return isEnemyAlive(enemy.enemy);
                      }))),
-        308, 53, 14, Color { 184, 207, 202, 255 });
+        529, 52, 14, Color { 226, 123, 78, 255 });
 
     if (currentRoom != nullptr) {
         const char* label = TextFormat("%s  %02i",
             roomRoleName(currentRoom->role), currentRoom->id + 1);
         const int width = MeasureText(label, 18) + 30;
-        DrawRectangleRounded(Rectangle {
-                                 static_cast<float>(GetScreenWidth() - width - 18),
-                                 18.0F, static_cast<float>(width), 38.0F },
-            0.35F, 8, Color { 8, 18, 25, 220 });
-        DrawText(label, GetScreenWidth() - width - 3, 28, 18,
+        const Rectangle roomPanel {
+            static_cast<float>(GetScreenWidth() - width - 18),
+            18.0F, static_cast<float>(width), 38.0F
+        };
+        drawHudPanel(roomPanel, roomRoleColor(currentRoom->role));
+        DrawText(label, GetScreenWidth() - width - 1, 28, 18,
             roomRoleColor(currentRoom->role));
     }
 
@@ -598,16 +853,15 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     }
     if (interactionPrompt != nullptr) {
         const int promptWidth = MeasureText(interactionPrompt, 18) + 30;
-        DrawRectangleRounded(Rectangle {
-                                 static_cast<float>(GetScreenWidth() / 2
-                                     - promptWidth / 2),
-                                 static_cast<float>(GetScreenHeight() - 108),
-                                 static_cast<float>(promptWidth), 38.0F },
-            0.2F, 6, Color { 7, 17, 24, 235 });
+        const Rectangle promptPanel {
+            static_cast<float>(GetScreenWidth() / 2 - promptWidth / 2),
+            static_cast<float>(GetScreenHeight() - 112),
+            static_cast<float>(promptWidth), 42.0F
+        };
+        drawHudPanel(promptPanel, MACHINE_GOLD);
         DrawText(interactionPrompt,
-            GetScreenWidth() / 2 - promptWidth / 2 + 15,
-            GetScreenHeight() - 98, 18,
-            Color { 255, 211, 91, 255 });
+            GetScreenWidth() / 2 - promptWidth / 2 + 16,
+            GetScreenHeight() - 100, 18, MACHINE_GOLD);
     }
 
     const char* objective = "Survive Round 1 and earn the first gate";
@@ -625,12 +879,14 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     } else if (match.hubIsPowered() && !match.matchIsComplete()) {
         objective = "Reach the Exit monument and press E";
     }
-    DrawRectangleRounded(Rectangle {
-                             16.0F,
-                             static_cast<float>(GetScreenHeight() - 58),
-                             700.0F, 40.0F },
-        0.15F, 6, Color { 7, 17, 24, 225 });
-    DrawText(objective, 30, GetScreenHeight() - 47, 17,
+    const Rectangle objectivePanel {
+        16.0F, static_cast<float>(GetScreenHeight() - 60),
+        700.0F, 42.0F
+    };
+    drawHudPanel(objectivePanel, Color { 187, 145, 57, 255 });
+    DrawText("DIRECTIVE", 31, GetScreenHeight() - 49, 12,
+        Color { 132, 165, 164, 255 });
+    DrawText(objective, 115, GetScreenHeight() - 50, 16,
         Color { 224, 211, 158, 255 });
 
     const bool progressionAllowsRound
@@ -641,8 +897,8 @@ void PrototypeRenderer::drawGenerated(const Camera3D& camera,
     if (match.phase() == RoundPhase::Intermission
         && match.round() < HORDE_FINAL_ROUND && isPlayerAlive(player)
         && progressionAllowsRound) {
-        DrawText("N  START NEXT ROUND", GetScreenWidth() - 255,
-            GetScreenHeight() - 45, 18, Color { 151, 231, 190, 255 });
+        DrawText("[ N ]  DEPLOY NEXT WAVE", GetScreenWidth() - 280,
+            GetScreenHeight() - 46, 18, ENERGY_CYAN);
     }
 
     if (showDebug) {
@@ -931,18 +1187,22 @@ void PrototypeRenderer::drawCombat(const Camera3D& camera,
     const ProjectilePool& playerProjectiles,
     const Target& target, const Enemy& enemy,
     const ProjectilePool& enemyProjectiles,
-    float interpolationAmount, bool showDebug) const
+    float interpolationAmount, bool showDebug)
 {
-    BeginDrawing();
-    ClearBackground(ARENA_BACKGROUND);
+    ensurePostProcessTargets();
     updateLighting(camera, ARENA_BACKGROUND);
+    clearLocalLights();
 
+    BeginTextureMode(sceneTarget);
+    ClearBackground(ARENA_BACKGROUND);
     BeginMode3D(camera);
+    drawVoidGrid();
+    setMaterial(1.0F);
     DrawModel(groundModel, Vector3 { 0.0F, -0.015F, 0.0F }, 1.0F,
-        Color { 62, 95, 96, 255 });
+        Color { 48, 65, 68, 255 });
+    setMaterial(2.0F);
     drawArena();
-    DrawSphere(Vector3 { aimPoint.x, 0.06F, aimPoint.z }, 0.12F,
-        Color { 205, 242, 236, 210 });
+    drawWorldReticle(aimPoint);
     drawTarget(target);
     drawEnemy(enemy, interpolationAmount);
     drawProjectiles(camera, playerProjectiles, interpolationAmount,
@@ -953,14 +1213,24 @@ void PrototypeRenderer::drawCombat(const Camera3D& camera,
         Color { 255, 153, 70, 175 });
     drawPlayer(player);
     EndMode3D();
+    EndTextureMode();
+
+    buildBloom();
+    BeginDrawing();
+    const float damageAmount = std::clamp(
+        player.hitFlashRemaining / PLAYER_HIT_FLASH_DURATION, 0.0F, 1.0F);
+    const float dashAmount = std::clamp(
+        player.dashRemaining / PLAYER_DASH_DURATION, 0.0F, 1.0F);
+    drawPostProcessedScene(damageAmount, dashAmount, 0.0F);
 
     drawPlayerHud(player);
-    DrawRectangleRounded(Rectangle {
-                             static_cast<float>(GetScreenWidth() - 218),
-                             18.0F, 200.0F, 38.0F },
-        0.35F, 8, Color { 8, 18, 25, 220 });
-    DrawText("COMBAT TRAINING", GetScreenWidth() - 198, 28, 18,
-        Color { 180, 162, 220, 255 });
+    const Rectangle trainingPanel {
+        static_cast<float>(GetScreenWidth() - 238),
+        18.0F, 220.0F, 38.0F
+    };
+    drawHudPanel(trainingPanel, Color { 180, 112, 220, 255 });
+    DrawText("COMBAT SIMULATION", GetScreenWidth() - 218, 28, 18,
+        Color { 201, 160, 229, 255 });
 
     if (showDebug) {
         DrawRectangleRounded(Rectangle { 16.0F, 82.0F, 570.0F, 118.0F },
@@ -1083,6 +1353,7 @@ void PrototypeRenderer::drawActorShadow(Vector3 position, float radius) const
 
 void PrototypeRenderer::drawTarget(const Target& target) const
 {
+    setMaterial(0.0F);
     const Vector3 targetCenter {
         target.position.x,
         TARGET_RADIUS,
@@ -1164,11 +1435,11 @@ void PrototypeRenderer::drawProjectiles(const Camera3D& camera,
 void PrototypeRenderer::drawEnemy(
     const Enemy& enemy, float interpolationAmount) const
 {
+    setMaterial(0.0F);
     const Vector2 position = interpolateEnemyPosition(
         enemy, interpolationAmount);
     const Vector3 center { position.x, ENEMY_RADIUS, position.y };
     const Vector3 groundCenter { position.x, 0.025F, position.y };
-    drawActorShadow(center, ENEMY_RADIUS);
     if (!isEnemyAlive(enemy)) {
         DrawCircle3D(groundCenter, ENEMY_RADIUS * 1.8F,
             Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
@@ -1179,6 +1450,7 @@ void PrototypeRenderer::drawEnemy(
         return;
     }
 
+    drawActorShadow(center, ENEMY_RADIUS);
     const float chargeAmount = 1.0F - std::clamp(
         enemy.shotCooldownRemaining / ENEMY_SHOT_INTERVAL, 0.0F, 1.0F);
     const Color bodyColor = enemy.hitFlashRemaining > 0.0F
@@ -1207,113 +1479,222 @@ void PrototypeRenderer::drawEnemy(
 void PrototypeRenderer::drawHordeEnemy(
     const HordeEnemy& entry, float interpolationAmount) const
 {
+    setMaterial(0.0F);
     const Enemy& enemy = entry.enemy;
     const Vector2 position = interpolateEnemyPosition(
         enemy, interpolationAmount);
     const Vector3 center { position.x, ENEMY_RADIUS, position.y };
     const Vector3 ground { position.x, 0.026F, position.y };
-    drawActorShadow(center, ENEMY_RADIUS);
 
-    Color color { 190, 94, 75, 255 };
-    float scale = 0.88F;
+    Color color { 188, 73, 57, 255 };
+    Color accent { 255, 116, 61, 255 };
+    Vector3 scale { 0.88F, 0.88F, 0.88F };
     switch (entry.role) {
     case HordeEnemyRole::Drifter:
-        color = Color { 190, 94, 75, 255 };
         break;
     case HordeEnemyRole::Runner:
-        color = Color { 235, 145, 61, 255 };
-        scale = 0.72F;
+        color = Color { 213, 104, 43, 255 };
+        accent = Color { 255, 180, 62, 255 };
+        scale = Vector3 { 0.62F, 0.58F, 1.05F };
         break;
     case HordeEnemyRole::Caster:
-        color = Color { 143, 81, 184, 255 };
-        scale = 0.95F;
+        color = Color { 112, 61, 153, 255 };
+        accent = Color { 210, 109, 239, 255 };
+        scale = Vector3 { 0.72F, 1.12F, 0.72F };
         break;
     case HordeEnemyRole::Elite:
-        color = Color { 210, 118, 205, 255 };
-        scale = 1.25F;
+        color = Color { 157, 69, 148, 255 };
+        accent = Color { 255, 103, 205, 255 };
+        scale = Vector3 { 1.22F, 1.3F, 1.22F };
         break;
     }
     if (!isEnemyAlive(enemy)) {
-        DrawCircle3D(ground, ENEMY_RADIUS * 1.35F,
-            Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
-            Color { 151, 231, 190, 145 });
         return;
     }
+    drawActorShadow(center, ENEMY_RADIUS);
     if (enemy.hitFlashRemaining > 0.0F) {
         color = Color { 255, 238, 194, 255 };
+        accent = WHITE;
     }
-    DrawCircle3D(ground, ENEMY_RADIUS * scale * 1.08F,
+    const float footprint = std::max(scale.x, scale.z);
+    DrawCircle3D(ground, ENEMY_RADIUS * footprint * 1.16F,
         Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
-        Color { color.r, color.g, color.b, 110 });
-    DrawModel(enemyModel, center, scale, color);
+        Color { accent.r, accent.g, accent.b, 115 });
+    const float facingAngle = -std::atan2(
+        enemy.facing.y, enemy.facing.x) * RAD2DEG;
+    const Model* bodyModel = &enemyModel;
+    switch (entry.role) {
+    case HordeEnemyRole::Drifter:
+        break;
+    case HordeEnemyRole::Runner:
+        bodyModel = &runnerModel;
+        break;
+    case HordeEnemyRole::Caster:
+        bodyModel = &casterModel;
+        break;
+    case HordeEnemyRole::Elite:
+        bodyModel = &eliteModel;
+        break;
+    }
+    DrawModelEx(*bodyModel, center, Vector3 { 0.0F, 1.0F, 0.0F },
+        facingAngle, scale, color);
+
+    if (entry.role == HordeEnemyRole::Drifter) {
+        const Vector3 eye {
+            center.x + enemy.facing.x * 0.66F,
+            center.y + 0.08F,
+            center.z + enemy.facing.y * 0.66F
+        };
+        DrawCylinderEx(center, eye, 0.13F, 0.045F, 7, accent);
+        DrawSphere(eye, 0.085F, accent);
+    } else if (entry.role == HordeEnemyRole::Runner) {
+        const Vector3 snout {
+            center.x + enemy.facing.x * 0.85F,
+            center.y * 0.72F,
+            center.z + enemy.facing.y * 0.85F
+        };
+        DrawCylinderEx(center, snout, 0.2F, 0.04F, 7, accent);
+        const Vector3 tail {
+            center.x - enemy.facing.x * 0.92F,
+            center.y * 0.72F,
+            center.z - enemy.facing.y * 0.92F
+        };
+        DrawCylinderEx(center, tail, 0.11F, 0.025F, 6,
+            Color { accent.r, accent.g, accent.b, 170 });
+    } else if (entry.role == HordeEnemyRole::Caster) {
+        DrawCircle3D(Vector3 { center.x, center.y + 0.64F, center.z },
+            0.55F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F, accent);
+        DrawSphere(Vector3 { center.x, center.y + 0.64F, center.z },
+            0.12F, accent);
+    } else if (entry.role == HordeEnemyRole::Elite) {
+        DrawCircle3D(Vector3 { center.x, center.y + 0.12F, center.z },
+            ENEMY_RADIUS * 1.38F,
+            Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F, accent);
+        DrawSphereWires(center, ENEMY_RADIUS * 1.4F,
+            7, 10, Color { accent.r, accent.g, accent.b, 180 });
+    }
+
     if (entry.role == HordeEnemyRole::Caster
         || entry.role == HordeEnemyRole::Elite) {
         const Vector3 aimEnd {
-            center.x + enemy.facing.x * 1.25F,
+            center.x + enemy.facing.x * 1.3F,
             center.y,
-            center.z + enemy.facing.y * 1.25F
+            center.z + enemy.facing.y * 1.3F
         };
-        DrawCylinderEx(center, aimEnd, 0.15F, 0.05F, 8,
-            Color { 255, 177, 92, 255 });
+        DrawCylinderEx(center, aimEnd, 0.13F, 0.035F, 8, accent);
     }
 }
 
 void PrototypeRenderer::drawHordeLandmarks(const GeneratedLevel& level,
     const LevelSession& session, const HordeMatch& match) const
 {
-    const auto marker = [](Vector2 position, float height, float radius,
-                            Color color) {
-        DrawCylinder(Vector3 { position.x, height * 0.5F, position.y },
-            radius, radius * 0.78F, height, 10, color);
-    };
+    const float pulse = 0.5F + 0.5F * std::sin(
+        static_cast<float>(GetTime()) * 2.4F);
+    constexpr Color darkMetal { 31, 42, 48, 255 };
+    constexpr Color edgeMetal { 76, 91, 94, 255 };
 
-    const Color hubColor = match.hubIsPowered()
-        ? Color { 92, 225, 255, 255 }
-        : Color { 78, 111, 119, 255 };
-    marker(match.plan().hubPosition, 2.6F, 0.72F, hubColor);
-    DrawSphere(Vector3 { match.plan().hubPosition.x, 2.8F,
-                   match.plan().hubPosition.y },
-        0.34F, hubColor);
+    const Vector2 hub = match.plan().hubPosition;
+    const Color hubEnergy = match.hubIsPowered()
+        ? ENERGY_CYAN
+        : Color { 56, 112, 116, 220 };
+    drawRadialFloorDecal(hub, 1.55F, 8,
+        Color { hubEnergy.r, hubEnergy.g, hubEnergy.b, 145 });
+    DrawCylinder(Vector3 { hub.x, 0.16F, hub.y },
+        1.05F, 0.9F, 0.32F, 12, darkMetal);
+    DrawCircle3D(Vector3 { hub.x, 0.035F, hub.y }, 1.3F,
+        Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+        Color { hubEnergy.r, hubEnergy.g, hubEnergy.b, 145 });
+    DrawCylinder(Vector3 { hub.x, 1.35F, hub.y },
+        0.62F, 0.44F, 2.4F, 10, edgeMetal);
+    DrawCylinder(Vector3 { hub.x, 1.45F, hub.y },
+        0.38F, 0.3F, 2.25F, 10, darkMetal);
+    for (const float height : { 0.65F, 1.45F, 2.2F }) {
+        DrawCircle3D(Vector3 { hub.x, height, hub.y },
+            0.58F + pulse * 0.05F,
+            Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+            Color { hubEnergy.r, hubEnergy.g, hubEnergy.b, 215 });
+    }
+    DrawSphere(Vector3 { hub.x, 2.72F, hub.y },
+        0.3F + pulse * 0.04F, hubEnergy);
 
+    const Vector2 anchor = match.plan().anchorPosition;
     const float anchorAmount = std::clamp(
         match.anchorProgress() / ANCHOR_HOLDOUT_DURATION, 0.0F, 1.0F);
-    const Color anchorColor = match.anchorIsComplete()
-        ? Color { 151, 231, 190, 255 }
+    const Color anchorEnergy = match.anchorIsComplete()
+        ? Color { 112, 229, 185, 255 }
         : match.anchorIsActive()
-            ? Color { 255, 211, 91, 255 }
-            : Color { 144, 98, 65, 255 };
-    marker(match.plan().anchorPosition, 1.8F, 0.58F, anchorColor);
-    DrawCircle3D(Vector3 { match.plan().anchorPosition.x, 0.035F,
-                     match.plan().anchorPosition.y },
+            ? MACHINE_GOLD
+            : Color { 164, 102, 43, 220 };
+    drawRadialFloorDecal(anchor, 1.25F, 6,
+        Color { anchorEnergy.r, anchorEnergy.g, anchorEnergy.b, 150 });
+    DrawCylinder(Vector3 { anchor.x, 0.14F, anchor.y },
+        0.95F, 0.78F, 0.28F, 8, darkMetal);
+    DrawCylinder(Vector3 { anchor.x, 0.95F, anchor.y },
+        0.48F, 0.32F, 1.7F, 8, edgeMetal);
+    DrawSphere(Vector3 { anchor.x, 1.72F, anchor.y },
+        0.3F + anchorAmount * 0.08F, anchorEnergy);
+    for (const Vector2 offset : { Vector2 { -0.62F, 0.0F },
+             Vector2 { 0.62F, 0.0F }, Vector2 { 0.0F, -0.62F },
+             Vector2 { 0.0F, 0.62F } }) {
+        DrawCylinderEx(Vector3 { anchor.x + offset.x, 0.18F,
+                           anchor.y + offset.y },
+            Vector3 { anchor.x + offset.x * 0.62F, 1.35F,
+                anchor.y + offset.y * 0.62F },
+            0.1F, 0.055F, 7, anchorEnergy);
+    }
+    DrawCircle3D(Vector3 { anchor.x, 0.04F, anchor.y },
         ANCHOR_HOLDOUT_RADIUS,
         Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
-        Color { anchorColor.r, anchorColor.g, anchorColor.b,
-            static_cast<unsigned char>(80 + anchorAmount * 130.0F) });
+        Color { anchorEnergy.r, anchorEnergy.g, anchorEnergy.b,
+            static_cast<unsigned char>(95 + anchorAmount * 130.0F) });
+    DrawCircle3D(Vector3 { anchor.x, 0.045F, anchor.y },
+        ANCHOR_HOLDOUT_RADIUS - 0.16F,
+        Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+        Color { anchorEnergy.r, anchorEnergy.g, anchorEnergy.b, 70 });
 
-    const Color exitColor = match.hubIsPowered()
-        ? Color { 151, 231, 190, 255 }
-        : Color { 91, 78, 74, 255 };
-    DrawCube(Vector3 { match.plan().exitPosition.x, 1.7F,
-                 match.plan().exitPosition.y },
-        1.25F, 3.4F, 1.25F, exitColor);
-    DrawCubeWires(Vector3 { match.plan().exitPosition.x, 1.7F,
-                      match.plan().exitPosition.y },
-        1.35F, 3.5F, 1.35F, Color { 205, 229, 224, 210 });
+    const Vector2 exit = match.plan().exitPosition;
+    const Color exitEnergy = match.hubIsPowered()
+        ? ENERGY_CYAN
+        : Color { 86, 71, 62, 220 };
+    drawRadialFloorDecal(exit, 1.35F, 4,
+        Color { exitEnergy.r, exitEnergy.g, exitEnergy.b, 140 });
+    DrawCube(Vector3 { exit.x - 0.72F, 1.55F, exit.y },
+        0.48F, 3.1F, 0.82F, edgeMetal);
+    DrawCube(Vector3 { exit.x + 0.72F, 1.55F, exit.y },
+        0.48F, 3.1F, 0.82F, edgeMetal);
+    DrawCube(Vector3 { exit.x, 2.9F, exit.y },
+        1.9F, 0.42F, 0.82F, darkMetal);
+    DrawCubeWires(Vector3 { exit.x, 1.6F, exit.y },
+        1.05F, 2.35F, 0.16F, exitEnergy);
+    DrawCircle3D(Vector3 { exit.x, 0.04F, exit.y }, 1.15F,
+        Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+        Color { exitEnergy.r, exitEnergy.g, exitEnergy.b, 150 });
 
     for (std::size_t target = 0;
          target < match.plan().relayTargets.size(); ++target) {
         const RelayTarget& relay = match.plan().relayTargets[target];
-        Color color { 75, 116, 170, 255 };
+        Color energy { 66, 103, 143, 255 };
         if (match.relayIsComplete() || target < match.relayProgress()) {
-            color = Color { 151, 231, 190, 255 };
+            energy = Color { 112, 229, 185, 255 };
         } else if (target == match.relayProgress()) {
-            color = Color { 255, 211, 91, 255 };
+            energy = MACHINE_GOLD;
         }
-        DrawSphere(Vector3 { relay.position.x, 0.72F, relay.position.y },
-            0.34F, color);
-        DrawSphereWires(Vector3 { relay.position.x, 0.72F,
-                            relay.position.y },
-            0.46F, 7, 9, Color { 220, 235, 230, 190 });
+        drawRadialFloorDecal(relay.position, 0.62F, 4,
+            Color { energy.r, energy.g, energy.b, 120 });
+        DrawCylinder(Vector3 { relay.position.x, 0.24F,
+                         relay.position.y },
+            0.48F, 0.36F, 0.48F, 8, darkMetal);
+        DrawCylinder(Vector3 { relay.position.x, 0.78F,
+                         relay.position.y },
+            0.12F, 0.12F, 0.92F, 7, edgeMetal);
+        DrawSphere(Vector3 { relay.position.x, 1.25F,
+                       relay.position.y },
+            0.25F + (target == match.relayProgress() ? pulse * 0.04F : 0.0F),
+            energy);
+        DrawCircle3D(Vector3 { relay.position.x, 1.25F,
+                         relay.position.y },
+            0.43F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+            Color { energy.r, energy.g, energy.b, 210 });
     }
 
     const auto thresholds = level.doorwayThresholds();
@@ -1323,15 +1704,51 @@ void PrototypeRenderer::drawHordeLandmarks(const GeneratedLevel& level,
         }
         const DoorwayThreshold& threshold = thresholds[gate.doorway];
         const bool locked = session.doorwayIsLocked(gate.doorway);
-        const Color gateColor = locked
+        const Color gateEnergy = locked
             ? gate.purpose == GatePurpose::Exit
-                ? Color { 128, 82, 145, 255 }
-                : Color { 196, 111, 66, 255 }
-            : Color { 86, 183, 143, 190 };
+                ? Color { 157, 79, 186, 255 }
+                : Color { 224, 104, 55, 255 }
+            : Color { 74, 211, 170, 210 };
+        const Vector2 gateDirection {
+            threshold.segment.end.x - threshold.segment.start.x,
+            threshold.segment.end.y - threshold.segment.start.y
+        };
+        const float gateLength = std::sqrt(
+            gateDirection.x * gateDirection.x
+            + gateDirection.y * gateDirection.y);
+        if (gateLength > 0.0001F) {
+            const Vector2 gateNormal {
+                -gateDirection.y / gateLength,
+                gateDirection.x / gateLength
+            };
+            for (int stripe = 0; stripe < 7; ++stripe) {
+                const float amount = (static_cast<float>(stripe) + 0.5F)
+                    / 7.0F;
+                const Vector2 stripeCenter {
+                    threshold.segment.start.x + gateDirection.x * amount,
+                    threshold.segment.start.y + gateDirection.y * amount
+                };
+                const Color stripeColor = stripe % 2 == 0
+                    ? gateEnergy : Color { 32, 40, 43, 230 };
+                DrawCylinderEx(Vector3 {
+                                   stripeCenter.x - gateNormal.x * 0.28F,
+                                   0.045F,
+                                   stripeCenter.y - gateNormal.y * 0.28F },
+                    Vector3 {
+                        stripeCenter.x + gateNormal.x * 0.28F,
+                        0.045F,
+                        stripeCenter.y + gateNormal.y * 0.28F },
+                    0.035F, 0.035F, 6, stripeColor);
+            }
+        }
         for (const Vector2 endpoint
             : { threshold.segment.start, threshold.segment.end }) {
             DrawCylinder(Vector3 { endpoint.x, 1.1F, endpoint.y },
-                0.16F, 0.16F, 2.2F, 8, gateColor);
+                0.22F, 0.18F, 2.2F, 8, darkMetal);
+            DrawCylinder(Vector3 { endpoint.x, 1.1F, endpoint.y },
+                0.11F, 0.11F, 2.05F, 8, gateEnergy);
+            DrawCylinder(Vector3 { endpoint.x, 0.1F, endpoint.y },
+                0.34F, 0.28F, 0.2F, 8, edgeMetal);
         }
         const auto gateBar = [&](float height, float radius, Color color) {
             DrawCylinderEx(Vector3 { threshold.segment.start.x, height,
@@ -1340,48 +1757,76 @@ void PrototypeRenderer::drawHordeLandmarks(const GeneratedLevel& level,
                     threshold.segment.end.y },
                 radius, radius, 8, color);
         };
-        gateBar(2.16F, 0.13F, gateColor);
+        gateBar(2.18F, 0.16F, darkMetal);
+        gateBar(2.19F, 0.07F, gateEnergy);
         if (locked) {
             const Color barrier {
-                gateColor.r, gateColor.g, gateColor.b, 205
+                gateEnergy.r, gateEnergy.g, gateEnergy.b, 210
             };
-            gateBar(0.48F, 0.065F, barrier);
-            gateBar(1.05F, 0.065F, barrier);
-            gateBar(1.62F, 0.065F, barrier);
+            gateBar(0.48F, 0.045F, barrier);
+            gateBar(0.86F, 0.045F, barrier);
+            gateBar(1.24F, 0.045F, barrier);
+            gateBar(1.62F, 0.045F, barrier);
         }
     }
 }
 
 void PrototypeRenderer::drawPlayer(const Player& player) const
 {
-    constexpr Color facingColor { 255, 231, 145, 255 };
+    setMaterial(0.0F);
+    constexpr Color armorColor { 45, 58, 64, 255 };
+    constexpr Color armorEdge { 103, 119, 119, 255 };
     const Color bodyColor = player.hitFlashRemaining > 0.0F
         ? Color { 255, 245, 210, 255 }
         : isPlayerAlive(player)
-            ? Color { 239, 180, 74, 255 }
-            : Color { 96, 75, 68, 255 };
+            ? Color { 211, 142, 43, 255 }
+            : Color { 77, 65, 61, 255 };
     const float bodyScale = isPlayerAlive(player) ? 1.0F : 0.65F;
+    const Vector2 side { -player.facing.y, player.facing.x };
 
     drawActorShadow(player.position, PLAYER_RADIUS * bodyScale);
     if (isPlayerAlive(player)) {
         DrawCircle3D(Vector3 {
                          player.position.x, 0.024F, player.position.z },
-            PLAYER_RADIUS * 1.08F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
-            Color { 133, 91, 30, 150 });
+            PLAYER_RADIUS * 1.16F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+            Color { 171, 111, 29, 175 });
         if (player.dashRemaining > 0.0F) {
             DrawCircle3D(Vector3 {
                              player.position.x, 0.03F, player.position.z },
-                PLAYER_RADIUS * 1.55F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
-                Color { 92, 225, 255, 130 });
+                PLAYER_RADIUS * 1.7F, Vector3 { 1.0F, 0.0F, 0.0F }, 90.0F,
+                Color { ENERGY_CYAN.r, ENERGY_CYAN.g,
+                    ENERGY_CYAN.b, 175 });
+            const Vector3 dashTail {
+                player.position.x - player.dashDirection.x * 1.15F,
+                player.position.y * 0.85F,
+                player.position.z - player.dashDirection.y * 1.15F
+            };
+            DrawCylinderEx(dashTail, player.position,
+                0.18F, 0.04F, 8,
+                Color { ENERGY_CYAN.r, ENERGY_CYAN.g,
+                    ENERGY_CYAN.b, 115 });
         }
     }
-    DrawModel(playerModel, player.position, bodyScale, bodyColor);
+    DrawModelEx(playerModel, player.position,
+        Vector3 { 0.0F, 1.0F, 0.0F }, 0.0F,
+        Vector3 { bodyScale, bodyScale * 0.82F, bodyScale }, bodyColor);
+    for (const float sign : { -1.0F, 1.0F }) {
+        const Vector3 shoulder {
+            player.position.x + side.x * 0.5F * sign,
+            player.position.y + 0.04F,
+            player.position.z + side.y * 0.5F * sign
+        };
+        DrawSphere(shoulder, 0.22F * bodyScale, armorColor);
+        DrawSphereWires(shoulder, 0.225F * bodyScale,
+            6, 8, armorEdge);
+    }
     if (player.invulnerabilityRemaining > 0.0F) {
-        const float shieldScale = 1.08F
-            + 0.12F * (player.invulnerabilityRemaining
+        const float shieldScale = 1.12F
+            + 0.16F * (player.invulnerabilityRemaining
                 / PLAYER_INVULNERABILITY_DURATION);
         DrawSphereWires(player.position, PLAYER_RADIUS * shieldScale,
-            8, 12, Color { 255, 238, 194, 180 });
+            10, 14, Color { ENERGY_CYAN.r, ENERGY_CYAN.g,
+                ENERGY_CYAN.b, 190 });
     }
     if (!isPlayerAlive(player)) {
         DrawCircle3D(Vector3 {
@@ -1392,16 +1837,26 @@ void PrototypeRenderer::drawPlayer(const Player& player) const
     }
 
     const Vector3 noseStart {
-        player.position.x + player.facing.x * PLAYER_RADIUS * 0.55F,
-        player.position.y,
-        player.position.z + player.facing.y * PLAYER_RADIUS * 0.55F
+        player.position.x + player.facing.x * PLAYER_RADIUS * 0.42F,
+        player.position.y + 0.06F,
+        player.position.z + player.facing.y * PLAYER_RADIUS * 0.42F
     };
     const Vector3 noseEnd {
         player.position.x + player.facing.x * PLAYER_FACING_MARKER_DISTANCE,
-        player.position.y,
+        player.position.y + 0.06F,
         player.position.z + player.facing.y * PLAYER_FACING_MARKER_DISTANCE
     };
-    DrawCylinderEx(noseStart, noseEnd, 0.18F, 0.05F, 8, facingColor);
+    DrawCylinderEx(noseStart, noseEnd, 0.15F, 0.045F, 8, armorColor);
+    DrawCylinderEx(Vector3 {
+                       noseStart.x + side.x * 0.22F,
+                       noseStart.y + 0.2F,
+                       noseStart.z + side.y * 0.22F },
+        Vector3 {
+            noseStart.x - side.x * 0.22F,
+            noseStart.y + 0.2F,
+            noseStart.z - side.y * 0.22F },
+        0.075F, 0.075F, 7, ENERGY_CYAN);
+    DrawSphere(noseEnd, 0.09F, ENERGY_CYAN);
 }
 
 void PrototypeRenderer::updateLighting(
@@ -1426,39 +1881,192 @@ void PrototypeRenderer::updateLighting(
         normalizedFogColor, SHADER_UNIFORM_VEC3);
 }
 
+void PrototypeRenderer::updateGeneratedLights(const HordeMatch& match) const
+{
+    const Vector2 hub = match.plan().hubPosition;
+    const Vector2 anchor = match.plan().anchorPosition;
+    const float hubPosition[3] { hub.x, 1.45F, hub.y };
+    const float anchorPosition[3] { anchor.x, 1.2F, anchor.y };
+    const float hubColor[3] {
+        match.hubIsPowered() ? 0.08F : 0.015F,
+        match.hubIsPowered() ? 1.15F : 0.08F,
+        match.hubIsPowered() ? 1.35F : 0.10F
+    };
+    const float anchorColor[3] {
+        match.anchorIsActive() ? 1.35F
+            : match.anchorIsComplete() ? 0.25F : 0.12F,
+        match.anchorIsActive() ? 0.72F
+            : match.anchorIsComplete() ? 0.82F : 0.055F,
+        match.anchorIsActive() ? 0.12F
+            : match.anchorIsComplete() ? 0.48F : 0.02F
+    };
+    SetShaderValue(lightingShader, pointLightPositionALocation,
+        hubPosition, SHADER_UNIFORM_VEC3);
+    SetShaderValue(lightingShader, pointLightColorALocation,
+        hubColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(lightingShader, pointLightPositionBLocation,
+        anchorPosition, SHADER_UNIFORM_VEC3);
+    SetShaderValue(lightingShader, pointLightColorBLocation,
+        anchorColor, SHADER_UNIFORM_VEC3);
+}
+
+void PrototypeRenderer::clearLocalLights() const
+{
+    constexpr float empty[3] { 0.0F, 0.0F, 0.0F };
+    SetShaderValue(lightingShader, pointLightPositionALocation,
+        empty, SHADER_UNIFORM_VEC3);
+    SetShaderValue(lightingShader, pointLightColorALocation,
+        empty, SHADER_UNIFORM_VEC3);
+    SetShaderValue(lightingShader, pointLightPositionBLocation,
+        empty, SHADER_UNIFORM_VEC3);
+    SetShaderValue(lightingShader, pointLightColorBLocation,
+        empty, SHADER_UNIFORM_VEC3);
+}
+
+void PrototypeRenderer::setMaterial(float kind) const
+{
+    SetShaderValue(lightingShader, materialKindLocation,
+        &kind, SHADER_UNIFORM_FLOAT);
+}
+
+void PrototypeRenderer::ensurePostProcessTargets()
+{
+    const int width = std::max(GetScreenWidth(), 1);
+    const int height = std::max(GetScreenHeight(), 1);
+    if (sceneTarget.id != 0
+        && width == postProcessWidth && height == postProcessHeight) {
+        return;
+    }
+    if (sceneTarget.id != 0) {
+        UnloadRenderTexture(sceneTarget);
+        UnloadRenderTexture(bloomTargetA);
+        UnloadRenderTexture(bloomTargetB);
+    }
+
+    postProcessWidth = width;
+    postProcessHeight = height;
+    sceneTarget = LoadRenderTexture(width, height);
+    bloomTargetA = LoadRenderTexture(
+        std::max(width / 2, 1), std::max(height / 2, 1));
+    bloomTargetB = LoadRenderTexture(
+        std::max(width / 2, 1), std::max(height / 2, 1));
+    for (Texture2D texture : { sceneTarget.texture,
+             bloomTargetA.texture, bloomTargetB.texture }) {
+        SetTextureFilter(texture, TEXTURE_FILTER_BILINEAR);
+        SetTextureWrap(texture, TEXTURE_WRAP_CLAMP);
+    }
+}
+
+void PrototypeRenderer::buildBloom()
+{
+    const float bloomWidth = static_cast<float>(bloomTargetA.texture.width);
+    const float bloomHeight = static_cast<float>(bloomTargetA.texture.height);
+
+    BeginTextureMode(bloomTargetA);
+    ClearBackground(BLANK);
+    BeginShaderMode(bloomExtractShader);
+    drawRenderTexture(sceneTarget, bloomWidth, bloomHeight);
+    EndShaderMode();
+    EndTextureMode();
+
+    for (int pass = 0; pass < 3; ++pass) {
+        const float radius = 1.0F + static_cast<float>(pass) * 0.55F;
+        const float horizontal[2] { radius / bloomWidth, 0.0F };
+        SetShaderValue(bloomBlurShader, blurDirectionLocation,
+            horizontal, SHADER_UNIFORM_VEC2);
+        BeginTextureMode(bloomTargetB);
+        ClearBackground(BLANK);
+        BeginShaderMode(bloomBlurShader);
+        drawRenderTexture(bloomTargetA, bloomWidth, bloomHeight);
+        EndShaderMode();
+        EndTextureMode();
+
+        const float vertical[2] { 0.0F, radius / bloomHeight };
+        SetShaderValue(bloomBlurShader, blurDirectionLocation,
+            vertical, SHADER_UNIFORM_VEC2);
+        BeginTextureMode(bloomTargetA);
+        ClearBackground(BLANK);
+        BeginShaderMode(bloomBlurShader);
+        drawRenderTexture(bloomTargetB, bloomWidth, bloomHeight);
+        EndShaderMode();
+        EndTextureMode();
+    }
+}
+
+void PrototypeRenderer::drawPostProcessedScene(float damageAmount,
+    float dashAmount, float energyPulse) const
+{
+    const float resolution[2] {
+        static_cast<float>(postProcessWidth),
+        static_cast<float>(postProcessHeight)
+    };
+    const float time = static_cast<float>(GetTime());
+    SetShaderValue(compositeShader, compositeResolutionLocation,
+        resolution, SHADER_UNIFORM_VEC2);
+    SetShaderValue(compositeShader, compositeTimeLocation,
+        &time, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(compositeShader, compositeDamageLocation,
+        &damageAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(compositeShader, compositeDashLocation,
+        &dashAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(compositeShader, compositeEnergyLocation,
+        &energyPulse, SHADER_UNIFORM_FLOAT);
+
+    BeginShaderMode(compositeShader);
+    drawRenderTexture(sceneTarget,
+        static_cast<float>(postProcessWidth),
+        static_cast<float>(postProcessHeight));
+    EndShaderMode();
+
+    BeginBlendMode(BLEND_ADDITIVE);
+    DrawTexturePro(bloomTargetA.texture,
+        Rectangle { 0.0F, 0.0F,
+            static_cast<float>(bloomTargetA.texture.width),
+            -static_cast<float>(bloomTargetA.texture.height) },
+        Rectangle { 0.0F, 0.0F,
+            static_cast<float>(postProcessWidth),
+            static_cast<float>(postProcessHeight) },
+        Vector2 {}, 0.0F, Color { 255, 255, 255, 145 });
+    EndBlendMode();
+}
+
 void PrototypeRenderer::drawPlayerHud(const Player& player) const
 {
     constexpr float panelWidth = 260.0F;
-    constexpr float barWidth = 158.0F;
-    const float healthAmount = std::clamp(
-        static_cast<float>(player.health) / PLAYER_MAX_HEALTH, 0.0F, 1.0F);
+    constexpr float meterX = 101.0F;
+    constexpr float meterWidth = 156.0F;
+    constexpr float segmentGap = 4.0F;
     const float dashAmount = 1.0F - std::clamp(
         player.dashCooldownRemaining / PLAYER_DASH_COOLDOWN, 0.0F, 1.0F);
     const Color healthColor = player.health <= 1
-        ? Color { 241, 91, 64, 255 }
-        : Color { 232, 174, 65, 255 };
+        ? Color { 241, 78, 55, 255 }
+        : MACHINE_GOLD;
 
-    DrawRectangleRounded(Rectangle { 16.0F, 16.0F, panelWidth, 64.0F },
-        0.22F, 8, Color { 7, 17, 24, 225 });
-    DrawText("HEALTH", 28, 25, 17, Color { 194, 211, 208, 255 });
-    DrawRectangleRounded(Rectangle { 101.0F, 27.0F, barWidth, 16.0F },
-        0.5F, 8, Color { 29, 42, 47, 255 });
-    if (healthAmount > 0.0F) {
-        DrawRectangleRounded(Rectangle {
-                                 101.0F, 27.0F,
-                                 barWidth * healthAmount, 16.0F },
-            0.5F, 8, healthColor);
+    drawHudPanel(Rectangle { 16.0F, 16.0F, panelWidth, 64.0F },
+        healthColor);
+    DrawText("VITAL", 30, 25, 14, Color { 132, 165, 164, 255 });
+    const float segmentWidth = (meterWidth
+        - segmentGap * static_cast<float>(PLAYER_MAX_HEALTH - 1))
+        / static_cast<float>(PLAYER_MAX_HEALTH);
+    for (int segment = 0; segment < PLAYER_MAX_HEALTH; ++segment) {
+        const float x = meterX
+            + static_cast<float>(segment) * (segmentWidth + segmentGap);
+        DrawRectangleRounded(Rectangle { x, 27.0F, segmentWidth, 14.0F },
+            0.22F, 5,
+            segment < player.health ? healthColor
+                                    : Color { 25, 38, 43, 255 });
     }
-    DrawText(TextFormat("%i", std::max(player.health, 0)), 263, 29, 12,
-        Color { 194, 211, 208, 255 });
 
-    DrawText("DASH", 28, 52, 14, Color { 194, 211, 208, 255 });
-    DrawRectangleRounded(Rectangle { 101.0F, 55.0F, barWidth, 9.0F },
-        0.5F, 8, Color { 29, 42, 47, 255 });
+    DrawText("BOOST", 30, 52, 13, Color { 132, 165, 164, 255 });
+    DrawRectangleRounded(Rectangle { meterX, 54.0F, meterWidth, 10.0F },
+        0.45F, 7, Color { 25, 38, 43, 255 });
     if (dashAmount > 0.0F) {
         DrawRectangleRounded(Rectangle {
-                                 101.0F, 55.0F,
-                                 barWidth * dashAmount, 9.0F },
-            0.5F, 8, Color { 92, 225, 255, 255 });
+                                 meterX, 54.0F,
+                                 meterWidth * dashAmount, 10.0F },
+            0.45F, 7, ENERGY_CYAN);
+    }
+    if (dashAmount >= 0.999F) {
+        DrawText("READY", 214, 52, 10, Color { 204, 255, 245, 255 });
     }
 }
