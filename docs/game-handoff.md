@@ -1,4 +1,4 @@
-# Game Prototype Handoff
+# Game Handoff
 
 This is the continuation guide for the `stalberg_game` runtime. Read [`game-roadmap.md`](game-roadmap.md) for the milestone sequence, [`level-identity-pass.md`](level-identity-pass.md) for the immediate anti-oatmeal generation pass, and the generator documents for current procedural-level contracts.
 
@@ -51,7 +51,7 @@ main.cpp
     ├── reads PlayerInput through game_input
     ├── advances generated room progression or combat-regression fixed state
     ├── interpolates simulation state for rendering
-    └── asks PrototypeRenderer to draw
+    └── asks GameRenderer to draw
 
 GeneratedLevel
     ├── retains StalbergGrid + DualGrid + RoomGrid + RoomLayout
@@ -86,8 +86,8 @@ Encounter ── wraps CombatState + regression-owned Player + Target + restart
 Player ──→ updateGameCamera() ──→ Camera3D
 Camera3D + keyboard/mouse ──→ readPlayerInput()
 
-Camera3D + GeneratedLevel + interpolated player ──→ PrototypeRenderer
-Camera3D + Arena + interpolated combat state ──→ PrototypeRenderer
+Camera3D + GeneratedLevel + interpolated player ──→ GameRenderer
+Camera3D + Arena + interpolated combat state ──→ GameRenderer
 CombatStepResult / EncounterStepResult ──→ CombatAudio
 ```
 
@@ -113,7 +113,7 @@ CombatStepResult / EncounterStepResult ──→ CombatAudio
 | `src/game/target.hpp/.cpp` | Target health/reset state and swept projectile-versus-circle collision |
 | `src/game/game_camera.hpp/.cpp` | Camera creation/following, camera-relative movement, ground projection, and camera interpolation |
 | `src/game/game_input.hpp/.cpp` | All current polling of raylib keyboard and mouse input |
-| `src/game/prototype_renderer.hpp/.cpp` | GPU resource ownership, runtime drawing, and the immediate-mode fitted full-level overview |
+| `src/game/game_renderer*` | Runtime scene, entity, HUD, landmark, and fitted full-level overview drawing |
 | `src/game/directional_shader.hpp` | Embedded GLSL and shared directional-light vector |
 | `tests/generated_level_tests.cpp` | Artifact alignment, exact floor area, wall/door authorization, representative-browser validity, traversal firing/preservation, deterministic multi-spawn filtering/identity, partial/all-enemies clear transitions, hostile cleanup, defeat/reset/Exit, Start spawn, and reachability coverage |
 | `tests/game_tests.cpp` | Headless dash/collision, caller-owned combat, projectile ownership/profile/pool, blocked muzzles, weapon, single-enemy and collection determinism/damage/defeat, earliest-hit/identity tie-breaking, closed-wall containment, player damage/death, interpolation freeze, victory, and restart coverage |
@@ -194,7 +194,7 @@ Projectile collision uses the shared `collision_2d` queries to treat each projec
 
 ### Rendering boundary
 
-Gameplay code does not own raylib `Model`, `Shader`, or `Sound` handles. `PrototypeRenderer` owns temporary runtime graphics resources, while `CombatAudio` owns the audio device and generated sounds. Projectiles expose stable simulation state to presentation modules rather than issuing draw or audio calls from simulation code.
+Gameplay code does not own raylib `Model`, `Shader`, or `Sound` handles. `GameRenderer` and its rendering subsystems own runtime graphics resources, while `CombatAudio` owns the audio device and generated sounds. Projectiles expose stable simulation state to presentation modules rather than issuing draw or audio calls from simulation code.
 
 The web build keeps raylib's framebuffer fixed at 1280 by 800 and lets `web/shell.html` scale that 16:10 canvas uniformly within the viewport. Do not enable `FLAG_WINDOW_RESIZABLE` on web: raylib otherwise sizes the framebuffer to the browser aspect ratio while CSS letterboxes the canvas, stretching the image and making GLFW mouse coordinates disagree with `GetScreenWidth()` and `GetScreenHeight()`.
 

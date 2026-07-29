@@ -6,7 +6,7 @@
 #include "generated_level.hpp"
 #include "horde_match.hpp"
 #include "level_session.hpp"
-#include "prototype_renderer.hpp"
+#include "game_renderer.hpp"
 
 #include "raylib.h"
 
@@ -155,7 +155,7 @@ public:
 
 private:
     GeneratedLevel level;
-    PrototypeRenderer renderer;
+    GameRenderer renderer;
     CombatAudio combatAudio;
     Encounter encounter;
     LevelSession levelSession;
@@ -285,7 +285,7 @@ int main(int argumentCount, char** arguments)
     // Raylib's resizable web path instead adopts the browser aspect ratio,
     // which diverges from the letterboxed canvas and offsets mouse input.
     SetConfigFlags(windowFlags);
-    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Stalberg game prototype");
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Stalberg");
 #if !defined(PLATFORM_WEB)
     SetWindowMinSize(900, 600);
 #endif

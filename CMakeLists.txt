@@ -114,7 +114,16 @@ add_executable(stalberg_game
     src/game/game_camera.cpp
     src/game/game_input.cpp
     src/game/main.cpp
-    src/game/prototype_renderer.cpp
+    src/game/post_process_pipeline.cpp
+    src/game/game_renderer.cpp
+    src/game/game_renderer_entities.cpp
+    src/game/game_renderer_hud.cpp
+    src/game/game_renderer_landmarks.cpp
+    src/game/game_renderer_overview.cpp
+    src/game/render_primitives.cpp
+    src/game/render_resources.cpp
+    src/game/render_style.cpp
+    src/game/world_lighting.cpp
 )
 target_link_libraries(stalberg_game PRIVATE stalberg_game_core)
 enable_project_warnings(stalberg_game)

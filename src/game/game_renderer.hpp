@@ -6,20 +6,23 @@
 #include "horde_match.hpp"
 #include "level_session.hpp"
 #include "player.hpp"
+#include "post_process_pipeline.hpp"
 #include "projectile_pool.hpp"
+#include "render_resources.hpp"
 #include "target.hpp"
+#include "world_lighting.hpp"
 
 #include "raylib.h"
 
 #include <cstddef>
 
-class PrototypeRenderer {
+class GameRenderer {
 public:
-    explicit PrototypeRenderer(const GeneratedLevel& level);
-    ~PrototypeRenderer();
+    explicit GameRenderer(const GeneratedLevel& level);
+    ~GameRenderer();
 
-    PrototypeRenderer(const PrototypeRenderer&) = delete;
-    PrototypeRenderer& operator=(const PrototypeRenderer&) = delete;
+    GameRenderer(const GameRenderer&) = delete;
+    GameRenderer& operator=(const GameRenderer&) = delete;
 
     void drawGenerated(const Camera3D& camera, const Player& player,
         Vector3 aimPoint, const GeneratedLevel& level,
@@ -50,49 +53,17 @@ private:
         const HordeEnemy& enemy, float interpolationAmount) const;
     void drawHordeLandmarks(const GeneratedLevel& level,
         const LevelSession& session, const HordeMatch& match) const;
-    void updateLighting(const Camera3D& camera, Color fogColor) const;
     void updateGeneratedLights(const HordeMatch& match) const;
-    void clearLocalLights() const;
-    void setMaterial(float kind) const;
-    void ensurePostProcessTargets();
-    void buildBloom();
-    void drawPostProcessedScene(float damageAmount,
-        float dashAmount, float energyPulse) const;
+    void drawGeneratedHud(const Player& player, const GeneratedLevel& level,
+        const LevelSession& session, const HordeMatch& match,
+        bool showDebug) const;
+    void drawCombatHud(const Player& player,
+        const ProjectilePool& playerProjectiles, const Target& target,
+        const Enemy& enemy, const ProjectilePool& enemyProjectiles,
+        bool showDebug) const;
     void drawPlayerHud(const Player& player) const;
 
-    Shader lightingShader {};
-    Shader bloomExtractShader {};
-    Shader bloomBlurShader {};
-    Shader compositeShader {};
-    RenderTexture2D sceneTarget {};
-    RenderTexture2D bloomTargetA {};
-    RenderTexture2D bloomTargetB {};
-    Model groundModel {};
-    Model generatedFloorModel {};
-    Model generatedWallModel {};
-    Model wallModel {};
-    Model playerModel {};
-    Model targetModel {};
-    Model enemyModel {};
-    Model runnerModel {};
-    Model casterModel {};
-    Model eliteModel {};
-    Model shadowModel {};
-    Texture2D projectileGlow {};
-    int cameraPositionLocation = -1;
-    int cameraTargetLocation = -1;
-    int fogColorLocation = -1;
-    int materialKindLocation = -1;
-    int pointLightPositionALocation = -1;
-    int pointLightColorALocation = -1;
-    int pointLightPositionBLocation = -1;
-    int pointLightColorBLocation = -1;
-    int blurDirectionLocation = -1;
-    int compositeResolutionLocation = -1;
-    int compositeTimeLocation = -1;
-    int compositeDamageLocation = -1;
-    int compositeDashLocation = -1;
-    int compositeEnergyLocation = -1;
-    int postProcessWidth = 0;
-    int postProcessHeight = 0;
+    WorldLighting lighting;
+    RenderResources resources;
+    PostProcessPipeline postProcess;
 };

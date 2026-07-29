@@ -1,4 +1,4 @@
-# Stålberg grid and 2.5D game prototype (raylib)
+# Stålberg grid and 2.5D game (raylib)
 
 A compact C++ implementation of the grid-generation technique associated with Oskar Stålberg's *Townscaper*:
 
@@ -71,7 +71,7 @@ Debug builds apply debugger-friendly optimization to the game runtime and bundle
 
 Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Generation, generated-level runtime/session behavior, and combat simulation have dedicated headless test executables. Runtime tests include dash cooldown and wall collision, traversal firing and in-flight-shot preservation, deterministic multi-spawn identities and order, earliest enemy-hit selection, all-enemies-clear doorway transitions, hostile-shot cleanup, closed-wall containment, reset behavior, and custom encounter wall injection.
 
-## Game prototype controls
+## Game controls
 
 | Input | Action |
 |---|---|
@@ -120,4 +120,4 @@ For a remote machine, use one of these options:
 - Use a VNC/RDP desktop session and launch it from a terminal there.
 - For a non-visible CI smoke test only: `xvfb-run -a ./build/stalberg_game` or `xvfb-run -a ./build/stalberg_grid`.
 
-`xvfb-run` supplies a virtual display, so it verifies that an application starts but does not show an interactive window. The development workstation used for the prototype can launch interactively with `DISPLAY=:0 ./build/stalberg_game`.
+`xvfb-run` supplies a virtual display, so it verifies that an application starts but does not show an interactive window. The development workstation used for the game can launch interactively with `DISPLAY=:0 ./build/stalberg_game`.

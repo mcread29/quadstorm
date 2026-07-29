@@ -108,7 +108,7 @@ Planned landmark language:
 - Reward: tucked-away focal object and distinct local symbol.
 - Exit: large finale/extraction monument visible before activation.
 
-The generator or level package should provide deterministic semantic anchors such as high-clearance focal cells, doorway-facing points, perimeter candidates, and central obstruction candidates. `PrototypeRenderer` may turn these into temporary primitive-based landmarks; gameplay code must not own graphics resources.
+The generator or level package should provide deterministic semantic anchors such as high-clearance focal cells, doorway-facing points, perimeter candidates, and central obstruction candidates. `GameRenderer` may turn these into temporary primitive-based landmarks; gameplay code must not own graphics resources.
 
 District palettes and symbols should reinforce topology clusters without replacing room-role readability. Color must be supplemented by silhouette, placement, scale, and symbols.
 

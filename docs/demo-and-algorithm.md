@@ -424,7 +424,7 @@ Grid generation, room generation, integration, and rendering are separate areas:
 | `src/game/target.*` | Target health/reset state and swept projectile-versus-circle collision |
 | `src/game/game_camera.*` | Orthographic follow camera, camera-relative controls, and ground projection |
 | `src/game/game_input.*` | Poll raylib input into simulation-facing `PlayerInput` data |
-| `src/game/prototype_renderer.*` | Own game GPU resources and render the current prototype scene |
+| `src/game/game_renderer.*` | Own game GPU resources and render the game scene |
 | `tests/grid_tests.cpp` | Headless grid topology and relaxation tests |
 | `tests/room_generation_tests.cpp` | Headless room connectivity, doorway, and determinism tests |
 | `tests/generated_level_tests.cpp` | Headless runtime artifact, floor, wall/door, dynamic locking, lifecycle/reset, traversal firing/preservation, deterministic multi-spawn/identity, partial/all-enemies clear, hostile cleanup, and navigation tests |

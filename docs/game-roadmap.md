@@ -115,7 +115,7 @@ The map should remain survivable without finding every secret, while knowledge a
 
 ## Current foundation
 
-### Milestones 1–5: combat prototype — complete
+### Milestones 1–5: combat foundation — complete
 
 The hard-coded regression arena establishes:
 
