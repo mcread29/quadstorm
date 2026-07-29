@@ -56,6 +56,14 @@ RenderTexture2D loadDepthTextureTarget(
     return target;
 }
 
+Vector2 normalizedScreenPosition(Vector2 position, int width, int height)
+{
+    return Vector2 {
+        position.x / static_cast<float>(width),
+        1.0F - position.y / static_cast<float>(height)
+    };
+}
+
 } // namespace
 
 PostProcessPipeline::PostProcessPipeline()
@@ -65,21 +73,32 @@ PostProcessPipeline::PostProcessPipeline()
           nullptr, BLOOM_BLUR_FRAGMENT_SHADER))
     , compositeShader(LoadShaderFromMemory(
           nullptr, COMPOSITE_FRAGMENT_SHADER))
+    , finalShader(LoadShaderFromMemory(nullptr, FINAL_FRAGMENT_SHADER))
+    , bloomEmissiveTextureLocation(GetShaderLocation(
+          bloomExtractShader, "emissiveTexture"))
     , blurDirectionLocation(GetShaderLocation(
           bloomBlurShader, "blurDirection"))
     , compositeResolutionLocation(GetShaderLocation(
           compositeShader, "resolution"))
     , compositeDepthTextureLocation(GetShaderLocation(
           compositeShader, "depthTexture"))
+    , compositeBloomTextureLocation(GetShaderLocation(
+          compositeShader, "bloomTexture"))
+    , compositeActorMaskTextureLocation(GetShaderLocation(
+          compositeShader, "actorMaskTexture"))
     , compositeDepthEnabledLocation(GetShaderLocation(
           compositeShader, "depthEnabled"))
-    , compositeTimeLocation(GetShaderLocation(compositeShader, "time"))
-    , compositeDamageLocation(GetShaderLocation(
-          compositeShader, "damageAmount"))
-    , compositeDashLocation(GetShaderLocation(
-          compositeShader, "dashAmount"))
     , compositeEnergyLocation(GetShaderLocation(
           compositeShader, "energyPulse"))
+    , finalResolutionLocation(GetShaderLocation(finalShader, "resolution"))
+    , finalTimeLocation(GetShaderLocation(finalShader, "time"))
+    , finalDamageLocation(GetShaderLocation(finalShader, "damageAmount"))
+    , finalDashLocation(GetShaderLocation(finalShader, "dashAmount"))
+    , finalEnergyLocation(GetShaderLocation(finalShader, "energyPulse"))
+    , finalPlayerCenterLocation(GetShaderLocation(
+          finalShader, "playerEffectCenter"))
+    , finalObjectiveCenterLocation(GetShaderLocation(
+          finalShader, "objectiveEffectCenter"))
 {
     ensureTargets();
 }
@@ -87,10 +106,14 @@ PostProcessPipeline::PostProcessPipeline()
 PostProcessPipeline::~PostProcessPipeline()
 {
     if (sceneTarget.id != 0) {
-        UnloadRenderTexture(sceneTarget);
-        UnloadRenderTexture(bloomTargetA);
+        UnloadRenderTexture(compositeTarget);
         UnloadRenderTexture(bloomTargetB);
+        UnloadRenderTexture(bloomTargetA);
+        UnloadRenderTexture(actorMaskTarget);
+        UnloadRenderTexture(emissiveTarget);
+        UnloadRenderTexture(sceneTarget);
     }
+    UnloadShader(finalShader);
     UnloadShader(compositeShader);
     UnloadShader(bloomBlurShader);
     UnloadShader(bloomExtractShader);
@@ -108,6 +131,30 @@ void PostProcessPipeline::endScene() const
     EndTextureMode();
 }
 
+void PostProcessPipeline::beginEmissive()
+{
+    ensureTargets();
+    BeginTextureMode(emissiveTarget);
+    ClearBackground(BLACK);
+}
+
+void PostProcessPipeline::endEmissive() const
+{
+    EndTextureMode();
+}
+
+void PostProcessPipeline::beginActorMask()
+{
+    ensureTargets();
+    BeginTextureMode(actorMaskTarget);
+    ClearBackground(BLACK);
+}
+
+void PostProcessPipeline::endActorMask() const
+{
+    EndTextureMode();
+}
+
 void PostProcessPipeline::ensureTargets()
 {
     const int targetWidth = std::max(GetScreenWidth(), 1);
@@ -117,45 +164,55 @@ void PostProcessPipeline::ensureTargets()
         return;
     }
     if (sceneTarget.id != 0) {
-        UnloadRenderTexture(sceneTarget);
-        UnloadRenderTexture(bloomTargetA);
+        UnloadRenderTexture(compositeTarget);
         UnloadRenderTexture(bloomTargetB);
+        UnloadRenderTexture(bloomTargetA);
+        UnloadRenderTexture(actorMaskTarget);
+        UnloadRenderTexture(emissiveTarget);
+        UnloadRenderTexture(sceneTarget);
     }
 
     width = targetWidth;
     height = targetHeight;
     sceneTarget = loadDepthTextureTarget(
         width, height, depthTextureAvailable);
+    emissiveTarget = LoadRenderTexture(width, height);
+    actorMaskTarget = LoadRenderTexture(width, height);
     bloomTargetA = LoadRenderTexture(
         std::max(width / 2, 1), std::max(height / 2, 1));
     bloomTargetB = LoadRenderTexture(
         std::max(width / 2, 1), std::max(height / 2, 1));
+    compositeTarget = LoadRenderTexture(width, height);
     for (Texture2D texture : { sceneTarget.texture,
-             bloomTargetA.texture, bloomTargetB.texture }) {
+             emissiveTarget.texture, actorMaskTarget.texture,
+             bloomTargetA.texture, bloomTargetB.texture,
+             compositeTarget.texture }) {
         SetTextureFilter(texture, TEXTURE_FILTER_BILINEAR);
         SetTextureWrap(texture, TEXTURE_WRAP_CLAMP);
     }
 }
 
-void PostProcessPipeline::process()
+void PostProcessPipeline::process(PostProcessEffects effects)
 {
     const float bloomWidth = static_cast<float>(bloomTargetA.texture.width);
     const float bloomHeight = static_cast<float>(bloomTargetA.texture.height);
 
     BeginTextureMode(bloomTargetA);
-    ClearBackground(BLANK);
+    ClearBackground(BLACK);
     BeginShaderMode(bloomExtractShader);
+    SetShaderValueTexture(bloomExtractShader,
+        bloomEmissiveTextureLocation, emissiveTarget.texture);
     drawRenderTexture(sceneTarget, bloomWidth, bloomHeight);
     EndShaderMode();
     EndTextureMode();
 
     for (int pass = 0; pass < 3; ++pass) {
-        const float radius = 1.0F + static_cast<float>(pass) * 0.55F;
+        const float radius = 1.0F + static_cast<float>(pass) * 0.62F;
         const float horizontal[2] { radius / bloomWidth, 0.0F };
         SetShaderValue(bloomBlurShader, blurDirectionLocation,
             horizontal, SHADER_UNIFORM_VEC2);
         BeginTextureMode(bloomTargetB);
-        ClearBackground(BLANK);
+        ClearBackground(BLACK);
         BeginShaderMode(bloomBlurShader);
         drawRenderTexture(bloomTargetA, bloomWidth, bloomHeight);
         EndShaderMode();
@@ -165,51 +222,65 @@ void PostProcessPipeline::process()
         SetShaderValue(bloomBlurShader, blurDirectionLocation,
             vertical, SHADER_UNIFORM_VEC2);
         BeginTextureMode(bloomTargetA);
-        ClearBackground(BLANK);
+        ClearBackground(BLACK);
         BeginShaderMode(bloomBlurShader);
         drawRenderTexture(bloomTargetB, bloomWidth, bloomHeight);
         EndShaderMode();
         EndTextureMode();
     }
-}
 
-void PostProcessPipeline::present(PostProcessEffects effects) const
-{
     const float resolution[2] {
         static_cast<float>(width),
         static_cast<float>(height)
     };
-    const float time = static_cast<float>(GetTime());
+    const float depthEnabled = depthTextureAvailable ? 1.0F : 0.0F;
     SetShaderValue(compositeShader, compositeResolutionLocation,
         resolution, SHADER_UNIFORM_VEC2);
-    const float depthEnabled = depthTextureAvailable ? 1.0F : 0.0F;
     SetShaderValue(compositeShader, compositeDepthEnabledLocation,
         &depthEnabled, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(compositeShader, compositeEnergyLocation,
+        &effects.energyPulse, SHADER_UNIFORM_FLOAT);
+    BeginTextureMode(compositeTarget);
+    ClearBackground(BLACK);
+    BeginShaderMode(compositeShader);
     if (depthTextureAvailable) {
         SetShaderValueTexture(compositeShader,
             compositeDepthTextureLocation, sceneTarget.depth);
     }
-    SetShaderValue(compositeShader, compositeTimeLocation,
-        &time, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(compositeShader, compositeDamageLocation,
-        &effects.damageAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(compositeShader, compositeDashLocation,
-        &effects.dashAmount, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(compositeShader, compositeEnergyLocation,
-        &effects.energyPulse, SHADER_UNIFORM_FLOAT);
-
-    BeginShaderMode(compositeShader);
+    SetShaderValueTexture(compositeShader,
+        compositeBloomTextureLocation, bloomTargetA.texture);
+    SetShaderValueTexture(compositeShader,
+        compositeActorMaskTextureLocation, actorMaskTarget.texture);
     drawRenderTexture(sceneTarget,
         static_cast<float>(width), static_cast<float>(height));
     EndShaderMode();
+    EndTextureMode();
 
-    BeginBlendMode(BLEND_ADDITIVE);
-    DrawTexturePro(bloomTargetA.texture,
-        Rectangle { 0.0F, 0.0F,
-            static_cast<float>(bloomTargetA.texture.width),
-            -static_cast<float>(bloomTargetA.texture.height) },
-        Rectangle { 0.0F, 0.0F,
-            static_cast<float>(width), static_cast<float>(height) },
-        Vector2 {}, 0.0F, Color { 255, 255, 255, 145 });
-    EndBlendMode();
+    const float time = static_cast<float>(GetTime());
+    const Vector2 playerCenter = normalizedScreenPosition(
+        effects.playerScreenPosition, width, height);
+    const Vector2 objectiveCenter = normalizedScreenPosition(
+        effects.objectiveScreenPosition, width, height);
+    SetShaderValue(finalShader, finalResolutionLocation,
+        resolution, SHADER_UNIFORM_VEC2);
+    SetShaderValue(finalShader, finalTimeLocation,
+        &time, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(finalShader, finalDamageLocation,
+        &effects.damageAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(finalShader, finalDashLocation,
+        &effects.dashAmount, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(finalShader, finalEnergyLocation,
+        &effects.energyPulse, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(finalShader, finalPlayerCenterLocation,
+        &playerCenter.x, SHADER_UNIFORM_VEC2);
+    SetShaderValue(finalShader, finalObjectiveCenterLocation,
+        &objectiveCenter.x, SHADER_UNIFORM_VEC2);
+}
+
+void PostProcessPipeline::present() const
+{
+    BeginShaderMode(finalShader);
+    drawRenderTexture(compositeTarget,
+        static_cast<float>(width), static_cast<float>(height));
+    EndShaderMode();
 }

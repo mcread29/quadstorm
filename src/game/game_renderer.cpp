@@ -9,6 +9,36 @@
 
 using namespace game_render;
 
+namespace {
+
+Vector2 activeObjectivePosition(const HordeMatch& match)
+{
+    if (!match.anchorIsComplete()) {
+        return match.plan().anchorPosition;
+    }
+    if (!match.hubIsPowered()) {
+        return match.plan().hubPosition;
+    }
+    return match.plan().exitPosition;
+}
+
+Color hordeOutlineColor(HordeEnemyRole role)
+{
+    switch (role) {
+    case HordeEnemyRole::Drifter:
+        return Color { 255, 87, 48, 255 };
+    case HordeEnemyRole::Runner:
+        return Color { 255, 174, 48, 255 };
+    case HordeEnemyRole::Caster:
+        return Color { 213, 92, 255, 255 };
+    case HordeEnemyRole::Elite:
+        return Color { 255, 82, 200, 255 };
+    }
+    return WHITE;
+}
+
+} // namespace
+
 GameRenderer::GameRenderer(const GeneratedLevel& level)
     : resources(level, lighting.shader())
 {
@@ -68,8 +98,66 @@ void GameRenderer::drawGenerated(const Camera3D& camera,
     EndMode3D();
     postProcess.endScene();
 
-    postProcess.process();
-    BeginDrawing();
+    postProcess.beginEmissive();
+    BeginMode3D(camera);
+    drawProjectiles(camera, match.playerProjectiles(),
+        interpolationAmount, PLAYER_RADIUS,
+        Color { 92, 225, 255, 255 }, Color { 42, 151, 190, 255 });
+    drawProjectiles(camera, match.enemyProjectiles(),
+        interpolationAmount, PLAYER_RADIUS,
+        Color { 255, 93, 55, 255 }, Color { 207, 62, 38, 255 });
+    const Vector3 playerEmitter {
+        player.position.x + player.facing.x * PLAYER_FACING_MARKER_DISTANCE,
+        player.position.y + 0.08F,
+        player.position.z + player.facing.y * PLAYER_FACING_MARKER_DISTANCE
+    };
+    DrawSphere(playerEmitter, 0.11F, ENERGY_CYAN);
+    const Vector2 hub = match.plan().hubPosition;
+    const Vector2 anchor = match.plan().anchorPosition;
+    const Vector2 exit = match.plan().exitPosition;
+    DrawSphere(Vector3 { hub.x, 2.72F, hub.y }, 0.34F,
+        match.hubIsPowered() ? ENERGY_CYAN : Color { 30, 70, 72, 255 });
+    DrawSphere(Vector3 { anchor.x, 1.72F, anchor.y }, 0.33F,
+        match.anchorIsComplete() ? Color { 112, 229, 185, 255 }
+                                 : MACHINE_GOLD);
+    DrawSphere(Vector3 { exit.x, 5.8F, exit.y }, 0.14F,
+        match.hubIsPowered() ? ENERGY_CYAN : Color { 35, 52, 54, 255 });
+    for (const HordeEnemy& entry : match.enemies()) {
+        if (!isEnemyAlive(entry.enemy)) {
+            continue;
+        }
+        if (entry.role != HordeEnemyRole::Caster
+            && entry.role != HordeEnemyRole::Elite) {
+            continue;
+        }
+        const Vector2 position = interpolateEnemyPosition(
+            entry.enemy, interpolationAmount);
+        DrawSphere(Vector3 { position.x, ENEMY_RADIUS + 0.42F, position.y },
+            entry.role == HordeEnemyRole::Elite ? 0.24F : 0.15F,
+            hordeOutlineColor(entry.role));
+    }
+    EndMode3D();
+    postProcess.endEmissive();
+
+    postProcess.beginActorMask();
+    BeginMode3D(camera);
+    if (isPlayerAlive(player)) {
+        DrawSphere(player.position, PLAYER_RADIUS * 0.88F,
+            Color { 47, 225, 235, 255 });
+    }
+    for (const HordeEnemy& entry : match.enemies()) {
+        if (!isEnemyAlive(entry.enemy)) {
+            continue;
+        }
+        const Vector2 position = interpolateEnemyPosition(
+            entry.enemy, interpolationAmount);
+        DrawSphere(Vector3 { position.x, ENEMY_RADIUS, position.y },
+            ENEMY_RADIUS * (entry.role == HordeEnemyRole::Elite ? 1.28F : 0.9F),
+            hordeOutlineColor(entry.role));
+    }
+    EndMode3D();
+    postProcess.endActorMask();
+
     const float damageAmount = std::clamp(
         player.hitFlashRemaining / PLAYER_HIT_FLASH_DURATION, 0.0F, 1.0F);
     const float dashAmount = std::clamp(
@@ -79,8 +167,16 @@ void GameRenderer::drawGenerated(const Camera3D& camera,
         : match.hubIsPowered()
             ? 0.16F + 0.08F * std::sin(static_cast<float>(GetTime()) * 2.0F)
             : 0.0F;
-    postProcess.present(PostProcessEffects {
-        damageAmount, dashAmount, energyPulse });
+    const Vector2 objective = activeObjectivePosition(match);
+    postProcess.process(PostProcessEffects {
+        damageAmount,
+        dashAmount,
+        energyPulse,
+        GetWorldToScreen(player.position, camera),
+        GetWorldToScreen(Vector3 { objective.x, 0.0F, objective.y }, camera)
+    });
+    BeginDrawing();
+    postProcess.present();
     drawGeneratedHud(player, level, session, match, showDebug);
     EndDrawing();
 }
@@ -123,13 +219,64 @@ void GameRenderer::drawCombat(const Camera3D& camera,
     EndMode3D();
     postProcess.endScene();
 
-    postProcess.process();
-    BeginDrawing();
+    postProcess.beginEmissive();
+    BeginMode3D(camera);
+    drawProjectiles(camera, playerProjectiles, interpolationAmount,
+        PLAYER_RADIUS, Color { 92, 225, 255, 255 },
+        Color { 42, 151, 190, 255 });
+    drawProjectiles(camera, enemyProjectiles, interpolationAmount,
+        PLAYER_RADIUS, Color { 255, 93, 55, 255 },
+        Color { 207, 62, 38, 255 });
+    if (target.health > 0) {
+        DrawSphere(Vector3 { target.position.x, TARGET_RADIUS,
+                       target.position.y },
+            TARGET_RADIUS * 0.28F, Color { 255, 105, 74, 255 });
+    }
+    if (isEnemyAlive(enemy)) {
+        const Vector2 enemyPosition = interpolateEnemyPosition(
+            enemy, interpolationAmount);
+        DrawSphere(Vector3 { enemyPosition.x, ENEMY_RADIUS,
+                       enemyPosition.y },
+            ENEMY_RADIUS * 0.24F, Color { 211, 91, 255, 255 });
+    }
+    EndMode3D();
+    postProcess.endEmissive();
+
+    postProcess.beginActorMask();
+    BeginMode3D(camera);
+    if (isPlayerAlive(player)) {
+        DrawSphere(player.position, PLAYER_RADIUS * 0.88F,
+            Color { 47, 225, 235, 255 });
+    }
+    if (target.health > 0) {
+        DrawSphere(Vector3 { target.position.x, TARGET_RADIUS,
+                       target.position.y },
+            TARGET_RADIUS, Color { 255, 91, 61, 255 });
+    }
+    if (isEnemyAlive(enemy)) {
+        const Vector2 enemyPosition = interpolateEnemyPosition(
+            enemy, interpolationAmount);
+        DrawSphere(Vector3 { enemyPosition.x, ENEMY_RADIUS,
+                       enemyPosition.y },
+            ENEMY_RADIUS, Color { 211, 91, 255, 255 });
+    }
+    EndMode3D();
+    postProcess.endActorMask();
+
     const float damageAmount = std::clamp(
         player.hitFlashRemaining / PLAYER_HIT_FLASH_DURATION, 0.0F, 1.0F);
     const float dashAmount = std::clamp(
         player.dashRemaining / PLAYER_DASH_DURATION, 0.0F, 1.0F);
-    postProcess.present(PostProcessEffects { damageAmount, dashAmount, 0.0F });
+    postProcess.process(PostProcessEffects {
+        damageAmount,
+        dashAmount,
+        0.0F,
+        GetWorldToScreen(player.position, camera),
+        GetWorldToScreen(Vector3 { target.position.x, 0.0F,
+                             target.position.y }, camera)
+    });
+    BeginDrawing();
+    postProcess.present();
     drawCombatHud(player, playerProjectiles, target, enemy,
         enemyProjectiles, showDebug);
     EndDrawing();
