@@ -21,7 +21,7 @@ F2 opens the complete overview. The first three browser configurations are fixed
 | WASD | Camera-relative movement |
 | Mouse / hold LMB | Aim and fire |
 | Space | Dash |
-| E | Buy a gate, activate Anchor/Hub/Exit, or buy one missing health at a powered Hub |
+| E | Buy a gate within the displayed 2.2-unit range, activate Anchor/Hub/Exit, or buy one missing health at a powered Hub |
 | 1 at Hub | Buy the next damage tier |
 | 2 at Hub | Buy the next fire-rate tier |
 | 3 at Hub | Buy the next dash-recovery tier |
@@ -60,13 +60,13 @@ Interactive check:
 
 1. Wait for the three-second opening countdown; Round 1 starts automatically.
 2. Damage and defeat the six Drifters. Hits award 10 points and each Drifter death awards 60 more.
-3. Approach the first orange barred gate. The prompt changes from the remaining amount to its recipe-scaled price when affordable.
-4. Press E. Points are deducted and the exact threshold opens permanently.
+3. Approach the first orange barred gate. The prompt changes from the remaining amount to its recipe-scaled price when affordable. The displayed prompt and purchase query share the same 2.2-world-unit range.
+4. Press E anywhere within that displayed range. Points are deducted and the exact threshold opens permanently.
 5. Verify F2 changes that threshold from red to green.
 
 Round 1 guarantees 540 points, enough for the 500/510/520-point Hub Circuit/Broken Ring/Twin Wings first gate. Round 2 guarantees enough for the corresponding 750/765/780-point Anchor route. Reward gates similarly cost 800/816/832. Optional Reward and upgrade spending remains unavailable until the Anchor route is purchased, preventing it from consuming required progression currency.
 
-Headless coverage: `pointsPurchaseGatesAtomically()` and `hordeDamageAwardsPointsOnce()` verify exact awards, no duplicate death rewards, affordability, deduction, collision-wall removal, and bidirectional navigation.
+Headless coverage: `pointsPurchaseGatesAtomically()`, `fortressGateInteractionMatchesTheHudRange()`, and `hordeDamageAwardsPointsOnce()` verify the complete prompt range, exact awards, no duplicate death rewards, affordability, deduction, collision-wall removal, and bidirectional navigation.
 
 ## Milestone 3: map-wide rounds
 
