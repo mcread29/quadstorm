@@ -2,6 +2,8 @@
 
 #include "post_process_shader.hpp"
 
+#include "rlgl.h"
+
 #include <algorithm>
 
 namespace {
@@ -14,6 +16,44 @@ void drawRenderTexture(RenderTexture2D target, float width, float height)
             -static_cast<float>(target.texture.height) },
         Rectangle { 0.0F, 0.0F, width, height },
         Vector2 {}, 0.0F, WHITE);
+}
+
+RenderTexture2D loadDepthTextureTarget(
+    int width, int height, bool& depthTextureAvailable)
+{
+    RenderTexture2D target {};
+    target.id = rlLoadFramebuffer();
+    if (target.id == 0) {
+        depthTextureAvailable = false;
+        return LoadRenderTexture(width, height);
+    }
+
+    target.texture.id = rlLoadTexture(nullptr, width, height,
+        PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+    target.texture.width = width;
+    target.texture.height = height;
+    target.texture.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    target.texture.mipmaps = 1;
+
+    target.depth.id = rlLoadTextureDepth(width, height, false);
+    target.depth.width = width;
+    target.depth.height = height;
+    target.depth.format = 19;
+    target.depth.mipmaps = 1;
+
+    rlFramebufferAttach(target.id, target.texture.id,
+        RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
+    rlFramebufferAttach(target.id, target.depth.id,
+        RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
+    depthTextureAvailable = rlFramebufferComplete(target.id);
+    if (!depthTextureAvailable) {
+        UnloadRenderTexture(target);
+        return LoadRenderTexture(width, height);
+    }
+
+    SetTextureFilter(target.depth, TEXTURE_FILTER_POINT);
+    SetTextureWrap(target.depth, TEXTURE_WRAP_CLAMP);
+    return target;
 }
 
 } // namespace
@@ -29,6 +69,10 @@ PostProcessPipeline::PostProcessPipeline()
           bloomBlurShader, "blurDirection"))
     , compositeResolutionLocation(GetShaderLocation(
           compositeShader, "resolution"))
+    , compositeDepthTextureLocation(GetShaderLocation(
+          compositeShader, "depthTexture"))
+    , compositeDepthEnabledLocation(GetShaderLocation(
+          compositeShader, "depthEnabled"))
     , compositeTimeLocation(GetShaderLocation(compositeShader, "time"))
     , compositeDamageLocation(GetShaderLocation(
           compositeShader, "damageAmount"))
@@ -80,7 +124,8 @@ void PostProcessPipeline::ensureTargets()
 
     width = targetWidth;
     height = targetHeight;
-    sceneTarget = LoadRenderTexture(width, height);
+    sceneTarget = loadDepthTextureTarget(
+        width, height, depthTextureAvailable);
     bloomTargetA = LoadRenderTexture(
         std::max(width / 2, 1), std::max(height / 2, 1));
     bloomTargetB = LoadRenderTexture(
@@ -137,6 +182,13 @@ void PostProcessPipeline::present(PostProcessEffects effects) const
     const float time = static_cast<float>(GetTime());
     SetShaderValue(compositeShader, compositeResolutionLocation,
         resolution, SHADER_UNIFORM_VEC2);
+    const float depthEnabled = depthTextureAvailable ? 1.0F : 0.0F;
+    SetShaderValue(compositeShader, compositeDepthEnabledLocation,
+        &depthEnabled, SHADER_UNIFORM_FLOAT);
+    if (depthTextureAvailable) {
+        SetShaderValueTexture(compositeShader,
+            compositeDepthTextureLocation, sceneTarget.depth);
+    }
     SetShaderValue(compositeShader, compositeTimeLocation,
         &time, SHADER_UNIFORM_FLOAT);
     SetShaderValue(compositeShader, compositeDamageLocation,

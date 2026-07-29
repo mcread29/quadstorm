@@ -21,6 +21,18 @@ void GameRenderer::drawGenerated(const Camera3D& camera,
     const LevelSession& session, const HordeMatch& match,
     float interpolationAmount, bool showDebug)
 {
+    if (lighting.beginShadowPass(camera.target)) {
+        resources.generatedWallModel.materials[0].shader
+            = lighting.shadowShader();
+        resources.wallModel.materials[0].shader = lighting.shadowShader();
+        DrawModel(resources.generatedWallModel, Vector3 {}, 1.0F, WHITE);
+        drawGeneratedArchitecture(level);
+        drawLockedDoorways(level, session);
+        resources.generatedWallModel.materials[0].shader = lighting.shader();
+        resources.wallModel.materials[0].shader = lighting.shader();
+        lighting.endShadowPass();
+    }
+
     lighting.update(camera, GENERATED_BACKGROUND);
     updateGeneratedLights(player, match);
 
@@ -30,8 +42,11 @@ void GameRenderer::drawGenerated(const Camera3D& camera,
     lighting.setMaterial(1.0F);
     DrawModel(resources.generatedFloorModel,
         Vector3 { 0.0F, -0.01F, 0.0F }, 1.0F, WHITE);
-    lighting.setMaterial(4.0F);
-    DrawModel(resources.generatedWallShadowModel, Vector3 {}, 1.0F, WHITE);
+    if (!lighting.shadowsAvailable()) {
+        lighting.setMaterial(4.0F);
+        DrawModel(resources.generatedWallShadowModel,
+            Vector3 {}, 1.0F, WHITE);
+    }
     lighting.setMaterial(3.0F);
     DrawModel(resources.generatedFloorDetailModel, Vector3 {}, 1.0F, WHITE);
     lighting.setMaterial(2.0F);
@@ -77,6 +92,13 @@ void GameRenderer::drawCombat(const Camera3D& camera,
     const ProjectilePool& enemyProjectiles,
     float interpolationAmount, bool showDebug)
 {
+    if (lighting.beginShadowPass(camera.target)) {
+        resources.wallModel.materials[0].shader = lighting.shadowShader();
+        drawArena();
+        resources.wallModel.materials[0].shader = lighting.shader();
+        lighting.endShadowPass();
+    }
+
     lighting.update(camera, ARENA_BACKGROUND);
     lighting.clearPointLights();
 

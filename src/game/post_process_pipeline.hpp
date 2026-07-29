@@ -32,10 +32,13 @@ private:
     RenderTexture2D bloomTargetB {};
     int blurDirectionLocation = -1;
     int compositeResolutionLocation = -1;
+    int compositeDepthTextureLocation = -1;
+    int compositeDepthEnabledLocation = -1;
     int compositeTimeLocation = -1;
     int compositeDamageLocation = -1;
     int compositeDashLocation = -1;
     int compositeEnergyLocation = -1;
     int width = 0;
     int height = 0;
+    bool depthTextureAvailable = false;
 };

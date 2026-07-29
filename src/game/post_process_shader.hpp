@@ -49,8 +49,10 @@ precision mediump float;
 varying vec2 fragTexCoord;
 varying vec4 fragColor;
 uniform sampler2D texture0;
+uniform sampler2D depthTexture;
 uniform vec4 colDiffuse;
 uniform vec2 resolution;
+uniform float depthEnabled;
 uniform float time;
 uniform float damageAmount;
 uniform float dashAmount;
@@ -72,6 +74,59 @@ vec3 acesToneMap(vec3 color)
         / (color * (c * color + d) + e), 0.0, 1.0);
 }
 
+float depthOccluder(float centerDepth, vec2 sampleUv)
+{
+    float depthDelta = centerDepth
+        - texture2D(depthTexture, sampleUv).r;
+    return smoothstep(0.00006, 0.00145, depthDelta)
+        * (1.0 - smoothstep(0.007, 0.022, depthDelta));
+}
+
+float contactShadow(vec2 uv, vec2 texel)
+{
+    if (depthEnabled < 0.5) {
+        return 0.0;
+    }
+    float centerDepth = texture2D(depthTexture, uv).r;
+    if (centerDepth > 0.9998) {
+        return 0.0;
+    }
+
+    vec2 nearStep = texel * 2.25;
+    float nearOcclusion = 0.0;
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth, uv + vec2(nearStep.x, 0.0)));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth, uv - vec2(nearStep.x, 0.0)));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth, uv + vec2(0.0, nearStep.y)));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth, uv - vec2(0.0, nearStep.y)));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth, uv + nearStep * 0.72));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth, uv - nearStep * 0.72));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth,
+            uv + vec2(nearStep.x, -nearStep.y) * 0.72));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth,
+            uv + vec2(-nearStep.x, nearStep.y) * 0.72));
+
+    vec2 wideStep = texel * 7.5;
+    float wideOcclusion = 0.0;
+    wideOcclusion = max(wideOcclusion,
+        depthOccluder(centerDepth, uv + vec2(wideStep.x, 0.0)));
+    wideOcclusion = max(wideOcclusion,
+        depthOccluder(centerDepth, uv - vec2(wideStep.x, 0.0)));
+    wideOcclusion = max(wideOcclusion,
+        depthOccluder(centerDepth, uv + vec2(0.0, wideStep.y)));
+    wideOcclusion = max(wideOcclusion,
+        depthOccluder(centerDepth, uv - vec2(0.0, wideStep.y)));
+    return clamp(nearOcclusion * 0.72 + wideOcclusion * 0.42,
+        0.0, 1.0);
+}
+
 void main()
 {
     vec2 uv = fragTexCoord;
@@ -86,6 +141,8 @@ void main()
     color.g = texture2D(texture0, uv).g;
     color.b = texture2D(texture0, uv - offset).b;
     vec2 texel = 1.0 / resolution;
+    float grounding = contactShadow(uv, texel);
+    color *= mix(vec3(1.0), vec3(0.56, 0.67, 0.72), grounding * 0.52);
     vec3 neighborAverage = (
         texture2D(texture0, uv + vec2(texel.x, 0.0)).rgb
         + texture2D(texture0, uv - vec2(texel.x, 0.0)).rgb
@@ -166,8 +223,10 @@ inline constexpr const char* COMPOSITE_FRAGMENT_SHADER = R"(
 in vec2 fragTexCoord;
 in vec4 fragColor;
 uniform sampler2D texture0;
+uniform sampler2D depthTexture;
 uniform vec4 colDiffuse;
 uniform vec2 resolution;
+uniform float depthEnabled;
 uniform float time;
 uniform float damageAmount;
 uniform float dashAmount;
@@ -190,6 +249,59 @@ vec3 acesToneMap(vec3 color)
         / (color * (c * color + d) + e), 0.0, 1.0);
 }
 
+float depthOccluder(float centerDepth, vec2 sampleUv)
+{
+    float depthDelta = centerDepth
+        - texture(depthTexture, sampleUv).r;
+    return smoothstep(0.00006, 0.00145, depthDelta)
+        * (1.0 - smoothstep(0.007, 0.022, depthDelta));
+}
+
+float contactShadow(vec2 uv, vec2 texel)
+{
+    if (depthEnabled < 0.5) {
+        return 0.0;
+    }
+    float centerDepth = texture(depthTexture, uv).r;
+    if (centerDepth > 0.9998) {
+        return 0.0;
+    }
+
+    vec2 nearStep = texel * 2.25;
+    float nearOcclusion = 0.0;
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth, uv + vec2(nearStep.x, 0.0)));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth, uv - vec2(nearStep.x, 0.0)));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth, uv + vec2(0.0, nearStep.y)));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth, uv - vec2(0.0, nearStep.y)));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth, uv + nearStep * 0.72));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth, uv - nearStep * 0.72));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth,
+            uv + vec2(nearStep.x, -nearStep.y) * 0.72));
+    nearOcclusion = max(nearOcclusion,
+        depthOccluder(centerDepth,
+            uv + vec2(-nearStep.x, nearStep.y) * 0.72));
+
+    vec2 wideStep = texel * 7.5;
+    float wideOcclusion = 0.0;
+    wideOcclusion = max(wideOcclusion,
+        depthOccluder(centerDepth, uv + vec2(wideStep.x, 0.0)));
+    wideOcclusion = max(wideOcclusion,
+        depthOccluder(centerDepth, uv - vec2(wideStep.x, 0.0)));
+    wideOcclusion = max(wideOcclusion,
+        depthOccluder(centerDepth, uv + vec2(0.0, wideStep.y)));
+    wideOcclusion = max(wideOcclusion,
+        depthOccluder(centerDepth, uv - vec2(0.0, wideStep.y)));
+    return clamp(nearOcclusion * 0.72 + wideOcclusion * 0.42,
+        0.0, 1.0);
+}
+
 void main()
 {
     vec2 uv = fragTexCoord;
@@ -204,6 +316,8 @@ void main()
     color.g = texture(texture0, uv).g;
     color.b = texture(texture0, uv - offset).b;
     vec2 texel = 1.0 / resolution;
+    float grounding = contactShadow(uv, texel);
+    color *= mix(vec3(1.0), vec3(0.56, 0.67, 0.72), grounding * 0.52);
     vec3 neighborAverage = (
         texture(texture0, uv + vec2(texel.x, 0.0)).rgb
         + texture(texture0, uv - vec2(texel.x, 0.0)).rgb

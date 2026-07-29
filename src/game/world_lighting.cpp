@@ -1,8 +1,52 @@
 #include "world_lighting.hpp"
 
 #include "directional_shader.hpp"
+#include "shadow_map_shader.hpp"
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#endif
+#include "raymath.h"
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+#include "rlgl.h"
 
 namespace {
+
+constexpr int SHADOW_MAP_RESOLUTION = 1024;
+constexpr float SHADOW_CAMERA_SIZE = 56.0F;
+constexpr float SHADOW_CAMERA_DISTANCE = 42.0F;
+constexpr int SHADOW_TEXTURE_SLOT = 7;
+
+RenderTexture2D loadShadowMap()
+{
+    RenderTexture2D target {};
+    target.id = rlLoadFramebuffer();
+    target.texture.width = SHADOW_MAP_RESOLUTION;
+    target.texture.height = SHADOW_MAP_RESOLUTION;
+    if (target.id == 0) {
+        return target;
+    }
+
+    target.depth.id = rlLoadTextureDepth(
+        SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION, false);
+    target.depth.width = SHADOW_MAP_RESOLUTION;
+    target.depth.height = SHADOW_MAP_RESOLUTION;
+    target.depth.format = 19;
+    target.depth.mipmaps = 1;
+    rlFramebufferAttach(target.id, target.depth.id,
+        RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_TEXTURE2D, 0);
+    if (!rlFramebufferComplete(target.id)) {
+        UnloadRenderTexture(target);
+        return RenderTexture2D {};
+    }
+
+    SetTextureFilter(target.depth, TEXTURE_FILTER_POINT);
+    SetTextureWrap(target.depth, TEXTURE_WRAP_CLAMP);
+    return target;
+}
 
 Shader loadDirectionalShader()
 {
@@ -37,6 +81,9 @@ Shader loadDirectionalShader()
 
 WorldLighting::WorldLighting()
     : lightingShader(loadDirectionalShader())
+    , depthShader(LoadShaderFromMemory(
+          SHADOW_DEPTH_VERTEX_SHADER, SHADOW_DEPTH_FRAGMENT_SHADER))
+    , shadowMap(loadShadowMap())
     , cameraPositionLocation(GetShaderLocation(
           lightingShader, "cameraPosition"))
     , cameraTargetLocation(GetShaderLocation(lightingShader, "cameraTarget"))
@@ -50,14 +97,76 @@ WorldLighting::WorldLighting()
           lightingShader, "pointLightPositionB"))
     , pointLightColorBLocation(GetShaderLocation(
           lightingShader, "pointLightColorB"))
+    , lightViewProjectionLocation(GetShaderLocation(
+          lightingShader, "lightViewProjection"))
+    , shadowMapLocation(GetShaderLocation(lightingShader, "shadowMap"))
+    , shadowTexelSizeLocation(GetShaderLocation(
+          lightingShader, "shadowTexelSize"))
+    , shadowsEnabledLocation(GetShaderLocation(
+          lightingShader, "shadowsEnabled"))
 {
     clearPointLights();
     setMaterial(0.0F);
+    const float shadowTexelSize[2] {
+        1.0F / static_cast<float>(SHADOW_MAP_RESOLUTION),
+        1.0F / static_cast<float>(SHADOW_MAP_RESOLUTION)
+    };
+    const float shadowsEnabled = shadowsAvailable() ? 1.0F : 0.0F;
+    SetShaderValue(lightingShader, shadowTexelSizeLocation,
+        shadowTexelSize, SHADER_UNIFORM_VEC2);
+    SetShaderValue(lightingShader, shadowsEnabledLocation,
+        &shadowsEnabled, SHADER_UNIFORM_FLOAT);
 }
 
 WorldLighting::~WorldLighting()
 {
+    if (shadowMap.id != 0) {
+        UnloadRenderTexture(shadowMap);
+    }
+    UnloadShader(depthShader);
     UnloadShader(lightingShader);
+}
+
+bool WorldLighting::beginShadowPass(Vector3 focus)
+{
+    if (!shadowsAvailable()) {
+        return false;
+    }
+
+    const Vector3 lightDirection = Vector3Normalize(DIRECTIONAL_LIGHT);
+    Camera3D lightCamera {};
+    lightCamera.position = Vector3Subtract(focus,
+        Vector3Scale(lightDirection, SHADOW_CAMERA_DISTANCE));
+    lightCamera.target = focus;
+    lightCamera.up = Vector3 { 0.0F, 1.0F, 0.0F };
+    lightCamera.fovy = SHADOW_CAMERA_SIZE;
+    lightCamera.projection = CAMERA_ORTHOGRAPHIC;
+
+    BeginTextureMode(shadowMap);
+    ClearBackground(WHITE);
+    BeginMode3D(lightCamera);
+    BeginShaderMode(depthShader);
+    return true;
+}
+
+void WorldLighting::endShadowPass()
+{
+    EndShaderMode();
+    const Matrix lightView = rlGetMatrixModelview();
+    const Matrix lightProjection = rlGetMatrixProjection();
+    EndMode3D();
+    EndTextureMode();
+
+    const Matrix lightViewProjection = MatrixMultiply(
+        lightView, lightProjection);
+    SetShaderValueMatrix(lightingShader,
+        lightViewProjectionLocation, lightViewProjection);
+    rlEnableShader(lightingShader.id);
+    rlActiveTextureSlot(SHADOW_TEXTURE_SLOT);
+    rlEnableTexture(shadowMap.depth.id);
+    rlSetUniform(shadowMapLocation, &SHADOW_TEXTURE_SLOT,
+        SHADER_UNIFORM_INT, 1);
+    rlActiveTextureSlot(0);
 }
 
 void WorldLighting::update(const Camera3D& camera, Color fogColor) const

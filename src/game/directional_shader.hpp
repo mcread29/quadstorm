@@ -16,10 +16,12 @@ attribute vec4 vertexColor;
 uniform mat4 mvp;
 uniform mat4 matModel;
 uniform mat4 matNormal;
+uniform mat4 lightViewProjection;
 
 varying vec2 fragTexCoord;
 varying vec3 fragNormal;
 varying vec3 fragWorldPosition;
+varying vec4 fragLightPosition;
 varying vec4 fragColor;
 
 void main()
@@ -27,6 +29,8 @@ void main()
     fragTexCoord = vertexTexCoord;
     fragNormal = normalize(vec3(matNormal * vec4(vertexNormal, 0.0)));
     fragWorldPosition = vec3(matModel * vec4(vertexPosition, 1.0));
+    fragLightPosition = lightViewProjection
+        * vec4(fragWorldPosition, 1.0);
     fragColor = vertexColor;
     gl_Position = mvp * vec4(vertexPosition, 1.0);
 }
@@ -40,6 +44,7 @@ precision mediump float;
 varying vec2 fragTexCoord;
 varying vec3 fragNormal;
 varying vec3 fragWorldPosition;
+varying vec4 fragLightPosition;
 varying vec4 fragColor;
 
 uniform sampler2D texture0;
@@ -56,6 +61,9 @@ uniform vec3 pointLightPositionA;
 uniform vec3 pointLightColorA;
 uniform vec3 pointLightPositionB;
 uniform vec3 pointLightColorB;
+uniform sampler2D shadowMap;
+uniform vec2 shadowTexelSize;
+uniform float shadowsEnabled;
 
 float panelLine(float coordinate)
 {
@@ -78,6 +86,32 @@ vec3 pointLight(vec3 position, vec3 color, vec3 normal)
     float range = clamp(1.0 - distanceToLight / 8.5, 0.0, 1.0);
     float attenuation = range * range * (3.0 - 2.0 * range);
     return color * (0.12 + wrappedDiffuse * 0.88) * attenuation;
+}
+
+float directionalShadow(vec3 normal, vec3 light)
+{
+    if (shadowsEnabled < 0.5) {
+        return 0.0;
+    }
+    vec3 projected = fragLightPosition.xyz / fragLightPosition.w;
+    projected = projected * 0.5 + 0.5;
+    if (projected.x <= 0.0 || projected.x >= 1.0
+        || projected.y <= 0.0 || projected.y >= 1.0
+        || projected.z <= 0.0 || projected.z >= 1.0) {
+        return 0.0;
+    }
+
+    float bias = max(0.00042 * (1.0 - dot(normal, light)), 0.00007);
+    float shadow = 0.0;
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            float sampleDepth = texture2D(shadowMap,
+                projected.xy + vec2(float(x), float(y))
+                    * shadowTexelSize).r;
+            shadow += step(sampleDepth + bias, projected.z);
+        }
+    }
+    return shadow / 9.0;
 }
 
 void main()
@@ -147,9 +181,13 @@ void main()
     vec3 localLight = pointLight(pointLightPositionA,
         pointLightColorA, normal) + pointLight(pointLightPositionB,
         pointLightColorB, normal);
+    float shadow = directionalShadow(normal, light);
+    float directionalVisibility = 1.0 - shadow * 0.68;
     vec3 litColor = surface.rgb
-        * (ambient + lightColor * directionalAmount + localLight);
-    litColor += surface.rgb * rim + lightColor * specular;
+        * (ambient + lightColor * directionalAmount
+            * directionalVisibility + localLight);
+    litColor += surface.rgb * rim
+        + lightColor * specular * directionalVisibility;
     litColor += vec3(0.002, 0.012, 0.014) * conduit;
     litColor += vec3(0.008, 0.055, 0.06)
         * wallBand * wallMaterial;
@@ -174,10 +212,12 @@ in vec4 vertexColor;
 uniform mat4 mvp;
 uniform mat4 matModel;
 uniform mat4 matNormal;
+uniform mat4 lightViewProjection;
 
 out vec2 fragTexCoord;
 out vec3 fragNormal;
 out vec3 fragWorldPosition;
+out vec4 fragLightPosition;
 out vec4 fragColor;
 
 void main()
@@ -185,6 +225,8 @@ void main()
     fragTexCoord = vertexTexCoord;
     fragNormal = normalize(vec3(matNormal * vec4(vertexNormal, 0.0)));
     fragWorldPosition = vec3(matModel * vec4(vertexPosition, 1.0));
+    fragLightPosition = lightViewProjection
+        * vec4(fragWorldPosition, 1.0);
     fragColor = vertexColor;
     gl_Position = mvp * vec4(vertexPosition, 1.0);
 }
@@ -196,6 +238,7 @@ inline constexpr const char* LIGHTING_FRAGMENT_SHADER = R"(
 in vec2 fragTexCoord;
 in vec3 fragNormal;
 in vec3 fragWorldPosition;
+in vec4 fragLightPosition;
 in vec4 fragColor;
 
 uniform sampler2D texture0;
@@ -212,6 +255,9 @@ uniform vec3 pointLightPositionA;
 uniform vec3 pointLightColorA;
 uniform vec3 pointLightPositionB;
 uniform vec3 pointLightColorB;
+uniform sampler2D shadowMap;
+uniform vec2 shadowTexelSize;
+uniform float shadowsEnabled;
 
 out vec4 finalColor;
 
@@ -236,6 +282,32 @@ vec3 pointLight(vec3 position, vec3 color, vec3 normal)
     float range = clamp(1.0 - distanceToLight / 8.5, 0.0, 1.0);
     float attenuation = range * range * (3.0 - 2.0 * range);
     return color * (0.12 + wrappedDiffuse * 0.88) * attenuation;
+}
+
+float directionalShadow(vec3 normal, vec3 light)
+{
+    if (shadowsEnabled < 0.5) {
+        return 0.0;
+    }
+    vec3 projected = fragLightPosition.xyz / fragLightPosition.w;
+    projected = projected * 0.5 + 0.5;
+    if (projected.x <= 0.0 || projected.x >= 1.0
+        || projected.y <= 0.0 || projected.y >= 1.0
+        || projected.z <= 0.0 || projected.z >= 1.0) {
+        return 0.0;
+    }
+
+    float bias = max(0.00042 * (1.0 - dot(normal, light)), 0.00007);
+    float shadow = 0.0;
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            float sampleDepth = texture(shadowMap,
+                projected.xy + vec2(float(x), float(y))
+                    * shadowTexelSize).r;
+            shadow += step(sampleDepth + bias, projected.z);
+        }
+    }
+    return shadow / 9.0;
 }
 
 void main()
@@ -305,9 +377,13 @@ void main()
     vec3 localLight = pointLight(pointLightPositionA,
         pointLightColorA, normal) + pointLight(pointLightPositionB,
         pointLightColorB, normal);
+    float shadow = directionalShadow(normal, light);
+    float directionalVisibility = 1.0 - shadow * 0.68;
     vec3 litColor = surface.rgb
-        * (ambient + lightColor * directionalAmount + localLight);
-    litColor += surface.rgb * rim + lightColor * specular;
+        * (ambient + lightColor * directionalAmount
+            * directionalVisibility + localLight);
+    litColor += surface.rgb * rim
+        + lightColor * specular * directionalVisibility;
     litColor += vec3(0.002, 0.012, 0.014) * conduit;
     litColor += vec3(0.008, 0.055, 0.06)
         * wallBand * wallMaterial;
