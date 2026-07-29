@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <queue>
 #include <ranges>
 #include <string_view>
@@ -45,6 +46,20 @@ std::size_t gateIndex(const HordeMatch& match, GatePurpose purpose)
     return gate == match.plan().gates.end()
         ? match.plan().gates.size()
         : static_cast<std::size_t>(gate - match.plan().gates.begin());
+}
+
+bool advanceUntilRoundStarts(HordeMatch& match, LevelSession& session,
+    float maximumSeconds)
+{
+    constexpr float fixedStep = 1.0F / 120.0F;
+    const int ticks = static_cast<int>(std::ceil(maximumSeconds / fixedStep));
+    for (int tick = 0; tick < ticks; ++tick) {
+        if (updateHordeMatch(
+                match, session, PlayerInput {}, fixedStep).roundStarted) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool everyRecipeCompilesPlayableMatch()
@@ -154,6 +169,7 @@ bool hordeDamageAwardsPointsOnce(const GeneratedLevel& level)
     };
     enemy.enemy.previousPosition = enemy.enemy.position;
     enemy.enemy.health = 1;
+    enemy.killReward = 60;
     match.enemyEntries.push_back(enemy);
     Projectile& projectile = match.playerAttack.projectiles.projectiles()[0];
     projectile.active = true;
@@ -215,10 +231,10 @@ bool anchorInteractionFundsAndStartsHoldout(const GeneratedLevel& level)
     const HordeMatchStepResult result = updateHordeMatch(
         match, session, input, 1.0F / 120.0F);
     return check(result.gatePurchased && result.objectiveAdvanced
-            && result.roundStarted
+            && !result.roundStarted
             && match.plan().gates[anchorGate].open
-            && match.anchorIsActive() && match.round() == 3,
-        "one E press at the Anchor funds its route and starts the holdout");
+            && match.anchorIsActive() && match.round() == 2,
+        "one E press funds and starts the Anchor without authorizing a round");
 }
 
 bool pointsPurchaseGatesAtomically(
@@ -250,26 +266,264 @@ bool pointsPurchaseGatesAtomically(
     return valid;
 }
 
-bool roundDirectorPublishesDeterministicRoles(HordeMatch& match)
+bool automaticDirectorStartsWithoutInputOrPuzzleState(
+    const GeneratedLevel& level)
 {
-    const auto first = hordeCompositionForRound(1);
-    const auto third = hordeCompositionForRound(3);
-    const auto finale = hordeCompositionForRound(HORDE_FINAL_ROUND);
-    bool valid = check(first.size() == 6
-            && std::ranges::all_of(first, [](HordeEnemyRole role) {
-                return role == HordeEnemyRole::Drifter;
-            }),
-        "Round 1 contains six point-funding Drifters");
-    valid &= check(std::ranges::count(third, HordeEnemyRole::Runner) == 2
-            && std::ranges::count(third, HordeEnemyRole::Caster) == 1,
-        "Round 3 introduces Runner and Caster pressure");
-    valid &= check(std::ranges::count(finale, HordeEnemyRole::Elite) == 1,
-        "the final round includes one elite threat");
-    valid &= check(match.startNextRound()
-            && match.round() == 1
+    LevelSession session(level);
+    HordeMatch match(level, session);
+    constexpr float fixedStep = 1.0F / 120.0F;
+    bool valid = check(match.round() == 0
+            && match.phase() == RoundPhase::Intermission
+            && std::abs(match.timeUntilNextRound()
+                - HORDE_INITIAL_COUNTDOWN_DURATION) < 0.001F,
+        "reset begins with the automatic Round 1 countdown");
+    for (int tick = 0; tick < 359; ++tick) {
+        valid &= check(!updateHordeMatch(
+                            match, session, PlayerInput {}, fixedStep)
+                            .roundStarted,
+            "Round 1 does not start before its countdown expires");
+    }
+    const bool started = advanceUntilRoundStarts(match, session, 0.1F);
+    valid &= check(started && match.round() == 1
             && match.phase() == RoundPhase::Buildup
-            && match.pendingSpawns == first,
-        "starting a round installs its deterministic spawn schedule");
+            && match.pendingSpawns == hordeCompositionForRound(
+                1, match.plan().recipe),
+        "Round 1 starts automatically without an input edge");
+
+    match.enemyEntries.clear();
+    match.pendingSpawns.clear();
+    match.nextPendingSpawn = 0;
+    match.roundPhase = RoundPhase::Cleanup;
+    match.anchorActive = true;
+    const Vector2 projectileOrigin {
+        session.player().position.x, session.player().position.z
+    };
+    match.playerAttack.projectiles.spawn(
+        projectileOrigin, session.player().facing);
+    const Vector2 hostileOrigin {
+        projectileOrigin.x + session.player().facing.x * 1.5F,
+        projectileOrigin.y + session.player().facing.y * 1.5F
+    };
+    match.hostileProjectiles.spawn(hostileOrigin, session.player().facing);
+    valid &= check(match.enemyProjectiles().activeCount() == 1,
+        "cleanup scenario begins with a live hostile projectile");
+    const HordeMatchStepResult completed = updateHordeMatch(
+        match, session, PlayerInput {}, fixedStep);
+    valid &= check(completed.roundCompleted
+            && match.phase() == RoundPhase::Intermission
+            && match.anchorIsActive()
+            && match.playerProjectiles().activeCount() == 1
+            && match.enemyProjectiles().activeCount() == 0,
+        "cleanup ignores puzzle state, clears hostile shots, and preserves player attacks");
+    valid &= check(advanceUntilRoundStarts(
+                       match, session, HORDE_INTERMISSION_DURATION + 0.1F)
+            && match.round() == 2,
+        "the next round starts after a fixed intermission while the puzzle remains active");
+
+    match.anchorActive = false;
+    match.anchorComplete = true;
+    match.hubPowered = false;
+    match.enemyEntries.clear();
+    match.pendingSpawns.clear();
+    match.nextPendingSpawn = 0;
+    match.roundPhase = RoundPhase::Cleanup;
+    updateHordeMatch(match, session, PlayerInput {}, fixedStep);
+    valid &= check(advanceUntilRoundStarts(
+                       match, session, HORDE_INTERMISSION_DURATION + 0.1F)
+            && match.round() == 3,
+        "a completed Anchor and dormant Hub cannot pause the director");
+
+    match.currentRound = HORDE_EXTRACTION_MINIMUM_ROUND;
+    match.hubPowered = true;
+    match.relayComplete = true;
+    match.enemyEntries.clear();
+    match.pendingSpawns.clear();
+    match.nextPendingSpawn = 0;
+    match.roundPhase = RoundPhase::Cleanup;
+    updateHordeMatch(match, session, PlayerInput {}, fixedStep);
+    valid &= check(advanceUntilRoundStarts(
+                       match, session, HORDE_INTERMISSION_DURATION + 0.1F)
+            && match.round() == HORDE_EXTRACTION_MINIMUM_ROUND + 1
+            && !match.matchIsComplete(),
+        "completed quests and declined extraction preserve endless continuation");
+    return valid;
+}
+
+bool deterministicDifficultyScalesAndStaysBounded()
+{
+    const auto recipe = stalberg::rooms::SmallMapRecipe::HubCircuit;
+    const auto round1 = hordeDifficultyForRound(1, recipe);
+    const auto round5 = hordeDifficultyForRound(5, recipe);
+    const auto round10 = hordeDifficultyForRound(10, recipe);
+    const auto round25 = hordeDifficultyForRound(25, recipe);
+    const auto round100 = hordeDifficultyForRound(100, recipe);
+    const auto huge = hordeDifficultyForRound(
+        std::numeric_limits<std::uint64_t>::max(), recipe);
+    bool valid = check(round1.spawnBudget == 6
+            && round1.maximumLiving == 6
+            && round1.pressureTier == 0,
+        "Round 1 difficulty snapshot preserves the six-Drifter opening");
+    valid &= check(round5.spawnBudget == 21 && round5.eliteEvent,
+        "Round 5 snapshot schedules its first readable elite event");
+    valid &= check(round10.spawnBudget == 32
+            && round10.maximumLiving == 11
+            && round10.pressureTier == 1,
+        "Round 10 snapshot increases budget and simultaneous pressure");
+    valid &= check(round25.spawnBudget == 48
+            && round25.maximumLiving == 18
+            && round25.pressureTier == 4,
+        "Round 25 snapshot reaches bounded population pressure");
+    valid &= check(round100.spawnBudget == 48
+            && round100.maximumLiving == 18
+            && std::abs(round100.healthScale - 1.8F) < 0.001F
+            && std::abs(round100.projectileSpeedScale - 1.4F) < 0.001F
+            && std::abs(round100.firingIntervalScale - 0.65F) < 0.001F
+            && round100.enemyDamage == 2
+            && round100.rewardPercent == 150,
+        "Round 100 snapshot applies bounded attribute and economy scaling");
+    valid &= check(huge.spawnBudget == round100.spawnBudget
+            && huge.maximumLiving == round100.maximumLiving
+            && huge.pressureTier == round100.pressureTier
+            && hordeCompositionForRound(
+                   std::numeric_limits<std::uint64_t>::max(), recipe)
+                    .size() == 48,
+        "maximum round arithmetic is deterministic and overflow-safe");
+
+    const auto hubSchedule = hordeCompositionForRound(25, recipe);
+    const auto hubScheduleAgain = hordeCompositionForRound(25, recipe);
+    const auto wingsSchedule = hordeCompositionForRound(25,
+        stalberg::rooms::SmallMapRecipe::TwinWings);
+    valid &= check(hubSchedule == hubScheduleAgain
+            && std::ranges::count(hubSchedule, HordeEnemyRole::Elite) == 2
+            && std::ranges::count(hubSchedule, HordeEnemyRole::Caster) > 1,
+        "representative schedules are reproducible and shift composition toward pressure roles");
+    valid &= check(wingsSchedule.size() == hubSchedule.size()
+            && wingsSchedule != hubSchedule,
+        "map recipe deterministically affects schedule ordering and composition");
+
+    HordeDifficultyProfile previous = round1;
+    for (std::uint64_t round = 2; round <= 100; ++round) {
+        const HordeDifficultyProfile current
+            = hordeDifficultyForRound(round, recipe);
+        valid &= check(current.spawnBudget >= previous.spawnBudget
+                && current.maximumLiving >= previous.maximumLiving
+                && current.healthScale >= previous.healthScale
+                && current.movementSpeedScale >= previous.movementSpeedScale
+                && current.projectileSpeedScale
+                    >= previous.projectileSpeedScale
+                && current.firingIntervalScale
+                    <= previous.firingIntervalScale,
+            "difficulty pressure is monotonic before and through every cap");
+        previous = current;
+    }
+    return valid;
+}
+
+bool difficultyProfileAppliesToSpawnedEnemies(const GeneratedLevel& level)
+{
+    LevelSession session(level);
+    HordeMatch match(level, session);
+    session.player().invulnerabilityRemaining = 100.0F;
+    match.currentRound = 99;
+    match.roundPhase = RoundPhase::Intermission;
+    match.phaseElapsed = HORDE_INTERMISSION_DURATION;
+    const HordeMatchStepResult started = updateHordeMatch(
+        match, session, PlayerInput {}, 1.0F / 120.0F);
+    bool valid = check(started.roundStarted && match.round() == 100
+            && match.difficulty().pressureTier == 10
+            && std::abs(match.enemyProjectiles().profile().speed - 9.1F)
+                < 0.001F
+            && match.phaseElapsed == 0.0F && match.enemies().empty(),
+        "starting Round 100 installs scaling without double-consuming the boundary tick");
+    updateHordeMatch(match, session, PlayerInput {}, 1.0F / 120.0F);
+    valid &= check(!match.enemies().empty(),
+        "the first scaled spawn enters on the first full buildup tick");
+    if (!match.enemies().empty()) {
+        HordeEnemy& enemy = match.enemies().front();
+        valid &= check(enemy.role == HordeEnemyRole::Drifter
+                && enemy.maximumHealth == 6 && enemy.killReward == 90
+                && std::abs(enemy.movementSpeed - 2.375F) < 0.001F
+                && std::abs(enemy.shotInterval - 0.7475F) < 0.001F,
+            "spawned enemies snapshot bounded health, reward, movement, and cadence scaling");
+        enemy.enemy.health = 1;
+        Projectile& projectile
+            = match.playerAttack.projectiles.projectiles()[0];
+        projectile.active = true;
+        projectile.position = enemy.enemy.position;
+        projectile.previousPosition = enemy.enemy.position;
+        projectile.velocity = Vector2 {};
+        projectile.remainingLifetime = 1.0F;
+        match.pointTotal = 0;
+        const HordeMatchStepResult damage = updateHordeMatch(
+            match, session, PlayerInput {}, 1.0F / 120.0F);
+        valid &= check(damage.enemyDamage == EnemyDamageResult::died
+                && match.points() == 105,
+            "late-round hit and kill rewards apply the bounded 1.5x economy scale");
+    }
+
+    Enemy caster;
+    caster.position = Vector2 {
+        session.player().position.x + 4.0F,
+        session.player().position.z
+    };
+    caster.previousPosition = caster.position;
+    caster.shotCooldownRemaining = 0.0F;
+    ProjectilePool scaledHostilePool(ProjectileProfile {
+        .speed = ENEMY_PROJECTILE_SPEED
+            * match.difficulty().projectileSpeedScale,
+        .lifetime = ENEMY_PROJECTILE_LIFETIME,
+        .radius = ENEMY_PROJECTILE_RADIUS
+    });
+    valid &= check(updateEnemyPattern(caster, scaledHostilePool,
+                       Vector2 { session.player().position.x,
+                           session.player().position.z },
+                       1.0F / 120.0F, {}, 0.7475F)
+            && scaledHostilePool.activeCount() == 3
+            && std::abs(caster.shotCooldownRemaining - 0.7475F)
+                < 0.001F,
+        "late-round ranged cadence and projectile profile affect authoritative shots");
+
+    match.enemyEntries.clear();
+    match.pendingSpawns.clear();
+    match.nextPendingSpawn = 0;
+    match.roundPhase = RoundPhase::Cleanup;
+    match.hostileProjectiles = ProjectilePool {
+        scaledHostilePool.profile()
+    };
+    match.hostileProjectiles.spawn(
+        Vector2 { session.player().position.x, session.player().position.z },
+        Vector2 { 1.0F, 0.0F });
+    session.player().health = PLAYER_MAX_HEALTH;
+    session.player().invulnerabilityRemaining = 0.0F;
+    updateHordeMatch(match, session, PlayerInput {}, 1.0F / 120.0F);
+    valid &= check(session.player().health == PLAYER_MAX_HEALTH - 2,
+        "late-round hostile projectiles apply bounded two-point damage");
+
+    session.player().health = PLAYER_MAX_HEALTH;
+    session.player().invulnerabilityRemaining = 0.0F;
+    match.roundPhase = RoundPhase::Cleanup;
+    HordeEnemy contactEnemy;
+    contactEnemy.enemy.position = Vector2 {
+        session.player().position.x, session.player().position.z
+    };
+    contactEnemy.enemy.previousPosition = contactEnemy.enemy.position;
+    contactEnemy.enemy.health = 1;
+    match.enemyEntries.push_back(contactEnemy);
+    updateHordeMatch(match, session, PlayerInput {}, 1.0F / 120.0F);
+    valid &= check(session.player().health == PLAYER_MAX_HEALTH - 2,
+        "late-round contact applies the same bounded two-point damage");
+
+    match.enemyEntries.clear();
+    match.pendingSpawns.clear();
+    match.nextPendingSpawn = 0;
+    match.currentRound = std::numeric_limits<std::uint64_t>::max();
+    match.roundPhase = RoundPhase::Intermission;
+    match.phaseElapsed = HORDE_INTERMISSION_DURATION;
+    const HordeMatchStepResult maximumStarted = updateHordeMatch(
+        match, session, PlayerInput {}, 1.0F / 120.0F);
+    valid &= check(maximumStarted.roundStarted
+            && match.round() == std::numeric_limits<std::uint64_t>::max(),
+        "the director repeats the maximum representable round without wrapping");
     return valid;
 }
 
@@ -279,8 +533,10 @@ bool spawnedHordeRespectsGeometryAndPopulation(
     LevelSession session(level);
     HordeMatch match(level, session);
     session.player().invulnerabilityRemaining = 100.0F;
-    bool valid = check(match.startNextRound(),
-        "geometry scenario starts Round 1");
+    bool valid = check(advanceUntilRoundStarts(
+                           match, session,
+                           HORDE_INITIAL_COUNTDOWN_DURATION + 0.1F),
+        "geometry scenario automatically starts Round 1");
     constexpr float fixedStep = 1.0F / 120.0F;
     for (int tick = 0; tick < 600; ++tick) {
         updateHordeMatch(match, session, PlayerInput {}, fixedStep);
@@ -354,7 +610,8 @@ bool enemyNavigationUsesDoorState(
     return valid;
 }
 
-bool cleanupWaitsForActualAnchorHoldout(const GeneratedLevel& level)
+bool anchorHoldoutRunsAlongsideAutomaticDirector(
+    const GeneratedLevel& level)
 {
     LevelSession session(level);
     HordeMatch match(level, session);
@@ -362,34 +619,36 @@ bool cleanupWaitsForActualAnchorHoldout(const GeneratedLevel& level)
         match.plan().anchorPosition.x, PLAYER_RADIUS,
         match.plan().anchorPosition.y
     };
+    session.player().invulnerabilityRemaining = 100.0F;
     match.currentRound = 3;
     match.roundPhase = RoundPhase::Cleanup;
     match.anchorActive = true;
     constexpr float fixedStep = 1.0F / 120.0F;
-    for (int tick = 0; tick < 360; ++tick) {
-        updateHordeMatch(match, session, PlayerInput {}, fixedStep);
-    }
-    bool valid = check(match.phase() == RoundPhase::Cleanup
+    const HordeMatchStepResult completed = updateHordeMatch(
+        match, session, PlayerInput {}, fixedStep);
+    bool valid = check(completed.roundCompleted
+            && match.phase() == RoundPhase::Intermission
             && !match.anchorIsComplete(),
-        "objective-wave cleanup cannot end before the holdout completes");
-    for (int tick = 0; tick < 620; ++tick) {
+        "an incomplete holdout cannot keep cleanup open");
+    valid &= check(advanceUntilRoundStarts(
+                       match, session, HORDE_INTERMISSION_DURATION + 0.1F)
+            && match.round() == 4,
+        "the director advances while the holdout remains incomplete");
+    for (int tick = 0; tick < 970; ++tick) {
         updateHordeMatch(match, session, PlayerInput {}, fixedStep);
     }
-    valid &= check(match.anchorIsComplete()
-            && match.phase() == RoundPhase::Intermission,
-        "fixed-step in-zone holdout completion releases intermission");
+    valid &= check(match.anchorIsComplete(),
+        "fixed-step holdout progress completes during concurrent rounds");
     return valid;
 }
 
-bool anchorHubRelayAndExitFormPuzzleProgression(
+bool anchorHubRelayProgressesWithoutOwningRounds(
     LevelSession& session, HordeMatch& match)
 {
     match.currentRound = 2;
-    match.roundPhase = RoundPhase::Intermission;
-    bool valid = check(!match.startNextRound(),
-        "regular progression pauses after Round 2 until the Anchor starts");
-    valid &= check(match.activateAnchor() && match.anchorIsActive(),
-        "eligible Anchor interaction begins the holdout");
+    match.roundPhase = RoundPhase::Buildup;
+    bool valid = check(match.activateAnchor() && match.anchorIsActive(),
+        "eligible Anchor interaction begins during an active round");
     valid &= check(match.advanceAnchor(ANCHOR_HOLDOUT_DURATION * 0.5F)
             && !match.anchorIsComplete(),
         "partial holdout time persists without completing early");
@@ -398,14 +657,9 @@ bool anchorHubRelayAndExitFormPuzzleProgression(
             && match.anchorIsComplete()
             && match.points() == pointsBeforeCompletion + 250,
         "completed holdout powers the Anchor and awards points once");
-    match.currentRound = 3;
-    valid &= check(!match.startNextRound(),
-        "progression pauses after the holdout until Hub activation");
+    match.roundPhase = RoundPhase::Cleanup;
     valid &= check(match.activateHub(session) && match.hubIsPowered(),
-        "powered Anchor makes the Hub activatable");
-    valid &= check(match.startNextRound() && match.round() == 4,
-        "powering Hub releases the remaining round progression");
-    match.roundPhase = RoundPhase::Intermission;
+        "powered Anchor makes the Hub activatable during combat cleanup");
 
     const std::size_t exitGate = gateIndex(match, GatePurpose::Exit);
     if (exitGate < match.plan().gates.size()) {
@@ -447,18 +701,51 @@ bool upgradesChangeAuthoritativeSimulation(
             match.purchaseGate(session, gate);
         }
     }
-    match.grantPoints(3100);
-    bool valid = check(match.purchaseUpgrade(session, MatchUpgrade::Damage)
-            && match.weaponDamage() == 2,
-        "damage purchase changes projectile damage resolution");
+    match.grantPoints(match.nextUpgradeCost(MatchUpgrade::Damage) - 1);
+    bool valid = check(!match.purchaseUpgrade(
+                           session, MatchUpgrade::Damage)
+            && match.points() == 1199
+            && match.upgradeLevel(MatchUpgrade::Damage) == 0,
+        "an unaffordable upgrade tier changes neither points nor level");
+    match.grantPoints(30000 - match.points());
+    valid &= check(match.purchaseUpgrade(session, MatchUpgrade::Damage)
+            && match.purchaseUpgrade(session, MatchUpgrade::Damage)
+            && match.purchaseUpgrade(session, MatchUpgrade::Damage)
+            && match.weaponDamage() == 4
+            && match.points() == 22200
+            && match.upgradeLevel(MatchUpgrade::Damage)
+                == HORDE_MAX_UPGRADE_LEVEL,
+        "damage tiers deduct 1,200/2,400/4,200 and reach four damage");
     valid &= check(match.purchaseUpgrade(session, MatchUpgrade::FireRate)
-            && match.playerAttack.weapon.fireInterval < WEAPON_FIRE_INTERVAL,
-        "fire-rate purchase changes authoritative weapon cadence");
+            && match.purchaseUpgrade(session, MatchUpgrade::FireRate)
+            && match.purchaseUpgrade(session, MatchUpgrade::FireRate)
+            && std::abs(match.playerAttack.weapon.fireInterval - 0.05F)
+                < 0.001F
+            && match.points() == 15200,
+        "fire-rate tiers deduct escalating costs and reach 0.05 seconds");
     valid &= check(match.purchaseUpgrade(session, MatchUpgrade::Dash)
-            && session.player().dashCooldownScale < 1.0F,
-        "dash purchase changes authoritative cooldown behavior");
-    valid &= check(!match.purchaseUpgrade(session, MatchUpgrade::Damage),
-        "an upgrade cannot be purchased twice");
+            && match.purchaseUpgrade(session, MatchUpgrade::Dash)
+            && match.purchaseUpgrade(session, MatchUpgrade::Dash)
+            && std::abs(session.player().dashCooldownScale - 0.45F)
+                < 0.001F
+            && match.points() == 9500,
+        "dash tiers deduct escalating costs and reach 0.45x cooldown");
+    valid &= check(!match.purchaseUpgrade(session, MatchUpgrade::Damage)
+            && !match.purchaseUpgrade(session, MatchUpgrade::FireRate)
+            && !match.purchaseUpgrade(session, MatchUpgrade::Dash)
+            && match.nextUpgradeCost(MatchUpgrade::Damage) == 0,
+        "all upgrade lines stop cleanly at the pressure-profile cap");
+
+    match.anchorComplete = true;
+    valid &= check(match.activateHub(session),
+        "the powered Hub enables its repeatable repair sink");
+    session.player().health = 3;
+    valid &= check(match.purchaseHubRepair(session)
+            && match.purchaseHubRepair(session)
+            && !match.purchaseHubRepair(session)
+            && session.player().health == PLAYER_MAX_HEALTH
+            && match.points() == 8500,
+        "Hub repair repeatedly spends scaled currency until health is full");
     return valid;
 }
 
@@ -470,7 +757,7 @@ bool exitRequiresPoweredCompletedMatch(const GeneratedLevel& level)
         match.plan().exitPosition.x, PLAYER_RADIUS,
         match.plan().exitPosition.y
     };
-    match.currentRound = HORDE_FINAL_ROUND;
+    match.currentRound = HORDE_EXTRACTION_MINIMUM_ROUND;
     PlayerInput interact;
     interact.interactPressed = true;
     HordeMatchStepResult result = updateHordeMatch(
@@ -479,18 +766,22 @@ bool exitRequiresPoweredCompletedMatch(const GeneratedLevel& level)
         "Exit interaction cannot bypass the required objective");
 
     match.anchorComplete = true;
-    match.roundPhase = RoundPhase::Intermission;
+    match.roundPhase = RoundPhase::Peak;
     valid &= check(match.activateHub(session),
-        "test progression can power Hub after Anchor completion");
+        "test progression can power Hub during an active endless round");
     result = updateHordeMatch(
         match, session, interact, 1.0F / 120.0F);
     valid &= check(result.victory && match.matchIsComplete(),
-        "powered Exit interaction after Round 5 completes the map");
+        "powered Exit interaction after Round 5 explicitly extracts");
     return valid;
 }
 
 bool resetRestoresWholeMatch(LevelSession& session, HordeMatch& match)
 {
+    match.grantPoints(std::numeric_limits<int>::max());
+    match.grantPoints(1);
+    bool valid = check(match.points() == std::numeric_limits<int>::max(),
+        "endless point income saturates without signed overflow");
     match.enemyEntries.push_back(HordeEnemy {});
     match.pendingSpawns.push_back(HordeEnemyRole::Elite);
     match.playerAttack.projectiles.spawn(Vector2 {}, Vector2 { 1.0F, 0.0F });
@@ -501,8 +792,11 @@ bool resetRestoresWholeMatch(LevelSession& session, HordeMatch& match)
     match.victory = true;
     session.reset();
     match.reset(session);
-    bool valid = check(match.points() == 0 && match.round() == 0
+    valid &= check(match.points() == 0 && match.round() == 0
             && match.phase() == RoundPhase::Intermission
+            && std::abs(match.timeUntilNextRound()
+                - HORDE_INITIAL_COUNTDOWN_DURATION) < 0.001F
+            && match.difficulty().spawnBudget == 6
             && !match.anchorIsComplete() && !match.hubIsPowered()
             && !match.relayIsComplete() && match.weaponDamage() == 1
             && match.enemies().empty() && match.pendingSpawns.empty()
@@ -531,11 +825,13 @@ int main()
     valid &= optionalSpendingCannotConsumeRequiredProgression(level);
     valid &= anchorInteractionFundsAndStartsHoldout(level);
     valid &= pointsPurchaseGatesAtomically(level, session, match);
-    valid &= roundDirectorPublishesDeterministicRoles(match);
+    valid &= automaticDirectorStartsWithoutInputOrPuzzleState(level);
+    valid &= deterministicDifficultyScalesAndStaysBounded();
+    valid &= difficultyProfileAppliesToSpawnedEnemies(level);
     valid &= spawnedHordeRespectsGeometryAndPopulation(level);
     valid &= enemyNavigationUsesDoorState(level, session, match);
-    valid &= cleanupWaitsForActualAnchorHoldout(level);
-    valid &= anchorHubRelayAndExitFormPuzzleProgression(session, match);
+    valid &= anchorHoldoutRunsAlongsideAutomaticDirector(level);
+    valid &= anchorHubRelayProgressesWithoutOwningRounds(session, match);
     valid &= upgradesChangeAuthoritativeSimulation(session, match);
     valid &= exitRequiresPoweredCompletedMatch(level);
     valid &= resetRestoresWholeMatch(session, match);

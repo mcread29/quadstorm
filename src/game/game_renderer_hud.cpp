@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <ranges>
+#include <string>
 
 using namespace game_render;
 
@@ -13,6 +14,15 @@ namespace {
 
 constexpr int UI_WIDTH = static_cast<int>(UI_CANVAS_WIDTH);
 constexpr int UI_HEIGHT = static_cast<int>(UI_CANVAS_HEIGHT);
+
+std::string upgradeHudEntry(const HordeMatch& match,
+    MatchUpgrade upgrade, const char* label)
+{
+    const std::uint8_t level = match.upgradeLevel(upgrade);
+    const int cost = match.nextUpgradeCost(upgrade);
+    return std::string(label) + " L" + std::to_string(level)
+        + (cost == 0 ? " MAX" : " " + std::to_string(cost));
+}
 
 } // namespace
 
@@ -35,10 +45,17 @@ void GameRenderer::drawGeneratedHud(const Player& player,
     drawText("CREDITS", 309, 25, 13, Color { 132, 165, 164, 255 });
     drawText(TextFormat("%05i", match.points()), 382, 22, 23,
         MACHINE_GOLD);
-    drawText(TextFormat("WAVE %i/%i", match.round(), HORDE_FINAL_ROUND),
-        309, 52, 14, Color { 204, 220, 215, 255 });
-    drawText(roundPhaseName(match.phase()), 400, 52, 14,
-        Color { 132, 165, 164, 255 });
+    const std::string roundLabel
+        = "ROUND " + std::to_string(match.round());
+    drawText(roundLabel.c_str(), 309, 52, 14,
+        Color { 204, 220, 215, 255 });
+    if (match.phase() == RoundPhase::Intermission) {
+        drawText(TextFormat("NEXT %.1f", match.timeUntilNextRound()),
+            520, 25, 14, Color { 132, 165, 164, 255 });
+    } else {
+        drawText(roundPhaseName(match.phase()), 520, 25, 14,
+            Color { 132, 165, 164, 255 });
+    }
     drawText(TextFormat("HOSTILES %02i",
                  static_cast<int>(std::ranges::count_if(match.enemies(),
                      [](const HordeEnemy& enemy) {
@@ -67,6 +84,7 @@ void GameRenderer::drawGeneratedHud(const Player& player,
     const bool anchorRouteOpen = anchorGate == match.plan().gates.end()
         || anchorGate->open;
     const char* interactionPrompt = nullptr;
+    std::string interactionPromptStorage;
     float nearestGate = 2.2F;
     const auto thresholds = level.doorwayThresholds();
     for (const MapGate& gate : match.plan().gates) {
@@ -116,17 +134,30 @@ void GameRenderer::drawGeneratedHud(const Player& player,
     }
     if (interactionPrompt == nullptr
         && nearDevice(match.plan().hubPosition)) {
-        interactionPrompt = match.anchorIsComplete() && !match.hubIsPowered()
-            ? "E  POWER THE HUB"
-            : !anchorRouteOpen
-                ? "OPEN THE ANCHOR ROUTE TO ENABLE UPGRADES"
-                : "UPGRADES  1 DAMAGE 1200 | 2 FIRE 1000 | 3 DASH 900";
+        if (match.anchorIsComplete() && !match.hubIsPowered()) {
+            interactionPrompt = "E  POWER THE HUB";
+        } else if (!anchorRouteOpen) {
+            interactionPrompt = "OPEN THE ANCHOR ROUTE TO ENABLE UPGRADES";
+        } else {
+            interactionPromptStorage = match.hubIsPowered()
+                    && player.health < PLAYER_MAX_HEALTH
+                ? "E REPAIR 1 HEALTH "
+                    + std::to_string(match.hubRepairCost()) + " | "
+                : "";
+            interactionPromptStorage += "UPGRADES  1 "
+                + upgradeHudEntry(match, MatchUpgrade::Damage, "DMG")
+                + " | 2 "
+                + upgradeHudEntry(match, MatchUpgrade::FireRate, "FIRE")
+                + " | 3 "
+                + upgradeHudEntry(match, MatchUpgrade::Dash, "DASH");
+            interactionPrompt = interactionPromptStorage.c_str();
+        }
     }
     if (interactionPrompt == nullptr
         && nearDevice(match.plan().exitPosition)) {
         interactionPrompt = match.hubIsPowered()
-                && match.round() >= HORDE_FINAL_ROUND
-            ? "E  COMPLETE THE MAP"
+                && match.round() >= HORDE_EXTRACTION_MINIMUM_ROUND
+            ? "E  EXTRACT FROM THE ENDLESS MATCH"
             : "EXIT DORMANT";
     }
     const auto rewardGate = std::ranges::find(
@@ -155,7 +186,9 @@ void GameRenderer::drawGeneratedHud(const Player& player,
             UI_HEIGHT - 100, 18, MACHINE_GOLD);
     }
 
-    const char* objective = "Survive Round 1 and earn the first gate";
+    const char* objective = match.round() == 0
+        ? "Round 1 deploys automatically when the countdown ends"
+        : "Survive the automatically advancing rounds";
     if (match.anchorIsActive()) {
         objective = TextFormat(
             "STAY IN THE GOLD RING  %.1f / %.1f  -  LEAVING PAUSES",
@@ -165,10 +198,11 @@ void GameRenderer::drawGeneratedHud(const Player& player,
             = "At the Anchor: press E, then stay in its gold ring during the wave";
     } else if (match.anchorIsComplete() && !match.hubIsPowered()) {
         objective = "Return to the Hub and press E to power the Exit";
-    } else if (match.hubIsPowered() && match.round() < HORDE_FINAL_ROUND) {
-        objective = "Press N to survive the remaining rounds";
+    } else if (match.hubIsPowered()
+        && match.round() < HORDE_EXTRACTION_MINIMUM_ROUND) {
+        objective = "Keep surviving; extraction unlocks after Round 5";
     } else if (match.hubIsPowered() && !match.matchIsComplete()) {
-        objective = "Reach the Exit monument and press E";
+        objective = "Extract at the Exit or continue the endless rounds";
     }
     const Rectangle objectivePanel {
         16.0F, static_cast<float>(UI_HEIGHT - 60),
@@ -180,24 +214,12 @@ void GameRenderer::drawGeneratedHud(const Player& player,
     drawText(objective, 115, UI_HEIGHT - 50, 16,
         Color { 224, 211, 158, 255 });
 
-    const bool progressionAllowsRound
-        = !(match.round() >= 2 && !match.anchorIsComplete()
-                && !match.anchorIsActive())
-        && !(match.round() >= 3 && match.anchorIsComplete()
-            && !match.hubIsPowered());
-    if (match.phase() == RoundPhase::Intermission
-        && match.round() < HORDE_FINAL_ROUND && isPlayerAlive(player)
-        && progressionAllowsRound) {
-        drawText("[ N ]  DEPLOY NEXT WAVE", UI_WIDTH - 280,
-            UI_HEIGHT - 46, 18, ENERGY_CYAN);
-    }
-
     if (showDebug) {
         DrawRectangleRounded(Rectangle { 16.0F, 90.0F, 720.0F, 142.0F },
             0.08F, 6, Color { 7, 17, 24, 225 });
         drawText("F3 HIDE DEBUG", 28, 101, 17,
             Color { 151, 193, 190, 255 });
-        drawText("WASD | SPACE dash | LMB fire | E interact | N round | 1/2/3 upgrades",
+        drawText("WASD | SPACE dash | LMB fire | E interact | 1/2/3 upgrades",
             28, 127, 15, Color { 180, 203, 200, 255 });
         drawText("R reset | F1 regression arena | F2 overview / recipe browser",
             28, 150, 15, Color { 180, 203, 200, 255 });
@@ -207,13 +229,13 @@ void GameRenderer::drawGeneratedHud(const Player& player,
                      static_cast<int>(level.roomLayout().getDoorways().size()),
                      currentRegion, static_cast<int>(session.activeWalls().size())),
             28, 177, 15, Color { 224, 211, 158, 255 });
-        drawText(TextFormat("anchor %.1f  relay %i/%i  damage %i  shots %i/%i",
+        drawText(TextFormat("tier %u budget %i  anchor %.1f  relay %i/%i  damage %i",
+                     match.difficulty().pressureTier,
+                     static_cast<int>(match.difficulty().spawnBudget),
                      match.anchorProgress(),
                      static_cast<int>(match.relayProgress()),
                      static_cast<int>(match.plan().relayTargets.size()),
-                     match.weaponDamage(),
-                     static_cast<int>(match.playerProjectiles().activeCount()),
-                     static_cast<int>(match.enemyProjectiles().activeCount())),
+                     match.weaponDamage()),
             28, 201, 15, Color { 180, 203, 200, 255 });
         drawText(TextFormat("%i FPS", GetFPS()), UI_WIDTH - 91, 70, 14,
             Color { 151, 193, 190, 255 });

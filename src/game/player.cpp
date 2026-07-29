@@ -105,7 +105,16 @@ PlayerDamageResult updatePlayerDamage(Player& player,
     ProjectilePool& enemyProjectiles, Vector2 previousPlayerPosition,
     float stepTime)
 {
+    return updatePlayerDamage(player, enemyProjectiles,
+        previousPlayerPosition, stepTime, 1);
+}
+
+PlayerDamageResult updatePlayerDamage(Player& player,
+    ProjectilePool& enemyProjectiles, Vector2 previousPlayerPosition,
+    float stepTime, int damage)
+{
     static_cast<void>(stepTime);
+    damage = std::max(1, damage);
     if (!isPlayerAlive(player)) {
         return PlayerDamageResult::none;
     }
@@ -136,7 +145,7 @@ PlayerDamageResult updatePlayerDamage(Player& player,
             continue;
         }
 
-        --player.health;
+        player.health -= damage;
         player.hitFlashRemaining = PLAYER_HIT_FLASH_DURATION;
         player.invulnerabilityRemaining = PLAYER_INVULNERABILITY_DURATION;
         result = PlayerDamageResult::hit;

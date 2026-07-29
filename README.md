@@ -15,7 +15,7 @@ The current generator pass addresses level identity rather than adding more comb
 
 The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
 
-The repository also contains a complete small-map **systems** vertical slice of a top-down 2.5D round-based horde shooter. The current `stalberg_game` executable generates one of three intentional radius-5 gameplay graphs before physical routing, then runs a persistent five-round match with points, purchasable gates, Drifter/Runner/Caster/Elite hordes, door-aware navigation, an Anchor holdout, Hub activation, an optional ordered relay puzzle, upgrades, and explicit Exit completion. The required Anchor is a combat pressure objective rather than a logic puzzle; deeper puzzle mechanics remain future work. The focused single-enemy regression arena remains available through **F1**.
+The repository also contains a complete small-map **systems** vertical slice of a top-down 2.5D round-based horde shooter. The current `stalberg_game` executable generates one of three intentional radius-5 gameplay graphs before physical routing, then runs a persistent automatic endless match with bounded recipe-aware pressure, points, purchasable gates, Drifter/Runner/Caster/Elite hordes, door-aware navigation, an Anchor holdout, Hub activation and repair, an optional ordered relay puzzle, tiered upgrades, and voluntary Exit extraction. The required Anchor is a combat pressure objective rather than a logic puzzle; deeper recipe-authored puzzle mechanics remain future work. The focused single-enemy regression arena remains available through **F1**.
 
 ## Documentation
 
@@ -66,7 +66,7 @@ Nerd Font Mono; its MIT license is included in `assets/fonts/`.
 
 The runtime starts in generated traversal mode. `GeneratedLevel` retains the relaxed source grid, exact dual geometry, neutral room graph, shooter layout, and exact doorway threshold segments together. Assigned dual polygons become a cached floor mesh; floor/void edges and unauthorized cross-room contacts become walls; only exact published doorway cell pairs remain open. Mutable player, room-lifecycle, lock, and active-wall state lives separately in `LevelSession`. The player spawns at a high-clearance cell in Start and can move through the matching door-aware navigation graph without leaving the floor.
 
-Use **WASD** to move, **Space** to dash, the **mouse** to aim, and hold the **left mouse button** to fire. Press **N** to begin a round, **E** to buy nearby gates or activate devices (including atomic Anchor funding/activation when affordable), and **1/2/3** at the Hub to buy damage, fire-rate, or dash upgrades. Press **F1** for the combat regression arena. Press **F2** for the fitted full-level overview; Left/Right browses six fixed read-only layouts and Home returns to the active session. Run with `--recipe=hub`, `--recipe=ring`, or `--recipe=wings` to play each graph directly. Simulation runs at a fixed 120 Hz and rendering interpolates simulation state.
+Use **WASD** to move, **Space** to dash, the **mouse** to aim, and hold the **left mouse button** to fire. Round 1 starts after a three-second countdown, and every cleared round advances automatically after a five-second intermission. Press **E** to buy nearby gates or activate devices (including atomic Anchor funding/activation when affordable), and **1/2/3** at the Hub to buy the next damage, fire-rate, or dash tier. Press **F1** for the combat regression arena. Press **F2** for the fitted full-level overview; Left/Right browses six fixed read-only layouts and Home returns to the active session. Run with `--recipe=hub`, `--recipe=ring`, or `--recipe=wings` to play each graph directly. Simulation runs at a fixed 120 Hz and rendering interpolates simulation state.
 
 Debug builds apply debugger-friendly optimization to the game runtime and bundled raylib so interactive frame pacing remains representative while symbols and assertions stay enabled. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized stepping is required.
 
@@ -80,8 +80,7 @@ Grid generation and room generation are independent libraries. The room library 
 | Space | Dash in the movement direction, or facing direction while stationary |
 | Mouse | Aim on the ground plane |
 | Hold left mouse button | Fire on the generated map or in the combat regression arena |
-| N | Start the next horde round during intermission |
-| E | Buy a nearby gate or activate the Anchor, Hub, or Exit; at Anchor, fund-and-start when affordable |
+| E | Buy a gate, activate Anchor/Hub/Exit, or repair one missing health at a powered Hub |
 | 1 / 2 / 3 at Hub | Buy damage, fire-rate, or dash upgrades |
 | R | Reset the complete match, or restart regression combat |
 | F1 | Toggle generated horde match / combat regression arena |
@@ -91,7 +90,7 @@ Grid generation and room generation are independent libraries. The room library 
 | F3 | Toggle rendering/gameplay diagnostics |
 | Escape/window close | Exit |
 
-`LevelSession` owns the authoritative generated player, doorway collision, and traversal state. `HordeMatch` owns persistent weapon/projectile state, points, gates, upgrades, deterministic round schedules, the map-wide enemy collection, Anchor/Hub/relay/Exit objective state, and terminal progression. Gate purchases update collision and player/enemy navigation together through exact published thresholds. Drifters and Runners pursue through opened cells, Casters preserve the ranged fan-pattern language, and the optional relay sequence grants a persistent fire-rate reward.
+`LevelSession` owns the authoritative generated player, doorway collision, and traversal state. `HordeMatch` owns persistent weapon/projectile state, points, gates, tiered upgrades, the automatic endless director, bounded recipe-aware difficulty, the map-wide enemy collection, Anchor/Hub/relay/Exit objective state, and terminal progression. Gate purchases update collision and player/enemy navigation together through exact published thresholds. Drifters and Runners pursue through opened cells, Casters and periodic Elites preserve the ranged fan-pattern language, and the optional relay sequence grants the next persistent fire-rate tier.
 
 ## Generator demo controls
 

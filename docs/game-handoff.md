@@ -4,9 +4,9 @@ This is the continuation guide for the `stalberg_game` runtime. Read [`game-road
 
 ## Product destination
 
-The first small-map horde **systems** vertical slice is complete. Radius-5 shooter generation chooses Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing, then publishes Start, Hub, Anchor-capable Combat, Reward, and Exit structure. The implemented baseline still has five manually started rounds, point income, permanent exact-threshold gates, damage/fire-rate/dash upgrades, map-wide Drifter/Runner/Caster/Elite pressure, an Anchor holdout, Hub activation, an optional ordered relay puzzle, and explicit Exit completion. Hub Circuit has exactly one branch per semantic room, and small-map validation rejects Start and Anchor transitions that leave the Hub in nearly the same direction. The F2 overview and command-line recipe selection make every slice directly inspectable.
+The first small-map horde **systems** vertical slice and its automatic endless-round rework are complete. Radius-5 shooter generation chooses Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing, then publishes Start, Hub, Anchor-capable Combat, Reward, and Exit structure. The runtime now starts Round 1 after a three-second countdown, advances every cleared round through a five-second intermission without input, and keeps the round index in overflow-safe 64-bit state. Point income, permanent exact-threshold gates, three tiers each of damage/fire-rate/dash upgrades, map-wide Drifter/Runner/Caster/Elite pressure, the Anchor holdout, Hub activation, optional ordered relay puzzle, and voluntary Exit extraction remain persistent match systems. Hub Circuit has exactly one branch per semantic room, and small-map validation rejects Start and Anchor transitions that leave the Hub in nearly the same direction. The F2 overview and command-line recipe selection make every slice directly inspectable.
 
-The finite/manual loop is now superseded as a product direction. The destination is an **automatically advancing, endless round-based horde shooter built around one persistent, learnable generated map per match**. After an initial countdown, each cleared round enters a short timed intermission and the next round starts without player input. The round index has no designed maximum. Difficulty escalates deterministically through spawn budget, composition, simultaneous pressure, enemy attributes, and later-round elite or boss events. Puzzle steps may require a minimum round, but puzzle state must never pause or authorize the round director; rounds continue independently while players open the map, improve weapons, solve the main objective, and discover optional Easter eggs. Completing a map quest may unlock voluntary extraction or another persistent reward, while endless rounds remain available until death or an explicit player-chosen exit.
+The product direction is an **automatically advancing, endless round-based horde shooter built around one persistent, learnable generated map per match**. Difficulty now escalates deterministically from round index and map recipe through a bounded spawn budget, role substitution, simultaneous-pressure cap, spawn pacing, health, movement, hostile projectile speed, firing cadence, damage, and point rewards. Every fifth round schedules a readable Elite event; pressure and numeric values soft-cap rather than growing indefinitely. Puzzle, gate, Anchor, and Hub state no longer pause or authorize the director. Completing the current Anchor/Hub objective unlocks voluntary extraction from Round 5 onward, while endless rounds remain available until death or explicit extraction.
 
 The procedural map is not a disposable floor in a multi-floor run. Its room roles become persistent landmarks, its doorway graph becomes an economy-controlled network for player and enemy movement, and its irregular geometry becomes part of combat and puzzle solving. Shipped maps should pair curated, validated generated seeds with authored map recipes so players can learn routes and clues across repeated attempts without losing the Stålberg geometry.
 
@@ -29,7 +29,6 @@ Controls:
 | Space | Dash in the movement direction, or facing direction while stationary |
 | Mouse | Aim on the XZ ground plane |
 | Hold left mouse button | Fire anywhere on the generated map or in the regression arena |
-| N | Start the next round during intermission |
 | E | Buy a nearby gate or activate the Anchor, Hub, or Exit; at Anchor, fund-and-start atomically when affordable |
 | 1/2/3 at Hub | Buy damage, fire-rate, or dash upgrades |
 | R | Reset the complete match, or restart regression combat |
@@ -39,11 +38,9 @@ Controls:
 | Home in overview | Return to the active generated layout |
 | Escape/window close | Exit |
 
-This control table describes the current executable. The endless-loop rework removes the `N` round-start action and replaces it with an initial countdown plus an automatic intermission timer.
-
 The runtime starts in the generated horde match. `GeneratedLevel` retains the relaxed grid, exact dual geometry, neutral room graph, selected small-map recipe, shooter layout, exact floor, walls, doorway thresholds, and immutable navigation. `LevelSession` owns the authoritative player, current room, dynamic doorway collision, and matching traversal state. `HordeMatch` owns points, permanent gate purchases, upgrades, persistent player attack state, the deterministic round schedule, map-wide enemies and hostile projectiles, Anchor/Hub/relay/Exit state, and whole-match reset.
 
-Round 1 currently guarantees enough points to buy the first gate; Round 2 guarantees the Anchor route. Optional spending stays disabled until the required Anchor route is funded. Drifters and Runners pursue through the currently opened exact cell graph, Casters and the finale Elite use ranged fan patterns, and local separation prevents complete crowd overlap. E resolves contextual gate/device interactions; at the Anchor it can atomically fund a still-closed Anchor gate and begin the holdout when the player has enough points. N currently starts intermission rounds, and 1/2/3 buys authoritative upgrades at Hub. The progression checks that prevent a new round until Anchor or Hub state advances are legacy behavior and must be removed during the endless-loop rework. Locked gates render as one connected barred frame rather than disconnected posts. The presentation pass gives each enemy role a stronger silhouette, ranged wind-up telegraphs, contact shadows, hit/death effects, brighter role-aware floors, high-value wall caps, sparse floor traces, and a quieter void grid. The F2 overview renders exact floor triangles, recipe graph, live lock state, semantic objective sites, relay order, seeds, candidate, and quality score. Browsing previews never mutates the active match.
+Round 1 guarantees enough points to buy the recipe-scaled first gate; Round 2 guarantees the Anchor route. Optional spending stays disabled until the required Anchor route is funded. Drifters and Runners pursue through the currently opened exact cell graph, while Casters and Elites use difficulty-scaled ranged fan patterns and local separation prevents complete crowd overlap. E resolves contextual gate/device interactions; at the Anchor it can atomically fund a still-closed Anchor gate and begin the holdout when affordable. Rounds continue independently through active or incomplete Anchor/Hub state. The Hub sells three increasingly expensive tiers of each authoritative upgrade through 1/2/3, repairs one missing health per E interaction for a pressure-scaled price after activation, and the relay grants the next fire-rate tier. Locked gates render as one connected barred frame rather than disconnected posts. The F2 overview renders exact floor triangles, recipe graph, live lock state, semantic objective sites, relay order, seeds, candidate, and quality score. Browsing previews never mutates the active match.
 
 `F1` switches to the preserved hard-coded 20-by-20 combat regression arena. That path still contains the stationary target, deterministic hostile orb, separate projectile pools, swept wall and damage collision, defeat/victory freeze, restart, effects, HUD, and procedural tones described by the first-enemy milestone.
 
@@ -72,7 +69,7 @@ LevelSession
 HordeMatch
     ├── binds semantic sites and economy gates from the selected recipe
     ├── owns points, upgrades, persistent attacks, and hostile projectiles
-    ├── currently advances manually authorized finite rounds
+    ├── owns the automatic endless director and bounded difficulty profile
     ├── routes Drifter/Runner/Caster/Elite enemies through opened cells
     ├── drives Anchor → Hub → Exit plus the optional ordered relay reward
     └── resets the complete persistent match deterministically
@@ -124,7 +121,7 @@ CombatStepResult / EncounterStepResult ──→ CombatAudio
 | `src/game/post_process_*` | Depth-aware ambient grounding, edge treatment, emissive bloom, tone mapping, FXAA, and gameplay screen effects |
 | `tests/generated_level_tests.cpp` | Artifact alignment, exact floor area, wall/door authorization, representative-browser validity, traversal firing/preservation, deterministic multi-spawn filtering/identity, partial/all-enemies clear transitions, hostile cleanup, defeat/reset/Exit, Start spawn, and reachability coverage |
 | `tests/game_tests.cpp` | Headless dash/collision, caller-owned combat, projectile ownership/profile/pool, blocked muzzles, weapon, single-enemy and collection determinism/damage/defeat, earliest-hit/identity tie-breaking, closed-wall containment, player damage/death, interpolation freeze, victory, and restart coverage |
-| `tests/horde_match_tests.cpp` | Recipe sites, economy reserves, atomic Anchor interaction, exact point awards, gate/navigation safety, geometry-safe spawning, round roles/cleanup, Anchor/Hub/Exit, optional Reward routing, relay order/reward, upgrades, and whole-match reset |
+| `tests/horde_match_tests.cpp` | Automatic director transitions, puzzle independence, difficulty/schedule snapshots through maximum round values, recipe sites/costs, economy overflow/reserves, atomic Anchor interaction, gate/navigation safety, scaled spawning, concurrent Anchor/Hub/relay state, explicit extraction, tiered upgrades, and whole-match reset |
 | `CMakeLists.txt` | Runtime/test source lists, raylib linkage, warnings, and Debug runtime optimization |
 
 The renderer's destructor unloads models before unloading the shared lighting shader. `CombatAudio` unloads sounds before closing its audio device. Both presentation owners must be destroyed before `CloseWindow()`, which is why they live inside an inner scope in `main.cpp`.
@@ -156,7 +153,7 @@ Frame time is clamped to 50 ms before entering the accumulator to avoid an unbou
 
 Projectile state uses `Vector2` X/Z coordinates and converts to `Vector3` only in the renderer. Each `ProjectilePool` owns a read-only `ProjectileProfile`, so player and enemy pools can use different tuning without ownership flags or per-projectile configuration. Spawning requires finite positive speed/lifetime and a finite nonnegative radius. Every pool contains 192 stable slots and scans from the beginning for the first inactive slot. A full pool drops the attempted shot; the weapon still consumes its cooldown so exhaustion cannot create a burst when a slot becomes available.
 
-The current projectile profiles are:
+The base projectile profiles are:
 
 | Constant | Player | Enemy |
 |---|---:|---:|
@@ -165,7 +162,7 @@ The current projectile profiles are:
 | Projectile lifetime | 1.8 seconds | 3.4 seconds |
 | Projectile radius | 0.16 world units | 0.22 world units |
 
-The player muzzle is 1.3 world units from the player center. The enemy emits three directions at 0 and ±14 degrees from its current player-facing direction.
+The player muzzle is 1.3 world units from the player center. The enemy emits three directions at 0 and ±14 degrees from its current player-facing direction. The F1 regression always uses the base enemy values. `HordeMatch` rebuilds its hostile pool at round start with projectile speed scaled from 6.5 up to 9.1 units/second and gives each ranged horde enemy a firing interval scaled from 1.15 down to 0.7475 seconds; lifetime and radius remain fixed.
 
 Every fixed projectile update copies `position` to `previousPosition` before advancing. `updateCombat()` preserves the regression update order. The active generated path uses `HordeMatch`: `LevelSession` moves the player, persistent player attacks advance against active walls, relay/enemy swept hits resolve, horde movement and ranged patterns advance, hostile shots resolve, and contact/projectile player damage share invulnerability. Player attacks persist across rounds; hostile shots clear at intermission and whole-match reset.
 
@@ -183,7 +180,7 @@ The regression enemy starts at X/Z `(5, 5)`, has 20 health, moves at 2.4 units/s
 
 The preserved generated-encounter regression retains source-cell IDs and earliest-hit tie breaking. Active horde enemies instead receive monotonically increasing match spawn IDs, role-specific health/speed/reward values, exact door-aware pursuit, and deterministic local separation. A player projectile damages at most one enemy; hit and death transitions award points exactly once.
 
-The player has five health. Hostile collision uses projectile motion relative to the player's previous/current fixed-step positions, includes both radii, deactivates a shot on contact even during invulnerability, and removes at most one health before starting 0.8 seconds of invulnerability. At zero player health the encounter freezes in a defeat state. A post-victory or post-defeat `restartPressed` input assigns a fresh `Encounter`, clearing both pools and restoring player, weapon, target, and enemy state exactly.
+The player has five health. Hostile collision uses projectile motion relative to the player's previous/current fixed-step positions, includes both radii, deactivates a shot on contact even during invulnerability, and applies the current bounded horde-damage value before starting 0.8 seconds of invulnerability. Horde damage is one through pressure tier 7 and two thereafter; the F1 regression remains fixed at one. At zero player health the encounter freezes in a defeat state. A post-victory or post-defeat `restartPressed` input restores the owning match or regression encounter and clears its projectile pools.
 
 ### Player ownership boundary
 
@@ -211,33 +208,35 @@ The web build keeps raylib's framebuffer fixed at 1280 by 800 and lets `web/shel
 
 The game target links the generator libraries only through `GeneratedLevel`. The package retains `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` together because exact floor polygons and doorway segments are not all present in `RoomLayout` alone. It also recovers and retains one `DoorwayThreshold` segment per published doorway. Its public API is read-only after construction.
 
-Within one room, neighboring assigned cells are traversable. Across rooms, immutable navigation uses only exact cell pairs published by `RoomLayout::getDoorways()`; physical contact between regions is never automatically traversable. `LevelSession` owns mutable lock state and adds locked threshold segments to both active collision walls and traversal checks. Connected exterior entrance cells remain enclosed. The current powered-Exit-after-Round-5 completion check is legacy finite-loop behavior; replace it with recipe-authored quest requirements and an explicit extraction interaction that does not gate automatic round advancement.
+Within one room, neighboring assigned cells are traversable. Across rooms, immutable navigation uses only exact cell pairs published by `RoomLayout::getDoorways()`; physical contact between regions is never automatically traversable. `LevelSession` owns mutable lock state and adds locked threshold segments to both active collision walls and traversal checks. Connected exterior entrance cells remain enclosed. The current powered-Exit requirement is still hard-coded to Round 5, but the interaction is now explicit voluntary extraction and never gates automatic round advancement. Replace that requirement with recipe-authored quest metadata in the next slice.
 
 The active runtime uses radius 5, grid seed 1, and curated room seed 7 by default. Recipe selection follows `(roomSeed - 1) % 3`; the launch presets use room seeds 7/2/3 for Hub Circuit/Broken Ring/Twin Wings. `--recipe=hub|ring|wings` launches each directly. The Hub preset moved from seed 1 to seed 7 after the duplicate-route fix so the representative physical layout visibly exposes separated branches and only one connector. F2 exposes exact floor, semantic roles/sites, published recipe graph, open/locked thresholds, player position, generator metadata, and live objective state. Left/Right browses six fixed previews without mutating the match.
 
-## Next implementation slice: automatic endless rounds
+## Completed implementation slice: automatic endless rounds and scaling
 
-Replace the finite, input-gated director before expanding puzzle content. Preserve deterministic fixed-step simulation and the current generated-level ownership boundaries.
+The replacement for the finite input-gated director and the first bounded pressure profile are implemented. Deterministic fixed-step simulation and the generated-level ownership boundaries remain unchanged.
 
-### 1. Decouple and automate the round director
+### 1. Decouple and automate the round director — complete
 
-- Remove `HORDE_FINAL_ROUND`, `PlayerInput::startRoundPressed`, `KEY_N`, queued round-start input, and the HUD's deploy-next-wave prompt.
-- Start Round 1 after a short initial countdown. After cleanup, start a short fixed-duration intermission and advance automatically when its timer expires.
-- Keep `Intermission`, `Buildup`, `Peak`, and `Cleanup` as explicit phases, but make transitions entirely director-owned. Puzzle, gate, Hub, and Anchor state must not block them.
-- Treat the round index as unbounded gameplay state. Audit arithmetic, schedule generation, HUD formatting, and deterministic seeds for large round values rather than substituting another practical final-round constant.
-- Replace `WAVE n/5` with the current round and phase/intermission countdown. Clear hostile projectiles at cleanup/intermission as today, without clearing persistent player attacks, purchases, upgrades, or puzzle state.
+- Removed `HORDE_FINAL_ROUND`, `PlayerInput::startRoundPressed`, `KEY_N`, queued round-start input, and the deploy-next-wave prompt.
+- Round 1 starts after a three-second countdown; cleanup starts a five-second intermission that advances automatically.
+- `Intermission`, `Buildup`, `Peak`, and `Cleanup` remain explicit, director-owned phases. Puzzle, gate, Hub, and Anchor state cannot block them.
+- The round index is overflow-safe `std::uint64_t`; schedule and profile arithmetic clamps before multiplication, including at the maximum representable round.
+- The HUD shows the current round and intermission countdown. Hostile projectiles clear at cleanup/intermission while player attacks, purchases, upgrades, and puzzle state persist.
 
-### 2. Add deterministic difficulty scaling
+### 2. Add deterministic difficulty scaling — complete
 
-Define one reproducible difficulty profile from round index and map recipe. Escalation should emphasize new pressure before raw health:
+One reproducible profile now derives from round index and map recipe:
 
-1. Increase spawn budget and shorten pacing within tested population/performance caps.
-2. Shift composition from Drifters toward Runners, Casters, Elites, and future specialist roles.
-3. Increase simultaneous active threats and vary ingress lanes.
-4. Apply bounded health, movement, projectile-speed, firing-cadence, and damage scaling.
-5. Schedule deterministic elite, boss, or mutation events at readable intervals without creating a new terminal round.
+1. Spawn budget grows from 6 to a cap of 48; simultaneous living pressure grows from 6 to 18 while pacing shortens within fixed bounds.
+2. Composition substitutes Runners, Casters, and up to four Elites for Drifters as pressure tiers rise.
+3. Deterministic role ordering and monotonic spawn IDs vary role/ingress sequencing by round and recipe.
+4. Health, movement, hostile projectile speed, firing cadence, damage, and rewards scale through ten bounded pressure tiers.
+5. Every fifth round schedules an Elite event without creating a terminal round.
 
-Avoid indefinite linear enemy-count growth and pure health-sponge scaling. Use soft caps, role substitutions, and pressure tiers so arbitrarily high rounds remain numerically safe and playable. Scale point income, upgrade sinks, and gate prices alongside the threat curve so the economy neither stalls early nor becomes irrelevant.
+Health tops out at 1.8×, movement at 1.25×, hostile projectile speed at 1.4×, firing interval at 0.65×, damage at two, reward income at 1.5×, and schedules soft-cap by Round 25. Recipe-scaled gate costs preserve the opening economy, three increasingly expensive tiers of each upgrade match the bounded threat curve, and activated-Hub repairs remain a repeatable post-cap sink. Bespoke bosses and mutation events remain future content.
+
+## Next implementation slice: concurrent recipe-authored quests
 
 ### 3. Rework puzzle progression around concurrent rounds
 
@@ -268,18 +267,15 @@ Keep the three small recipes as deterministic regression fixtures, but add large
 
 ### 5. Acceptance and test coverage
 
-Add headless coverage for:
+Headless coverage now verifies automatic Round 1 startup, cleanup → intermission → next-round transitions, input and puzzle independence, deterministic recipe-aware schedules, snapshots at rounds 1/5/10/25/100, monotonic bounded pressure, maximum-round arithmetic, concurrent Anchor progress, explicit extraction, tiered upgrades, scaled economy rewards, and reset of countdown/difficulty/match state.
 
-- Automatic Round 1 startup and automatic cleanup → intermission → next-round transitions.
-- No input dependency and no puzzle-state dependency in round advancement.
-- Deterministic schedules and scaling snapshots at representative rounds such as 1, 5, 10, 25, and 100.
-- Monotonic pressure within each tier, bounded attributes/counts, and overflow-safe large-round behavior.
-- Minimum-round puzzle unlocks that neither reset nor stop the director.
-- Quest completion with continued spawning, plus explicit extraction and defeat terminal paths.
-- Reset restoring countdown, round, difficulty, economy, enemies, projectiles, and puzzle state.
+The next slices must add coverage for:
+
+- Recipe-authored minimum-round puzzle unlocks that neither reset nor stop the director.
+- Quest completion with continued spawning before voluntary extraction.
 - Generated maps meeting ingress-capacity, circulation, objective-clearance, and late-round navigation constraints.
 
-The existing [`small-puzzle-horde-slice.md`](small-puzzle-horde-slice.md) remains evidence for the finite baseline, not the acceptance contract for the revised loop. Update it after the automatic director and puzzle requirement model are implemented.
+The updated [`small-puzzle-horde-slice.md`](small-puzzle-horde-slice.md) is the interactive and headless acceptance guide for the automatic endless baseline. Update it again when recipe-authored puzzle requirements replace the remaining hard-coded Round 2/5 checks.
 
 ## Intended horde-mode boundary
 
@@ -313,14 +309,14 @@ Keep the `F1` hard-coded arena as the focused combat regression path. The destin
 
 - Small maps publish three intentional graph recipes, but substantial rooms still use the compact baseline growth process. Room-shape grammar, districts, negative-space briefs, and puzzle-specific geometry remain the main oatmeal risk.
 - Navigation recomputes a cell BFS per enemy update and is appropriate for the small population cap; larger maps should cache reverse distance fields by player cell and topology revision.
-- The first economy has one point currency, three upgrades, and fixed gate prices. It has no ammunition economy, traps, service placement variants, or dynamic price balancing.
+- The first economy has one point currency, recipe-scaled gate prices, three tiers each of damage/fire-rate/dash upgrades, pressure-scaled rewards, and repeatable activated-Hub health repair. It has no ammunition economy, traps, service placement variants, or dynamic price balancing.
 - The required Anchor interaction is a combat holdout: press E, remain inside the gold ring for eight accumulated seconds, and resume after leaving. It is a pressure objective, not a logic puzzle. The optional three-relay sequence is the only current puzzle and exposes the next correct target directly, so puzzle depth remains a primary design gap.
 - Hub Circuit deliberately has no Start → Anchor shortcut: each semantic room receives one distinct Hub branch. Broken Ring and Twin Wings may retain their recipe-specific optional route, but accepted Start and Anchor Hub transitions must be separated by at least about 65 degrees.
-- The implemented director is still manually started and capped at Round 5. It has no automatic countdown/intermission transition, unbounded schedule, scalable pressure profile, or voluntary endless-mode extraction yet.
+- The automatic director, bounded recipe-aware scaling, and voluntary extraction are implemented. There are no bespoke boss roles or mutation mechanics yet; every fifth round currently uses the existing Elite as its readable event.
 - World lighting uses one directional shadow map and two presentation-driven point lights; actor contact shadows remain projected decals rather than full dynamic occlusion.
 - The combat regression ground and debug grid cover a finite 80-by-80 area.
 - Gameplay constants are compiled into their owning modules.
-- Generated-level and combat regression tests retain all prior geometry, doorway, navigation, encounter, projectile, damage, and reset coverage. Room-generation tests enforce exact recipe edges, Hub Circuit's one-branch-per-semantic-room graph, Reward leaf structure, and separated Start/Anchor Hub approaches. `stalberg_horde_match_tests` adds recipe-site validity, reserved progression currency, atomic Anchor purchase/activation, exact one-time point awards, atomic gate traversal, wall-safe spawn/separation behavior, deterministic round roles, holdout-gated cleanup, optional Reward routing, Anchor/Hub/Exit progression, relay ordering/reward, upgrades, and whole-match reset. Audio and rendering remain graphical-smoke coverage.
+- Generated-level and combat regression tests retain all prior geometry, doorway, navigation, encounter, projectile, damage, and reset coverage. Room-generation tests enforce exact recipe edges, Hub Circuit's one-branch-per-semantic-room graph, Reward leaf structure, and separated Start/Anchor Hub approaches. `stalberg_horde_match_tests` adds automatic countdown/intermission transitions, puzzle-independent advancement, representative difficulty snapshots, monotonic/capped pressure, maximum-round arithmetic, recipe-aware schedules, recipe sites, progression currency, atomic Anchor purchase/activation, exact point awards, gate traversal, wall-safe spawning/separation, concurrent holdout progress, optional Reward routing, extraction, tiered upgrades, and whole-match reset. Audio and rendering remain graphical-smoke coverage.
 - Debug runtime builds use debugger-friendly optimization (`-Og` with GCC/Clang or `/O1` with MSVC) for `stalberg_game` and a bundled raylib while retaining debug symbols and assertions. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized instruction-by-instruction stepping is required. Use a separate Release build when profiling performance.
 
 ## Validation and debugging

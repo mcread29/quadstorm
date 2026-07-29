@@ -45,6 +45,9 @@ bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
 bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
     Vector2 playerPosition, float stepTime,
     std::span<const Segment2D> walls);
+bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
+    Vector2 playerPosition, float stepTime,
+    std::span<const Segment2D> walls, float shotInterval);
 EnemyDamageResult updateEnemyDamage(Enemy& enemy,
     ProjectilePool& playerProjectiles, float stepTime);
 bool isEnemyAlive(const Enemy& enemy);

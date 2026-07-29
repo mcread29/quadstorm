@@ -19,11 +19,10 @@ F2 opens the complete overview. The first three browser configurations show Hub 
 | WASD | Camera-relative movement |
 | Mouse / hold LMB | Aim and fire |
 | Space | Dash |
-| N | Start the next round during intermission |
-| E | Buy a nearby gate or activate the Anchor, Hub, or Exit; at Anchor, fund-and-start atomically when affordable |
-| 1 at Hub | Buy damage upgrade for 1,200 points |
-| 2 at Hub | Buy fire-rate upgrade for 1,000 points |
-| 3 at Hub | Buy dash-recovery upgrade for 900 points |
+| E | Buy a gate, activate Anchor/Hub/Exit, or buy one missing health at a powered Hub |
+| 1 at Hub | Buy the next damage tier |
+| 2 at Hub | Buy the next fire-rate tier |
+| 3 at Hub | Buy the next dash-recovery tier |
 | R | Reset the complete match |
 | F1 | Combat regression arena |
 | F2 | Full-map overview and recipe browser |
@@ -56,13 +55,13 @@ Headless coverage: `smallMapRecipesPublishDistinctIntent()` in `stalberg_room_ge
 
 Interactive check:
 
-1. Press N to start Round 1.
+1. Wait for the three-second opening countdown; Round 1 starts automatically.
 2. Damage and defeat the six Drifters. Hits award 10 points and each Drifter death awards 60 more.
-3. Approach the first orange barred gate. The prompt changes from the remaining amount to `E OPEN GATE 500 POINTS` when affordable.
+3. Approach the first orange barred gate. The prompt changes from the remaining amount to its recipe-scaled price when affordable.
 4. Press E. Points are deducted and the exact threshold opens permanently.
 5. Verify F2 changes that threshold from red to green.
 
-Round 1 guarantees 540 points, enough for the 500-point first gate. Round 2 guarantees enough for the 750-point Anchor route. Reward and upgrade spending remains unavailable until the Anchor route is purchased, preventing optional spending from consuming required progression currency.
+Round 1 guarantees 540 points, enough for the 500/510/520-point Hub Circuit/Broken Ring/Twin Wings first gate. Round 2 guarantees enough for the corresponding 750/765/780-point Anchor route. Reward gates similarly cost 800/816/832. Optional Reward and upgrade spending remains unavailable until the Anchor route is purchased, preventing it from consuming required progression currency.
 
 Headless coverage: `pointsPurchaseGatesAtomically()` and `hordeDamageAwardsPointsOnce()` verify exact awards, no duplicate death rewards, affordability, deduction, collision-wall removal, and bidirectional navigation.
 
@@ -70,10 +69,11 @@ Headless coverage: `pointsPurchaseGatesAtomically()` and `hordeDamageAwardsPoint
 
 Interactive check:
 
-1. Press N during intermission.
-2. Observe `BUILDUP`, `PEAK`, `CLEANUP`, and `INTERMISSION` in the HUD. After Round 2, ordinary progression pauses until the Anchor holdout begins; its objective-wave cleanup waits for the full hold duration before returning to intermission.
-3. Confirm no enemies spawn during intermission.
-4. Confirm rounds introduce roles in order: Drifter, Runner, Caster, then the finale Elite.
+1. Observe the opening countdown and the automatic five-second timer after every cleanup.
+2. Observe `BUILDUP`, `PEAK`, `CLEANUP`, and `INTERMISSION` in the HUD. The current round and next-round countdown replace the old finite `WAVE n/5` display.
+3. Confirm no enemies spawn during intermission and that no key press is required to continue.
+4. Leave the Anchor and Hub incomplete across multiple rounds; confirm the director continues anyway.
+5. Confirm rounds introduce Runners and Casters before the first Elite event on Round 5.
 
 Initial compositions:
 
@@ -83,18 +83,20 @@ Initial compositions:
 | 2 | 8 Drifters, 2 Runners |
 | 3 | 10 Drifters, 2 Runners, 1 Caster |
 | 4 | 12 Drifters, 3 Runners, 1 Caster |
-| 5 | 14 Drifters, 4 Runners, 2 Casters, 1 Elite |
+| 5 | 16 Drifters, 3 Runners, 1 Caster, 1 Elite |
 
-Headless coverage: `roundDirectorPublishesDeterministicRoles()` verifies exact schedules and phase initialization.
+After Round 5, pressure is recipe-aware and deterministic. Spawn budget rises to 48, living enemies cap at 18, every fifth round has an Elite event, and composition progressively substitutes Runners, Casters, and Elites for Drifters. Ten pressure tiers bound health at 1.8×, movement at 1.25×, hostile projectile speed at 1.4×, firing interval at 0.65×, damage at two, and rewards at 1.5×.
+
+Headless coverage: `automaticDirectorStartsWithoutInputOrPuzzleState()` verifies countdown/intermission ownership. `deterministicDifficultyScalesAndStaysBounded()` snapshots rounds 1, 5, 10, 25, and 100, verifies recipe-aware deterministic schedules, checks monotonic pressure, and exercises the maximum `std::uint64_t` round.
 
 ## Milestone 4: horde roles and door-aware navigation
 
 Interactive check:
 
-1. Open a gate during intermission and begin another round.
+1. Open a gate during intermission or combat and let the next round begin automatically.
 2. Move into the newly opened branch.
 3. Confirm enemies route through the exact green threshold rather than crossing walls.
-4. Observe slow red Drifters, smaller orange Runners, purple ranged Casters, and the large finale Elite.
+4. Observe slow red Drifters, smaller orange Runners, purple ranged Casters, and large periodic Elites.
 5. Train enemies through a doorway and verify local separation prevents complete overlap.
 
 Headless coverage: `enemyNavigationUsesDoorState()` verifies that closed thresholds have no legal edge and become immediately traversable by the same player/enemy navigation contract after purchase.
@@ -105,20 +107,20 @@ Interactive check:
 
 1. Complete two rounds and earn enough for the Anchor route.
 2. Buy the route at its threshold, or approach the gold Anchor monument and press E to atomically fund the still-closed route and activate the device.
-3. The next round starts automatically.
-4. Remain inside the gold marked radius. The HUD states that leaving pauses progress; accumulated progress persists when re-entering.
+3. Round timing remains unchanged by activation; the holdout runs concurrently with the director.
+4. Remain inside the gold marked radius during active combat. The HUD states that leaving pauses progress; accumulated progress persists when re-entering and across round transitions.
 5. Reach eight seconds of accumulated hold time. The Anchor turns green and awards 250 points.
 
-Headless coverage: `anchorInteractionFundsAndStartsHoldout()`, `cleanupWaitsForActualAnchorHoldout()`, and `anchorHubRelayAndExitFormPuzzleProgression()` check one-press affordable funding/activation, activation prerequisites, partial persistent progress, objective-wave cleanup blocking, exact completion, and one-time reward.
+Headless coverage: `anchorInteractionFundsAndStartsHoldout()`, `anchorHoldoutRunsAlongsideAutomaticDirector()`, and `anchorHubRelayProgressesWithoutOwningRounds()` check one-press affordable funding/activation, partial persistent progress, puzzle-independent cleanup/intermission transitions, concurrent completion, and one-time reward.
 
 ## Milestone 6: Hub and Exit progression
 
 Interactive check:
 
 1. After powering the Anchor, return to the tall Hub machine.
-2. Press E during intermission. The Hub turns cyan and the objective-locked Exit route opens.
-3. Complete Round 5.
-4. Reach the Exit monument and press E to complete the map.
+2. Press E during any phase. The Hub turns cyan and the objective-locked Exit route opens.
+3. Survive through Round 5; rounds continue automatically afterward.
+4. Reach the Exit monument and press E to extract, or ignore it and continue endless rounds.
 5. Press R and confirm the entire economy, gates, rounds, objectives, enemies, projectiles, and upgrades reset.
 
 Headless coverage verifies Anchor → Hub → Exit ordering, objective-gate opening, and whole-match reset.
@@ -127,11 +129,11 @@ Headless coverage verifies Anchor → Hub → Exit ordering, objective-gate open
 
 Interactive check:
 
-1. Purchase the 800-point Reward branch.
+1. Purchase the recipe-scaled Reward branch.
 2. Power the Hub.
 3. Shoot the three numbered relay orbs in order: 1, 2, 3.
 4. A wrong hit resets sequence progress to zero.
-5. Correct completion turns all relays green, awards 400 points, and grants the fire-rate upgrade.
+5. Correct completion turns all relays green, awards 400 points, and grants the next fire-rate tier if one remains.
 
 Relay state persists across rounds and resets only with the complete match.
 
@@ -139,15 +141,17 @@ Headless coverage verifies wrong-order reset, ordered completion, persistent rew
 
 ## Milestone 8: upgrades
 
-After purchasing the Anchor route, the Hub offers:
+After purchasing the Anchor route, the Hub offers three permanent tiers per upgrade:
 
-- `1`: damage increases from one to two per projectile.
-- `2`: fire interval decreases from 0.10 to 0.075 seconds.
-- `3`: dash cooldown scales to 70% of its base duration.
+| Input | Tier costs | Authoritative values after each tier |
+|---|---|---|
+| `1` damage | 1,200 / 2,400 / 4,200 | 2 / 3 / 4 damage per projectile |
+| `2` fire rate | 1,000 / 2,200 / 3,800 | 0.075 / 0.060 / 0.050 second interval |
+| `3` dash recovery | 900 / 1,800 / 3,000 | 0.70× / 0.55× / 0.45× cooldown |
 
-Purchases are permanent for the current match, cannot be bought twice, and reset with R. Existing projectiles retain their normal pool identity; upgrades alter authoritative fixed-step behavior rather than only presentation.
+Purchases persist across rounds, stop cleanly at tier three, and reset with R. After activation, E at the Hub repeatedly repairs one missing health for `500 + 75 × pressure tier` points, preserving a useful post-cap sink. Existing projectiles retain their pool identity; upgrades and repair alter authoritative fixed-step state rather than only presentation.
 
-Headless coverage: `upgradesChangeAuthoritativeSimulation()` verifies prices, one-time ownership, and the actual combat/player fields.
+Headless coverage: `upgradesChangeAuthoritativeSimulation()` verifies insufficient-funds atomicity, exact escalating deductions and tier values, bounded tiers, and repeatable scaled Hub repair.
 
 ## Automated validation
 
@@ -157,4 +161,4 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-The dedicated `stalberg_horde_match_tests` target covers recipe binding, objective sites, progression-currency reservation, atomic Anchor interaction, exact kill rewards, gate state, optional Reward-route safety, geometry-safe spawning/separation, round schedules and cleanup, navigation, Anchor/Hub/Exit progression, relay ordering, upgrades, and complete reset. Existing generation, geometry, generated-level, collision, combat, and F1 regression tests remain active.
+The dedicated `stalberg_horde_match_tests` target covers recipe binding and costs, automatic countdown/intermission transitions, puzzle-independent advancement, representative scaling snapshots, bounded and overflow-safe schedules, objective sites, progression-currency reservation, atomic Anchor interaction, exact scaled rewards, gate state, Reward-route safety, geometry-safe spawning/separation, navigation, concurrent Anchor/Hub progression, relay ordering, explicit extraction, tiered upgrades, and complete reset. Existing generation, geometry, generated-level, collision, combat, and F1 regression tests remain active.

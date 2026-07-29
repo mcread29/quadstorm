@@ -77,7 +77,8 @@ namespace {
 
 bool updateEnemyPatternState(Enemy& enemy, ProjectilePool& projectiles,
     Vector2 playerPosition, float stepTime,
-    std::span<const Segment2D> walls, bool rejectBlockedMuzzle)
+    std::span<const Segment2D> walls, bool rejectBlockedMuzzle,
+    float shotInterval)
 {
     if (!isEnemyAlive(enemy)) {
         return false;
@@ -94,7 +95,7 @@ bool updateEnemyPatternState(Enemy& enemy, ProjectilePool& projectiles,
         playerPosition.y - enemy.position.y
     });
     if (length(aimDirection) <= DIRECTION_EPSILON) {
-        enemy.shotCooldownRemaining = ENEMY_SHOT_INTERVAL;
+        enemy.shotCooldownRemaining = shotInterval;
         return false;
     }
 
@@ -115,7 +116,7 @@ bool updateEnemyPatternState(Enemy& enemy, ProjectilePool& projectiles,
                 muzzle, rotated(aimDirection, angle));
         }
     }
-    enemy.shotCooldownRemaining = ENEMY_SHOT_INTERVAL;
+    enemy.shotCooldownRemaining = shotInterval;
     return spawnedAny;
 }
 
@@ -125,7 +126,7 @@ bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
     Vector2 playerPosition, float stepTime)
 {
     return updateEnemyPatternState(enemy, projectiles,
-        playerPosition, stepTime, {}, false);
+        playerPosition, stepTime, {}, false, ENEMY_SHOT_INTERVAL);
 }
 
 bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
@@ -133,7 +134,16 @@ bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
     std::span<const Segment2D> walls)
 {
     return updateEnemyPatternState(enemy, projectiles,
-        playerPosition, stepTime, walls, true);
+        playerPosition, stepTime, walls, true, ENEMY_SHOT_INTERVAL);
+}
+
+bool updateEnemyPattern(Enemy& enemy, ProjectilePool& projectiles,
+    Vector2 playerPosition, float stepTime,
+    std::span<const Segment2D> walls, float shotInterval)
+{
+    return updateEnemyPatternState(enemy, projectiles,
+        playerPosition, stepTime, walls, true,
+        std::max(0.05F, shotInterval));
 }
 
 EnemyDamageResult updateEnemyDamage(Enemy& enemy,

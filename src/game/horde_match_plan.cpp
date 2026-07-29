@@ -3,6 +3,7 @@
 #include "generated_level_queries.hpp"
 
 #include <algorithm>
+#include <array>
 #include <queue>
 #include <ranges>
 #include <set>
@@ -10,6 +11,17 @@
 namespace {
 
 using CellIndex = stalberg::rooms::CellIndex;
+
+constexpr int recipeIndex(stalberg::rooms::SmallMapRecipe recipe)
+{
+    return static_cast<int>(recipe);
+}
+
+int scaleMapCost(int baseCost, stalberg::rooms::SmallMapRecipe recipe)
+{
+    const int percent = 100 + recipeIndex(recipe) * 2;
+    return (baseCost * percent + 99) / 100;
+}
 
 CellIndex highestClearanceCell(const GeneratedLevel& level, int room)
 {
@@ -166,7 +178,8 @@ void addSafeRewardGate(const GeneratedLevel& level,
         }
         used.insert(*doorway);
         gates.push_back(MapGate {
-            *doorway, GatePurpose::Reward, 800, false
+            *doorway, GatePurpose::Reward,
+            scaleMapCost(800, level.roomLayout().getSmallMapRecipe()), false
         });
         return;
     }
@@ -220,9 +233,9 @@ SmallMapPlan buildSmallMapPlan(const GeneratedLevel& level)
     const std::vector<std::size_t> hubToExit
         = doorwayPath(level, plan.hubRoom, plan.exitRoom);
     addGate(plan.gates, usedDoorways, startToHub, true,
-        GatePurpose::Expansion, 500);
+        GatePurpose::Expansion, scaleMapCost(500, plan.recipe));
     addGate(plan.gates, usedDoorways, hubToAnchor, false,
-        GatePurpose::Anchor, 750);
+        GatePurpose::Anchor, scaleMapCost(750, plan.recipe));
     addGate(plan.gates, usedDoorways, hubToExit, false,
         GatePurpose::Exit, 0);
     addSafeRewardGate(level, plan.gates, usedDoorways, hubToReward,
@@ -257,42 +270,111 @@ SmallMapPlan buildSmallMapPlan(const GeneratedLevel& level)
     return plan;
 }
 
-std::vector<HordeEnemyRole> hordeCompositionForRound(int round)
+HordeDifficultyProfile hordeDifficultyForRound(std::uint64_t round,
+    stalberg::rooms::SmallMapRecipe recipe)
 {
-    int drifters = 0;
-    int runners = 0;
-    int casters = 0;
-    int elites = 0;
-    switch (round) {
-    case 1:
-        drifters = 6;
-        break;
-    case 2:
-        drifters = 8;
-        runners = 2;
-        break;
-    case 3:
-        drifters = 10;
-        runners = 2;
-        casters = 1;
-        break;
-    case 4:
-        drifters = 12;
-        runners = 3;
-        casters = 1;
-        break;
-    default:
-        drifters = 14;
-        runners = 4;
-        casters = 2;
-        elites = 1;
-        break;
+    const std::uint64_t normalizedRound = std::max<std::uint64_t>(1, round);
+    const std::uint32_t effectiveRound = static_cast<std::uint32_t>(
+        std::min<std::uint64_t>(normalizedRound, 100));
+    const std::uint32_t pressureTier = std::min<std::uint32_t>(
+        (effectiveRound - 1) / 5, 10);
+    const std::size_t recipePressure = effectiveRound > 5
+        ? static_cast<std::size_t>(recipeIndex(recipe))
+        : 0;
+
+    constexpr std::array<std::size_t, 5> openingBudgets {
+        6, 10, 13, 16, 21
+    };
+    std::size_t spawnBudget = openingBudgets[std::min<std::size_t>(
+        effectiveRound - 1, openingBudgets.size() - 1)];
+    if (effectiveRound > openingBudgets.size()) {
+        const std::size_t laterRound = effectiveRound - 5;
+        spawnBudget = std::min<std::size_t>(48,
+            openingBudgets.back() + laterRound * 2 + laterRound / 5
+                + recipePressure);
     }
+
+    HordeDifficultyProfile profile;
+    profile.pressureTier = pressureTier;
+    profile.spawnBudget = spawnBudget;
+    profile.maximumLiving = std::min<std::size_t>(18,
+        6 + (effectiveRound - 1) / 2 + pressureTier
+            + (effectiveRound >= 10 ? recipePressure : 0));
+    profile.buildupDuration = std::max(
+        1.1F, 2.0F - static_cast<float>(pressureTier) * 0.09F);
+    profile.buildupSpawnInterval = std::max(
+        0.4F, 0.72F - static_cast<float>(pressureTier) * 0.032F);
+    profile.peakSpawnInterval = std::max(
+        0.22F, 0.42F - static_cast<float>(pressureTier) * 0.02F);
+    profile.healthScale
+        = 1.0F + static_cast<float>(pressureTier) * 0.08F;
+    profile.movementSpeedScale
+        = 1.0F + static_cast<float>(pressureTier) * 0.025F;
+    profile.projectileSpeedScale
+        = 1.0F + static_cast<float>(pressureTier) * 0.04F;
+    profile.firingIntervalScale
+        = 1.0F - static_cast<float>(pressureTier) * 0.035F;
+    profile.enemyDamage = pressureTier >= 8 ? 2 : 1;
+    profile.rewardPercent = 100 + static_cast<int>(pressureTier) * 5;
+    profile.eliteEvent = normalizedRound >= 5 && normalizedRound % 5 == 0;
+    return profile;
+}
+
+std::vector<HordeEnemyRole> hordeCompositionForRound(std::uint64_t round,
+    stalberg::rooms::SmallMapRecipe recipe)
+{
+    const HordeDifficultyProfile profile
+        = hordeDifficultyForRound(round, recipe);
+    const std::uint64_t normalizedRound = std::max<std::uint64_t>(1, round);
+    const std::size_t effectiveRound = static_cast<std::size_t>(
+        std::min<std::uint64_t>(normalizedRound, 100));
+    const std::size_t recipePressure = effectiveRound >= 6
+        ? static_cast<std::size_t>(recipeIndex(recipe))
+        : 0;
+
+    std::size_t elites = profile.eliteEvent ? 1 : 0;
+    elites = std::min<std::size_t>(4,
+        elites + profile.pressureTier / 4);
+    std::size_t casters = effectiveRound < 3 ? 0
+        : std::min<std::size_t>(profile.spawnBudget / 3,
+            1 + (effectiveRound - 3) / 4 + profile.pressureTier / 2
+                + (recipePressure == 1 ? 1 : 0));
+    std::size_t runners = effectiveRound < 2 ? 0
+        : std::min<std::size_t>(profile.spawnBudget / 2,
+            2 + (effectiveRound - 2) / 2 + profile.pressureTier
+                + (recipePressure == 2 ? 1 : 0));
+    if (elites + casters + runners > profile.spawnBudget) {
+        runners = profile.spawnBudget - std::min(
+            profile.spawnBudget, elites + casters);
+    }
+    const std::size_t drifters
+        = profile.spawnBudget - elites - casters - runners;
+
+    std::array<std::size_t, 4> remaining {
+        drifters, runners, casters, elites
+    };
+    constexpr std::array<HordeEnemyRole, 4> roles {
+        HordeEnemyRole::Drifter,
+        HordeEnemyRole::Runner,
+        HordeEnemyRole::Caster,
+        HordeEnemyRole::Elite
+    };
+    const std::size_t firstRole = static_cast<std::size_t>(
+        (normalizedRound % roles.size()
+            + static_cast<std::uint64_t>(recipeIndex(recipe)))
+        % roles.size());
     std::vector<HordeEnemyRole> result;
-    result.insert(result.end(), drifters, HordeEnemyRole::Drifter);
-    result.insert(result.end(), runners, HordeEnemyRole::Runner);
-    result.insert(result.end(), casters, HordeEnemyRole::Caster);
-    result.insert(result.end(), elites, HordeEnemyRole::Elite);
+    result.reserve(profile.spawnBudget);
+    while (result.size() < profile.spawnBudget) {
+        for (std::size_t offset = 0; offset < roles.size(); ++offset) {
+            const std::size_t role = (firstRole + offset) % roles.size();
+            if (remaining[role] == 0) {
+                continue;
+            }
+            result.push_back(roles[role]);
+            --remaining[role];
+        }
+    }
     return result;
 }
 

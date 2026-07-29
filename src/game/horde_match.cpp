@@ -6,6 +6,7 @@
 #include "vector2_math.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iterator>
 #include <limits>
@@ -18,10 +19,6 @@ constexpr float INTERACTION_DISTANCE = 1.8F;
 constexpr float DEVICE_INTERACTION_DISTANCE = 2.2F;
 constexpr float RELAY_TARGET_RADIUS = 0.42F;
 constexpr float CONTACT_DAMAGE_DISTANCE = ENEMY_RADIUS + PLAYER_RADIUS;
-constexpr std::size_t MAXIMUM_LIVING_HORDE = 18;
-constexpr float BUILDUP_DURATION = 2.0F;
-constexpr float BUILDUP_SPAWN_INTERVAL = 0.72F;
-constexpr float PEAK_SPAWN_INTERVAL = 0.42F;
 
 using CellIndex = stalberg::rooms::CellIndex;
 using vector2::distanceSquared;
@@ -40,6 +37,22 @@ struct EnemyArchetype {
     float speed;
     int killReward;
     bool firesProjectiles;
+};
+
+constexpr std::array<int, HORDE_MAX_UPGRADE_LEVEL> DAMAGE_UPGRADE_COSTS {
+    1200, 2400, 4200
+};
+constexpr std::array<int, HORDE_MAX_UPGRADE_LEVEL> FIRE_RATE_UPGRADE_COSTS {
+    1000, 2200, 3800
+};
+constexpr std::array<int, HORDE_MAX_UPGRADE_LEVEL> DASH_UPGRADE_COSTS {
+    900, 1800, 3000
+};
+constexpr std::array<float, HORDE_MAX_UPGRADE_LEVEL> FIRE_RATE_LEVELS {
+    0.075F, 0.06F, 0.05F
+};
+constexpr std::array<float, HORDE_MAX_UPGRADE_LEVEL> DASH_COOLDOWN_LEVELS {
+    0.7F, 0.55F, 0.45F
 };
 
 constexpr auto enemyArchetype(HordeEnemyRole role)
@@ -165,7 +178,16 @@ bool spawnEnemy(HordeMatch& match, const LevelSession& session,
     entry.enemy.position = generated_level::worldCellCenter(level, *selected);
     entry.enemy.previousPosition = entry.enemy.position;
     const EnemyArchetype archetype = enemyArchetype(role);
-    entry.enemy.health = archetype.maximumHealth;
+    entry.maximumHealth = std::max(1, static_cast<int>(std::ceil(
+        static_cast<float>(archetype.maximumHealth)
+            * match.difficultyProfile.healthScale)));
+    entry.enemy.health = entry.maximumHealth;
+    entry.killReward = std::max(1,
+        archetype.killReward * match.difficultyProfile.rewardPercent / 100);
+    entry.movementSpeed
+        = archetype.speed * match.difficultyProfile.movementSpeedScale;
+    entry.shotInterval
+        = ENEMY_SHOT_INTERVAL * match.difficultyProfile.firingIntervalScale;
     entry.enemy.shotCooldownRemaining = archetype.firesProjectiles
         ? ENEMY_FIRST_SHOT_DELAY
         : std::numeric_limits<float>::infinity();
@@ -260,7 +282,7 @@ void updateHordeMovement(HordeMatch& match, const LevelSession& session,
         }
         const Vector2 direction = normalized(toDestination);
         enemy.facing = direction;
-        const float speed = enemyArchetype(entry.role).speed;
+        const float speed = entry.movementSpeed;
         enemy.velocity = Vector2 { direction.x * speed, direction.y * speed };
         enemy.position.x += enemy.velocity.x * stepTime;
         enemy.position.y += enemy.velocity.y * stepTime;
@@ -343,11 +365,12 @@ EnemyDamageResult updateHordeDamage(HordeMatch& match, float stepTime)
         projectile.active = false;
         selected->enemy.health -= match.damagePerShot;
         selected->enemy.hitFlashRemaining = ENEMY_HIT_FLASH_DURATION;
-        match.grantPoints(10);
+        match.grantPoints(
+            10 * match.difficultyProfile.rewardPercent / 100);
         if (selected->enemy.health <= 0) {
             selected->enemy.health = 0;
             selected->enemy.velocity = Vector2 {};
-            match.grantPoints(enemyArchetype(selected->role).killReward);
+            match.grantPoints(selected->killReward);
             result = EnemyDamageResult::died;
         } else if (result == EnemyDamageResult::none) {
             result = EnemyDamageResult::hit;
@@ -375,7 +398,7 @@ PlayerDamageResult updateContactDamage(
     if (!touching) {
         return PlayerDamageResult::none;
     }
-    --player.health;
+    player.health -= match.difficultyProfile.enemyDamage;
     player.hitFlashRemaining = PLAYER_HIT_FLASH_DURATION;
     player.invulnerabilityRemaining = PLAYER_INVULNERABILITY_DURATION;
     if (player.health <= 0) {
@@ -438,21 +461,18 @@ void handleInteraction(HordeMatch& match, LevelSession& session,
                 = match.purchaseGate(session, anchorGateIndex);
         }
         result.objectiveAdvanced = match.activateAnchor();
-        if (result.objectiveAdvanced
-            && match.roundPhase == RoundPhase::Intermission) {
-            result.roundStarted = match.startNextRound();
-        }
         return;
     }
     if (closeTo(playerPosition, match.mapPlan.hubPosition,
             DEVICE_INTERACTION_DISTANCE)) {
-        result.objectiveAdvanced = match.activateHub(session);
+        result.objectiveAdvanced = match.activateHub(session)
+            || match.purchaseHubRepair(session);
         return;
     }
     if (closeTo(playerPosition, match.mapPlan.exitPosition,
             DEVICE_INTERACTION_DISTANCE)
-        && match.hubPowered && match.currentRound >= HORDE_FINAL_ROUND
-        && match.roundPhase == RoundPhase::Intermission) {
+        && match.hubPowered
+        && match.currentRound >= HORDE_EXTRACTION_MINIMUM_ROUND) {
         match.victory = true;
         result.victory = true;
     }
@@ -480,6 +500,52 @@ void handleUpgradeInput(HordeMatch& match, LevelSession& session,
     }
 }
 
+ProjectileProfile hostileProjectileProfile(
+    const HordeDifficultyProfile& difficulty)
+{
+    return ProjectileProfile {
+        .speed = ENEMY_PROJECTILE_SPEED * difficulty.projectileSpeedScale,
+        .lifetime = ENEMY_PROJECTILE_LIFETIME,
+        .radius = ENEMY_PROJECTILE_RADIUS
+    };
+}
+
+bool beginNextRound(HordeMatch& match)
+{
+    if (match.victory || match.roundPhase != RoundPhase::Intermission) {
+        return false;
+    }
+    if (match.currentRound < std::numeric_limits<std::uint64_t>::max()) {
+        ++match.currentRound;
+    }
+    match.difficultyProfile = hordeDifficultyForRound(
+        match.currentRound, match.mapPlan.recipe);
+    match.pendingSpawns = hordeCompositionForRound(
+        match.currentRound, match.mapPlan.recipe);
+    match.nextPendingSpawn = 0;
+    match.enemyEntries.clear();
+    match.hostileProjectiles = ProjectilePool {
+        hostileProjectileProfile(match.difficultyProfile)
+    };
+    match.roundPhase = RoundPhase::Buildup;
+    match.phaseElapsed = 0.0F;
+    match.spawnCooldown = 0.0F;
+    return true;
+}
+
+bool updateRoundDirector(HordeMatch& match, float stepTime)
+{
+    if (match.roundPhase != RoundPhase::Intermission) {
+        return false;
+    }
+    const float duration = match.currentRound == 0
+        ? HORDE_INITIAL_COUNTDOWN_DURATION
+        : HORDE_INTERMISSION_DURATION;
+    match.phaseElapsed = std::min(duration,
+        match.phaseElapsed + std::max(0.0F, stepTime));
+    return match.phaseElapsed >= duration && beginNextRound(match);
+}
+
 void updateRoundSpawning(
     HordeMatch& match, const LevelSession& session, float stepTime)
 {
@@ -488,20 +554,21 @@ void updateRoundSpawning(
     }
     match.phaseElapsed += stepTime;
     if (match.roundPhase == RoundPhase::Buildup
-        && match.phaseElapsed >= BUILDUP_DURATION) {
+        && match.phaseElapsed >= match.difficultyProfile.buildupDuration) {
         match.roundPhase = RoundPhase::Peak;
         match.phaseElapsed = 0.0F;
     }
     match.spawnCooldown = std::max(0.0F, match.spawnCooldown - stepTime);
     if (match.nextPendingSpawn < match.pendingSpawns.size()
-        && livingEnemyCount(match.enemyEntries) < MAXIMUM_LIVING_HORDE
+        && livingEnemyCount(match.enemyEntries)
+            < match.difficultyProfile.maximumLiving
         && match.spawnCooldown <= 0.0F
         && spawnEnemy(match, session,
             match.pendingSpawns[match.nextPendingSpawn])) {
         ++match.nextPendingSpawn;
         match.spawnCooldown = match.roundPhase == RoundPhase::Buildup
-            ? BUILDUP_SPAWN_INTERVAL
-            : PEAK_SPAWN_INTERVAL;
+            ? match.difficultyProfile.buildupSpawnInterval
+            : match.difficultyProfile.peakSpawnInterval;
     }
     if (match.nextPendingSpawn == match.pendingSpawns.size()) {
         match.roundPhase = RoundPhase::Cleanup;
@@ -517,14 +584,15 @@ void updateHostileAttacks(HordeMatch& match, LevelSession& session,
             && isEnemyAlive(entry.enemy)) {
             result.enemyFired |= updateEnemyPattern(entry.enemy,
                 match.hostileProjectiles, playerPosition, stepTime,
-                session.activeWalls());
+                session.activeWalls(), entry.shotInterval);
         }
     }
     match.hostileProjectiles.update(stepTime);
     resolveProjectileWallCollisions(
         match.hostileProjectiles, session.activeWalls());
     result.playerDamage = updatePlayerDamage(session.player(),
-        match.hostileProjectiles, previousPlayerPosition, stepTime);
+        match.hostileProjectiles, previousPlayerPosition, stepTime,
+        match.difficultyProfile.enemyDamage);
     const PlayerDamageResult contactDamage
         = updateContactDamage(match, session);
     if (contactDamage == PlayerDamageResult::died
@@ -539,8 +607,7 @@ bool completeRoundIfCleared(HordeMatch& match)
 {
     if (match.roundPhase != RoundPhase::Cleanup
         || match.nextPendingSpawn != match.pendingSpawns.size()
-        || livingEnemyCount(match.enemyEntries) != 0
-        || (match.anchorActive && !match.anchorComplete)) {
+        || livingEnemyCount(match.enemyEntries) != 0) {
         return false;
     }
     match.enemyEntries.clear();
@@ -561,20 +628,65 @@ HordeMatch::HordeMatch(const GeneratedLevel& sourceLevel, LevelSession& session)
 
 bool HordeMatch::hasUpgrade(MatchUpgrade upgrade) const
 {
+    return upgradeLevel(upgrade) > 0;
+}
+
+std::uint8_t HordeMatch::upgradeLevel(MatchUpgrade upgrade) const
+{
     switch (upgrade) {
     case MatchUpgrade::Damage:
-        return damageUpgrade;
+        return damageUpgradeLevel;
     case MatchUpgrade::FireRate:
-        return fireRateUpgrade;
+        return fireRateUpgradeLevel;
     case MatchUpgrade::Dash:
-        return dashUpgrade;
+        return dashUpgradeLevel;
     }
-    return false;
+    return 0;
+}
+
+int HordeMatch::nextUpgradeCost(MatchUpgrade upgrade) const
+{
+    const std::size_t level = upgradeLevel(upgrade);
+    if (level >= HORDE_MAX_UPGRADE_LEVEL) {
+        return 0;
+    }
+    switch (upgrade) {
+    case MatchUpgrade::Damage:
+        return DAMAGE_UPGRADE_COSTS[level];
+    case MatchUpgrade::FireRate:
+        return FIRE_RATE_UPGRADE_COSTS[level];
+    case MatchUpgrade::Dash:
+        return DASH_UPGRADE_COSTS[level];
+    }
+    return 0;
+}
+
+int HordeMatch::hubRepairCost() const
+{
+    return 500 + static_cast<int>(difficultyProfile.pressureTier) * 75;
+}
+
+float HordeMatch::timeUntilNextRound() const
+{
+    if (roundPhase != RoundPhase::Intermission) {
+        return 0.0F;
+    }
+    const float duration = currentRound == 0
+        ? HORDE_INITIAL_COUNTDOWN_DURATION
+        : HORDE_INTERMISSION_DURATION;
+    return std::max(0.0F, duration - phaseElapsed);
 }
 
 void HordeMatch::grantPoints(int amount)
 {
-    pointTotal = std::max(0, pointTotal + std::max(amount, 0));
+    if (amount <= 0) {
+        return;
+    }
+    if (pointTotal > std::numeric_limits<int>::max() - amount) {
+        pointTotal = std::numeric_limits<int>::max();
+        return;
+    }
+    pointTotal += amount;
 }
 
 bool HordeMatch::purchaseGate(LevelSession& session, std::size_t gateIndex)
@@ -598,61 +710,54 @@ bool HordeMatch::purchaseGate(LevelSession& session, std::size_t gateIndex)
 bool HordeMatch::purchaseUpgrade(
     LevelSession& session, MatchUpgrade upgrade)
 {
-    int cost = 0;
-    bool* purchased = nullptr;
+    std::uint8_t* level = nullptr;
     switch (upgrade) {
     case MatchUpgrade::Damage:
-        cost = 1200;
-        purchased = &damageUpgrade;
+        level = &damageUpgradeLevel;
         break;
     case MatchUpgrade::FireRate:
-        cost = 1000;
-        purchased = &fireRateUpgrade;
+        level = &fireRateUpgradeLevel;
         break;
     case MatchUpgrade::Dash:
-        cost = 900;
-        purchased = &dashUpgrade;
+        level = &dashUpgradeLevel;
         break;
     }
-    if (purchased == nullptr || *purchased || pointTotal < cost
+    const int cost = nextUpgradeCost(upgrade);
+    if (level == nullptr || *level >= HORDE_MAX_UPGRADE_LEVEL
+        || cost <= 0 || pointTotal < cost
         || !gateForPurposeIsOpen(*this, GatePurpose::Anchor)) {
         return false;
     }
     pointTotal -= cost;
-    *purchased = true;
+    ++*level;
     if (upgrade == MatchUpgrade::Damage) {
-        damagePerShot = 2;
+        damagePerShot = 1 + damageUpgradeLevel;
     } else if (upgrade == MatchUpgrade::FireRate) {
-        playerAttack.weapon.fireInterval = 0.075F;
+        playerAttack.weapon.fireInterval
+            = FIRE_RATE_LEVELS[fireRateUpgradeLevel - 1];
     } else {
-        session.player().dashCooldownScale = 0.7F;
+        session.player().dashCooldownScale
+            = DASH_COOLDOWN_LEVELS[dashUpgradeLevel - 1];
     }
     return true;
 }
 
-bool HordeMatch::startNextRound()
+bool HordeMatch::purchaseHubRepair(LevelSession& session)
 {
-    if (victory || roundPhase != RoundPhase::Intermission
-        || currentRound >= HORDE_FINAL_ROUND
-        || (currentRound >= 2 && !anchorComplete && !anchorActive)
-        || (currentRound >= 3 && anchorComplete && !hubPowered)) {
+    Player& player = session.player();
+    const int cost = hubRepairCost();
+    if (!hubPowered || !isPlayerAlive(player)
+        || player.health >= PLAYER_MAX_HEALTH || pointTotal < cost) {
         return false;
     }
-    ++currentRound;
-    pendingSpawns = hordeCompositionForRound(currentRound);
-    nextPendingSpawn = 0;
-    enemyEntries.clear();
-    hostileProjectiles = ProjectilePool { ENEMY_PROJECTILE_PROFILE };
-    roundPhase = RoundPhase::Buildup;
-    phaseElapsed = 0.0F;
-    spawnCooldown = 0.0F;
+    pointTotal -= cost;
+    ++player.health;
     return true;
 }
 
 bool HordeMatch::activateAnchor()
 {
     if (anchorActive || anchorComplete || currentRound < 2
-        || roundPhase != RoundPhase::Intermission
         || !gateForPurposeIsOpen(*this, GatePurpose::Anchor)) {
         return false;
     }
@@ -679,8 +784,7 @@ bool HordeMatch::advanceAnchor(float seconds)
 
 bool HordeMatch::activateHub(LevelSession& session)
 {
-    if (!anchorComplete || hubPowered
-        || roundPhase != RoundPhase::Intermission) {
+    if (!anchorComplete || hubPowered) {
         return false;
     }
     hubPowered = true;
@@ -706,9 +810,10 @@ bool HordeMatch::hitRelay(std::size_t targetIndex)
     ++relaySequenceProgress;
     if (relaySequenceProgress == mapPlan.relayTargets.size()) {
         relayComplete = true;
-        if (!fireRateUpgrade) {
-            fireRateUpgrade = true;
-            playerAttack.weapon.fireInterval = 0.075F;
+        if (fireRateUpgradeLevel < HORDE_MAX_UPGRADE_LEVEL) {
+            ++fireRateUpgradeLevel;
+            playerAttack.weapon.fireInterval
+                = FIRE_RATE_LEVELS[fireRateUpgradeLevel - 1];
         }
         grantPoints(400);
     }
@@ -727,11 +832,12 @@ void HordeMatch::reset(LevelSession& session)
     currentRound = 0;
     damagePerShot = 1;
     roundPhase = RoundPhase::Intermission;
+    difficultyProfile = hordeDifficultyForRound(1, mapPlan.recipe);
     phaseElapsed = 0.0F;
     spawnCooldown = 0.0F;
-    damageUpgrade = false;
-    fireRateUpgrade = false;
-    dashUpgrade = false;
+    damageUpgradeLevel = 0;
+    fireRateUpgradeLevel = 0;
+    dashUpgradeLevel = 0;
     anchorActive = false;
     anchorComplete = false;
     anchorProgressSeconds = 0.0F;
@@ -780,12 +886,15 @@ HordeMatchStepResult updateHordeMatch(HordeMatch& match,
     if (input.interactPressed) {
         handleInteraction(match, session, playerPosition, result);
     }
-    handleUpgradeInput(match, session, input, playerPosition, result);
-    if (input.startRoundPressed) {
-        result.roundStarted = match.startNextRound();
+    if (match.victory) {
+        return result;
     }
+    handleUpgradeInput(match, session, input, playerPosition, result);
+    result.roundStarted = updateRoundDirector(match, stepTime);
 
-    updateRoundSpawning(match, session, stepTime);
+    if (!result.roundStarted) {
+        updateRoundSpawning(match, session, stepTime);
+    }
     updateHordeMovement(match, session, stepTime);
     result.enemyDamage = updateHordeDamage(match, stepTime);
     match.playerAttack.projectiles.retireExpired();

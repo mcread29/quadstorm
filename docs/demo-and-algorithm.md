@@ -11,7 +11,7 @@ Room-generation details are split into focused documents:
 - [`layout-quality-and-testing.md`](layout-quality-and-testing.md) — validation, scoring, retries, and tests.
 - [`level-identity-pass.md`](level-identity-pass.md) — small-map recipes plus the remaining room-shape, district, and landmark pass.
 
-The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It consumes the complete generation chain through immutable `GeneratedLevel` geometry and mutable `LevelSession` state, renders exact assigned floors, and keeps doorway collision/navigation synchronized. `HordeMatch` runs the active persistent radius-5 puzzle map with points, permanent gates, upgrades, five deterministic rounds, door-aware Drifter/Runner/Caster/Elite crowds, Anchor/Hub/relay objectives, and explicit Exit completion. The hard-coded deterministic arena remains available through `F1` as a separate regression wrapper.
+The separate 2.5D runtime is tracked in [`game-roadmap.md`](game-roadmap.md), with continuation details in [`game-handoff.md`](game-handoff.md). It consumes the complete generation chain through immutable `GeneratedLevel` geometry and mutable `LevelSession` state, renders exact assigned floors, and keeps doorway collision/navigation synchronized. `HordeMatch` runs the active persistent radius-5 puzzle map with points, recipe-scaled permanent gates, tiered upgrades, automatic endless rounds, bounded recipe-aware Drifter/Runner/Caster/Elite pressure, concurrent Anchor/Hub/relay objectives, and voluntary Exit extraction. The hard-coded deterministic arena remains available through `F1` as a separate regression wrapper.
 
 ## Overview
 
@@ -490,7 +490,7 @@ The generation demo intentionally focuses on a single understandable patch. The 
 - Face-quality optimization after relaxation.
 - Large-map crowd/navigation scaling beyond the small deterministic horde slice.
 - Published room-shape grammar, districts, broader archetypes, or cross-seed structural-diversity acceptance. Small-map recipes and the runtime overview are implemented.
-- Traps, multiple services, multi-anchor quests, bespoke bosses, extraction choice, or endless continuation. The first gate economy, upgrades, Anchor/Hub/relay quest, Elite finale, and explicit Exit completion are implemented.
+- Traps, multiple services, multi-anchor recipe-authored quests, bespoke bosses, or alternate extraction choices. The gate economy, tiered upgrades, automatic endless director, bounded Elite-event scaling, Anchor/Hub/relay quest, and voluntary Exit extraction are implemented.
 - Mesh export.
 - General-purpose three-dimensional asset extrusion beyond runtime floor and wall geometry.
 

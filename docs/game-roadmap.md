@@ -30,7 +30,7 @@ The map is both an arena and a machine. Its routes, chambers, symbols, powered t
 - Each round moves through build-up, peak pressure, cleanup, and respite rather than sustaining maximum intensity continuously.
 - Intermissions provide time to explore, spend currency, read clues, and prepare devices.
 - Objectives can deliberately interrupt the normal rhythm with holdouts, escorts, traps, or special enemy compositions.
-- Players can accelerate quiet periods when they are ready for the next round.
+- A short fixed intermission advances automatically so exploration and puzzle work happen under predictable pressure.
 
 #### A map that opens over time
 
@@ -163,16 +163,17 @@ The current generator is physically valid but often reads as an alternating aren
 
 Acceptance check: representative layouts are distinguishable at a glance by silhouette, graph structure, room-shape distribution, and landmark hierarchy; no representative layout is dominated by repetitive arena/connector alternation; and all existing deterministic geometry, doorway, navigation, combat, and reset contracts remain correct.
 
-### Milestone 8C: horde combat continuation — small-map vertical slice complete
+### Milestone 8C: horde combat continuation — endless small-map slice complete
 
-- The radius-5 vertical slice has crowd pursuit through exact opened doorway cells, local separation, wall-safe steering, deterministic spawn control, Drifter/Runner/Caster/Elite roles, and buildup → peak → cleanup → intermission rounds.
-- Continue tuning route caching, crowd readability, spawn visibility, and larger-map population pressure after the small-map recipe gate.
+- The radius-5 vertical slice has crowd pursuit through exact opened doorway cells, local separation, wall-safe steering, deterministic spawn control, Drifter/Runner/Caster/Elite roles, and automatic countdown → buildup → peak → cleanup → timed-intermission rounds.
+- A recipe-aware ten-tier profile bounds spawn budget, simultaneous pressure, composition, pacing, health, movement, hostile projectile speed, firing cadence, damage, and rewards. Every fifth round schedules an Elite event, and overflow-safe schedules remain deterministic at the maximum round index.
+- Continue tuning route caching, crowd readability, spawn visibility, bespoke bosses, and larger-map population pressure after the small-map recipe gate.
 
 Acceptance check: generated rooms and connectors support readable crowd movement, deliberate dodging, and escalating round pressure without enemies crossing closed geometry.
 
-### Milestone 9: persistent map progression — small-map vertical slice complete
+### Milestone 9: persistent map progression — endless small-map vertical slice complete
 
-- The small-map match persists for five rounds with one point currency, permanently purchasable exact-threshold gates, synchronized collision/navigation, and damage/fire-rate/dash upgrades.
+- The small-map match advances endlessly without input, with one point currency, recipe-scaled permanently purchasable exact-threshold gates, synchronized collision/navigation, pressure-scaled rewards, three tiers each of damage/fire-rate/dash upgrades, and repeatable pressure-scaled health repair at the powered Hub.
 - Fixed services and traps remain broader-milestone work.
 - Turn the generated role/shape/district identity established in Milestone 8B into persistent economy, service, trap, and objective locations rather than one-time room-clear labels.
 - Let waves and enemies move across every currently opened part of the map.
@@ -188,11 +189,12 @@ Acceptance check: spending, route choice, and gate state materially change both 
 
 Acceptance check: players can understand and complete the main objective from in-game evidence, while optional secrets reward deeper observation and experimentation.
 
-### Milestone 11: complete match arc
+### Milestone 11: complete match arc — endless director foundation complete
 
-- Expand round composition across common enemies, specials, elites, and challenge waves.
+- **Complete:** automatic endless continuation, deterministic bounded pressure scaling, explicit extraction after the current Anchor/Hub objective, death, and deterministic restart.
+- Expand round composition across common enemies, specials, elites, mutation events, and challenge waves.
 - Add a Warden or boss that combines horde pressure, projectile patterns, and powered map mechanics.
-- Add extraction, victory, endless continuation, score, death, and deterministic restart.
+- Add score and replace hard-coded Round 2/5 objective checks with recipe-authored requirements.
 - Balance map expansion, economy, quest timing, and combat power across the full match.
 
 Acceptance check: the game supports a complete round-based horde match with a beginning, expanding tactical possibilities, discoverable objectives, a finale, and a reason to replay the same map with greater knowledge.

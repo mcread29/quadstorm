@@ -100,14 +100,12 @@ public:
         restartQueued |= input.restartPressed;
         dashQueued |= input.dashPressed;
         interactQueued |= input.interactPressed;
-        startRoundQueued |= input.startRoundPressed;
         buyDamageQueued |= input.buyDamagePressed;
         buyFireRateQueued |= input.buyFireRatePressed;
         buyDashQueued |= input.buyDashPressed;
         input.restartPressed = restartQueued;
         input.dashPressed = dashQueued;
         input.interactPressed = interactQueued;
-        input.startRoundPressed = startRoundQueued;
         input.buyDamagePressed = buyDamageQueued;
         input.buyFireRatePressed = buyFireRateQueued;
         input.buyDashPressed = buyDashQueued;
@@ -126,7 +124,6 @@ public:
             input.restartPressed = false;
             input.dashPressed = false;
             input.interactPressed = false;
-            input.startRoundPressed = false;
             input.buyDamagePressed = false;
             input.buyFireRatePressed = false;
             input.buyDashPressed = false;
@@ -175,7 +172,6 @@ private:
     bool restartQueued = false;
     bool dashQueued = false;
     bool interactQueued = false;
-    bool startRoundQueued = false;
     bool buyDamageQueued = false;
     bool buyFireRateQueued = false;
     bool buyDashQueued = false;
@@ -185,7 +181,6 @@ private:
         restartQueued = false;
         dashQueued = false;
         interactQueued = false;
-        startRoundQueued = false;
         buyDamageQueued = false;
         buyFireRateQueued = false;
         buyDashQueued = false;

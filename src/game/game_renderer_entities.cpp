@@ -334,7 +334,7 @@ void GameRenderer::drawHordeEnemy(
         || entry.role == HordeEnemyRole::Elite;
     if (ranged) {
         const float charge = 1.0F - std::clamp(
-            enemy.shotCooldownRemaining / ENEMY_SHOT_INTERVAL,
+            enemy.shotCooldownRemaining / entry.shotInterval,
             0.0F, 1.0F);
         const Color tellColor { accent.r, accent.g, accent.b,
             static_cast<unsigned char>(55.0F + charge * 145.0F) };

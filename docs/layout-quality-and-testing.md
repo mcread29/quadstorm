@@ -398,7 +398,7 @@ Callers should check `getRoomCount()` before constructing gameplay state.
 
 ## Test organization
 
-CTest currently builds five headless test executables: two for generation, one for renderer-cache geometry, one for generated-level runtime packaging/geometry/navigation/collection encounters, and one for `stalberg_game` dash, collision, arena, projectile, weapon, single-enemy and enemy-collection, player-damage, and encounter modules. Stationary-target collision, audio, browser presentation, and full runtime rendering currently rely on graphical smoke or manual runs; target headless tests were explicitly deferred for Milestone 3.
+CTest currently builds six headless test executables: two for generation, one for renderer-cache geometry, one for generated-level runtime packaging/geometry/navigation/collection encounters, one for `stalberg_game` dash/collision/combat modules, and one for the persistent horde match. Stationary-target collision, audio, browser presentation, and full runtime rendering currently rely on graphical smoke or manual runs; target headless tests were explicitly deferred for Milestone 3.
 
 | Test | Coverage |
 |---|---|
@@ -407,6 +407,7 @@ CTest currently builds five headless test executables: two for generation, one f
 | `stalberg_grid_renderer_cache_tests` | Cached dual-grid and room-overlay geometry, bounds, colors, and draw-command alignment |
 | `stalberg_generated_level_tests` | Retained artifact alignment, exact floor area, authorized walls/doors, doorway clearance, dynamic lock collision/navigation, lifecycle/reset, traversal firing and projectile preservation, deterministic multi-spawn filtering/identity, partial/all-enemies clear transitions, hostile cleanup, whole-match identity reset, Start spawn, and reachability |
 | `stalberg_game_tests` | Injected encounter walls, swept-circle queries, player wall faces/endpoints/corners/sliding, dash activation/cooldown/wall collision, swept projectile-wall hits, outside-muzzle rejection, profile-separated pool ownership/reuse, muzzle position, fixed fire cadence, deterministic single-enemy and collection movement/patterns, earliest enemy-hit and exact-time identity tie-breaking, simultaneous defeat, enemy closed-wall containment, player damage/invulnerability/death, interpolation freeze, and post-death/post-victory restart |
+| `stalberg_horde_match_tests` | Recipe plans and costs, automatic countdown/intermission transitions, puzzle-independent round advancement, deterministic bounded difficulty snapshots and schedules, maximum-round/point overflow safety, geometry-safe spawning, door-aware navigation, economy/gates, concurrent Anchor/Hub/relay progression, explicit extraction, tiered upgrades, and whole-match reset |
 
 Run:
 

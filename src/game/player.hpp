@@ -20,7 +20,6 @@ struct PlayerInput {
     bool restartPressed = false;
     bool toggleViewPressed = false;
     bool interactPressed = false;
-    bool startRoundPressed = false;
     bool buyDamagePressed = false;
     bool buyFireRatePressed = false;
     bool buyDashPressed = false;
@@ -52,5 +51,8 @@ void updatePlayerEffects(Player& player, float stepTime);
 PlayerDamageResult updatePlayerDamage(Player& player,
     ProjectilePool& enemyProjectiles, Vector2 previousPlayerPosition,
     float stepTime);
+PlayerDamageResult updatePlayerDamage(Player& player,
+    ProjectilePool& enemyProjectiles, Vector2 previousPlayerPosition,
+    float stepTime, int damage);
 bool isPlayerAlive(const Player& player);
 Player interpolatePlayer(const Player& previous, const Player& current, float amount);
