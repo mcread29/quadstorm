@@ -1,5 +1,6 @@
 #include "game_renderer.hpp"
 
+#include "match_generator.hpp"
 #include "render_style.hpp"
 
 #include <algorithm>
@@ -314,6 +315,11 @@ void GameRenderer::drawGeneratedOverview(const GeneratedLevel& level,
         drawText(attemptLabel.c_str(), detailsX, detailsY, 16,
             generation.usedFallback
                 ? Color { 234, 105, 80, 255 } : secondary);
+        detailsY += 23;
+        const std::string profileLabel = "profile      "
+            + std::string(physicalMapProfileName(
+                generation.physicalProfile));
+        drawText(profileLabel.c_str(), detailsX, detailsY, 16, primary);
         detailsY += 23;
     }
     drawText(TextFormat("radius       %i", level.grid().getRadius()),

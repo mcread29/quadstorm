@@ -1,6 +1,7 @@
 #include "game_renderer.hpp"
 
 #include "generated_level_queries.hpp"
+#include "match_generator.hpp"
 #include "render_style.hpp"
 
 #include <algorithm>
@@ -77,8 +78,9 @@ void GameRenderer::drawGeneratedHud(const Player& player,
     }
     if (level.matchGeneration().has_value()) {
         const MatchGenerationInfo& generation = *level.matchGeneration();
-        const std::string seedLabel = "SEED "
-            + std::to_string(generation.matchSeed)
+        const std::string seedLabel
+            = std::string(physicalMapProfileName(generation.physicalProfile))
+            + "  SEED " + std::to_string(generation.matchSeed)
             + (generation.usedFallback ? "  FALLBACK" : "");
         const int width = measureText(seedLabel.c_str(), 13) + 22;
         const Rectangle seedPanel {
@@ -240,11 +242,15 @@ void GameRenderer::drawGeneratedHud(const Player& player,
             28, 127, 15, Color { 180, 203, 200, 255 });
         drawText("R restart | N new match | F1 arena | F2 overview / fixtures",
             28, 150, 15, Color { 180, 203, 200, 255 });
-        drawText(TextFormat("%s  rooms %i  doors %i  room %i  walls %i",
-                     smallMapRecipeName(level.roomLayout().getSmallMapRecipe()),
+        const char* topology = level.roomLayout().hasSmallMapRecipe()
+            ? smallMapRecipeName(level.roomLayout().getSmallMapRecipe())
+            : "SPATIAL TREE";
+        drawText(TextFormat("%s  rooms %i  doors %i  walls %i  r%i  s%.2f",
+                     topology,
                      static_cast<int>(level.roomLayout().getRoomCount()),
                      static_cast<int>(level.roomLayout().getDoorways().size()),
-                     currentRegion, static_cast<int>(session.activeWalls().size())),
+                     static_cast<int>(session.activeWalls().size()),
+                     level.config().gridRadius, level.worldScale()),
             28, 177, 15, Color { 224, 211, 158, 255 });
         drawText(TextFormat("tier %u budget %i  anchor %.1f  relay %i/%i  damage %i",
                      match.difficulty().pressureTier,

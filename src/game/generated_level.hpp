@@ -22,9 +22,15 @@ struct GeneratedLevelConfig {
     float worldScale = 0.16F;
 };
 
+enum class PhysicalMapProfile : std::uint8_t {
+    SystemsFixture,
+    FortressV1
+};
+
 struct MatchGenerationInfo {
     std::uint64_t matchSeed = 0;
     std::size_t attempts = 0;
+    PhysicalMapProfile physicalProfile = PhysicalMapProfile::SystemsFixture;
     bool usedFallback = false;
 };
 

@@ -40,9 +40,9 @@ Controls:
 | Home in overview | Return to the active generated layout |
 | Escape/window close | Exit |
 
-The runtime now starts by creating a fresh public match seed and deterministically deriving radius-5 grid and room seeds. The application-level generator has an eight-attempt budget, accepts only candidates that satisfy the complete current systems-map plan, and visibly publishes the known Hub Circuit fixture if that budget is exhausted. `--seed=<unsigned decimal>` reproduces the accepted inputs, retry count, and geometry with the same game build/toolchain; `N` requests another seed, while `R` only resets mutable state. `--recipe=hub|ring|wings` still launches fixed diagnostic fixtures and cannot be combined with `--seed`.
+The runtime starts by creating a fresh public match seed and deterministically deriving radius-8 Fortress V1 grid/room inputs. The application-level generator has an eight-attempt budget, accepts only candidates that satisfy the current systems plan plus Fortress V1 physical/capacity gates, and visibly publishes the known radius-5 Hub Circuit fixture if that budget is exhausted. `--seed=<unsigned decimal>` reproduces the accepted inputs, profile, retry count, and geometry with the same game build/toolchain; `N` requests another seed, while `R` only resets mutable state. `--recipe=hub|ring|wings` still launches fixed diagnostic fixtures and cannot be combined with `--seed`.
 
-`GeneratedLevel` retains the accepted match metadata, relaxed grid, exact dual geometry, neutral room graph, selected small-map recipe, shooter layout, exact floor, walls, doorway thresholds, and immutable navigation. `LevelSession` owns the authoritative player, current room, dynamic doorway collision, and matching traversal state. `HordeMatch` owns points, permanent gate purchases, upgrades, persistent player attack state, the deterministic round schedule, map-wide enemies and hostile projectiles, Anchor/Hub/relay/Exit state, and whole-match reset. Larger physical scale, broader map generation, semantic anchors, and dynamic quest binding are not implemented yet.
+`GeneratedLevel` retains the accepted match/profile metadata, relaxed grid, exact dual geometry, neutral room graph, shooter layout, exact floor, walls, doorway thresholds, and immutable navigation. Larger layouts publish one high-degree Hub and prefer a leaf arena for Reward semantics. `LevelSession` owns the authoritative player, current room, dynamic doorway collision, and matching traversal state. `HordeMatch` owns points, permanent gate purchases, upgrades, persistent player attack state, the deterministic round schedule, map-wide enemies and hostile projectiles, Anchor/Hub/relay/Exit state, and whole-match reset. Broader topology/room grammar, semantic anchors, dynamic quest binding, opening-component validation, and full larger-map pacing are not implemented yet.
 
 Round 1 guarantees enough points to buy the recipe-scaled first gate; Round 2 guarantees the Anchor route. Optional spending stays disabled until the required Anchor route is funded. Drifters and Runners pursue through the currently opened exact cell graph, while Casters and Elites use difficulty-scaled ranged fan patterns and local separation prevents complete crowd overlap. E resolves contextual gate/device interactions; at the Anchor it can atomically fund a still-closed Anchor gate and begin the holdout when affordable. Rounds continue independently through active or incomplete Anchor/Hub state. The Hub sells three increasingly expensive tiers of each authoritative upgrade through 1/2/3, repairs one missing health per E interaction for a pressure-scaled price after activation, and the relay grants the next fire-rate tier. Locked gates render as one connected barred frame rather than disconnected posts. The F2 overview renders exact floor triangles, recipe graph, live lock state, semantic objective sites, relay order, seeds, candidate, and quality score. Browsing previews never mutates the active match.
 
@@ -101,8 +101,9 @@ CombatStepResult / EncounterStepResult ──→ CombatAudio
 | Path | Responsibility |
 |---|---|
 | `src/game/main.cpp` | Window lifetime, generated/combat view switching, 120 Hz accumulator, interpolation, audio-event forwarding, and composition |
-| `src/game/match_generator.hpp/.cpp` | Public match-seed derivation, bounded candidate construction/current-plan validation, accepted-attempt metadata, and visible deterministic fallback |
-| `src/game/generated_level.hpp/.cpp` | Immutable generator artifact package, accepted match metadata, exact floor triangles, closed walls, retained doorway thresholds, navigation, and Start spawn |
+| `src/game/match_generator.hpp/.cpp` | Public match/profile derivation, bounded candidate construction, systems-plan and Fortress V1 acceptance, accepted-attempt metadata, and visible deterministic fallback |
+| `src/game/match_map_metrics.hpp/.cpp` | World-space/player-relative doorway, room, objective, room-span, route, statically usable ingress/spawn-capacity, and Hub-degree measurements |
+| `src/game/generated_level.hpp/.cpp` | Immutable generator artifact package, accepted match/profile metadata, exact floor triangles, closed walls, retained doorway thresholds, navigation, and Start spawn |
 | `src/game/level_session.hpp/.cpp` | Mutable generated traversal, authoritative generated player, room lifecycle/location, doorway locking, active walls, effect timers, and reset |
 | `src/game/horde_match.hpp/.cpp` | Small-map recipe binding, endless director/difficulty, points/gates/tiered upgrades/Hub repair, scaled horde combat, Anchor/Hub/relay/Exit progression, and reset |
 | `src/game/generated_encounter.hpp/.cpp` | Preserved generated-room regression coordinator and spawn-selection coverage; no longer the active generated runtime path |
@@ -127,7 +128,7 @@ CombatStepResult / EncounterStepResult ──→ CombatAudio
 | `tests/generated_level_tests.cpp` | Artifact alignment, exact floor area, wall/door authorization, representative-browser validity, traversal firing/preservation, deterministic multi-spawn filtering/identity, partial/all-enemies clear transitions, hostile cleanup, defeat/reset/Exit, Start spawn, and reachability coverage |
 | `tests/game_tests.cpp` | Headless dash/collision, caller-owned combat, projectile ownership/profile/pool, blocked muzzles, weapon, single-enemy and collection determinism/damage/defeat, earliest-hit/identity tie-breaking, closed-wall containment, player damage/death, interpolation freeze, victory, and restart coverage |
 | `tests/horde_match_tests.cpp` | Automatic director transitions, puzzle independence, difficulty/schedule snapshots through maximum round values, recipe sites/costs, economy overflow/reserves, atomic Anchor interaction, gate/navigation safety, scaled spawning, concurrent Anchor/Hub/relay state, explicit extraction, tiered upgrades, and whole-match reset |
-| `tests/match_generation_tests.cpp` | Same-seed accepted-layout/retry replay, cross-seed variation, same-map restart, candidate-stream scale derivation, and deterministic visible fallback |
+| `tests/match_generation_tests.cpp` | Same-seed accepted-layout/profile/retry replay, cross-seed variation, same-map restart, real rejection/fallback, Fortress V1 actor-relative gates, and radius-only failure |
 | `CMakeLists.txt` | Runtime/test source lists, raylib linkage, warnings, and Debug runtime optimization |
 
 The renderer's destructor unloads models before unloading the shared lighting shader. `CombatAudio` unloads sounds before closing its audio device. Both presentation owners must be destroyed before `CloseWindow()`, which is why they live inside an inner scope in `main.cpp`.
@@ -145,7 +146,7 @@ The sphere center stays at `PLAYER_RADIUS` above `Y = 0`. Aim points are ray int
 
 ### Camera and controls
 
-The camera uses orthographic projection with both a 45-degree elevation and diagonal heading. Its base orthographic size is 21.5 world units and its target looks 2.15 units ahead along the player's facing direction. Viewports wider than 1.9:1 reduce the vertical orthographic size so ultrawide windows reveal only a bounded amount of additional world. Movement is derived from the camera's planar forward/right vectors; do not restore a hardcoded isometric input matrix.
+The camera uses orthographic projection with both a 45-degree elevation and diagonal heading. Its first Fortress V1 framing pass uses a 25-world-unit base orthographic size, 19.5-unit height, 14-unit diagonal offset, and 2.5-unit facing look-ahead. Viewports wider than 1.9:1 reduce the vertical orthographic size so ultrawide windows reveal only a bounded amount of additional world. Movement is derived from the camera's planar forward/right vectors; do not restore a hardcoded isometric input matrix. This framing was tuned independently of the 1.375× geometry-scale increase; locomotion and combat-range pacing still need playtesting.
 
 ### Timing
 
@@ -216,7 +217,7 @@ The game target links the generator libraries only through `GeneratedLevel`. The
 
 Within one room, neighboring assigned cells are traversable. Across rooms, immutable navigation uses only exact cell pairs published by `RoomLayout::getDoorways()`; physical contact between regions is never automatically traversable. `LevelSession` owns mutable lock state and adds locked threshold segments to both active collision walls and traversal checks. Connected exterior entrance cells remain enclosed. The current powered-Exit requirement is still hard-coded to Round 5, but the interaction is now explicit voluntary extraction and never gates automatic round advancement. Replace that requirement with recipe-authored quest metadata in the next slice.
 
-Normal runtime generation currently keeps radius 5 and `GeneratedLevelConfig::worldScale = 0.16F`, but derives grid and room seeds from a fresh 64-bit match seed. Recipe selection still follows `(roomSeed - 1) % 3`. `MatchGenerator` derives a deterministic candidate stream, attempts at most eight current systems-valid layouts, records the accepted attempt, and visibly uses the radius-5 Hub Circuit fixture only after exhaustion. Validation requires all current semantic rooms, three relay targets, and Expansion, Anchor, Reward, and Exit gates. `--seed` supplies the public match seed explicitly. The launch presets use room seeds 7/2/3 for Hub Circuit/Broken Ring/Twin Wings; `--recipe=hub|ring|wings` and the six F2 previews remain deterministic regression tools.
+Normal runtime generation uses the `FortressV1` physical profile: radius 8 and `GeneratedLevelConfig::worldScale = 0.22F`, derived with grid/room seeds from a fresh 64-bit match seed. `MatchGenerator` attempts at most eight candidates, records the accepted profile/attempt, and visibly uses the radius-5, `0.16F` Hub Circuit fixture only after exhaustion. Systems-plan validation requires Start, Hub, Anchor-capable Combat, Reward, and Exit rooms; three relay targets; and Expansion, Anchor, Reward, and Exit gates. Physical validation additionally requires minimum player-relative doorway width, substantial/Anchor area, objective clearance, Anchor room span, route distance, statically usable cross-room ingress separation, usable spawn candidates, spawn-bearing rooms, and Hub doorway degree. A radius-8 layout left at `0.16F` fails. `--seed` supplies the public match seed explicitly. The launch presets use room seeds 7/2/3 for Hub Circuit/Broken Ring/Twin Wings; `--recipe=hub|ring|wings` and the six F2 previews remain deterministic regression tools.
 
 Current replay determinism is scoped to the same game build/toolchain. Lower-level grid and room generation still use standard-library shuffle and distribution implementations, so reproducing a seed across a different C++ standard library is not guaranteed. Production seed compatibility needs fixed project-owned random algorithms or an explicit generation-version contract before seeds can be promised portable across releases.
 
@@ -246,26 +247,44 @@ Health tops out at 1.8×, movement at 1.25×, hostile projectile speed at 1.4×,
 
 ## In-progress implementation slice: random, physically larger, quest-valid maps
 
-### 3. Add the new-match generation boundary — systems-scale foundation complete
+### 3. Add the new-match generation boundary — complete
 
-- Normal play now creates one 64-bit match seed and deterministically derives grid seed, room seed, and candidate retries from it.
+- Normal play creates one 64-bit match seed and deterministically derives grid seed, room seed, physical profile, and candidate retries from it.
 - `N` requests a fresh match. `R` continues to reset the current match on the same accepted map.
 - `--seed=<unsigned decimal>` replays a match, and the HUD/F2 overview display the accepted seed, attempt count, and fallback status.
-- Candidate construction and current small-map plan validation use an eight-attempt budget. Exhaustion selects the known-valid Hub Circuit fixture and marks fallback use visibly.
+- Candidate construction and systems-plan/physical validation use an eight-attempt budget. Exhaustion selects the known-valid Hub Circuit fixture and marks fallback use visibly.
 - Representative configurations remain tests and F2 previews rather than the normal runtime selection pool.
 - Headless coverage verifies same-seed reproduction, cross-seed input variation, same-map restart, deterministic fallback, and scale-profile participation in derivation.
 
-This is deliberately the boundary foundation, not completion of the production map pass. Radius remains 5, scale remains `0.16F`, topology/quest choice is still coupled to the current room-seed recipe, and validation only proves compatibility with the existing Anchor/Hub/relay/Exit systems plan. The next implementation should add actor-relative physical metrics and larger-map profiles before broadening semantic quest binding.
+The boundary is now independent of the old systems dimensions, but topology/quest choice still lacks authored recipe/anchor metadata.
 
-### 4. Increase physical map scale, not only grid radius
+### 4. Increase physical map scale, not only grid radius — Fortress V1 complete
 
-The production map needs both more generated space and larger gameplay dimensions. Raising `gridRadius` adds cells but leaves each room, doorway, and route at the same actor-relative scale; that alone does not satisfy this slice.
+- Normal maps now use radius 8 and `worldScale = 0.22F`; player/enemy collision bodies remain unchanged. Systems fixtures and deterministic fallback remain radius 5 at `0.16F`.
+- `PhysicalMapProfile` is recorded with accepted match metadata and displayed in the HUD/F2 overview.
+- `MatchMapMetrics` measures doorway width, substantial and Anchor room area, objective clearance, Anchor room-center span, Start-to-Exit route distance, statically usable cross-room ingress separation, usable spawn candidates, spawn-bearing rooms, and Hub doorway degree. The span is a room-size proxy, not a true line-of-sight test.
+- Fortress V1 rejects candidates below explicit thresholds and rejects a radius-8 map left at systems world scale. Larger shooter layouts publish one high-degree Hub and prefer a leaf arena for Reward so the existing optional route remains bindable.
+- Camera framing was widened independently to a 25-unit orthographic view with adjusted height, offset, and look-ahead; actors and all combat distances were not globally scaled.
+- Headless coverage proves profile replay, accepted metric thresholds, larger semantic roles, and radius-only rejection.
 
-- Increase the generated-to-world conversion above the current `0.16F` baseline so cell spacing, room footprints, connector lengths, and route distances grow relative to unchanged player/enemy collision radii.
-- Do not multiply actors and all combat distances by the same factor; that would preserve the current effective scale.
-- Treat physical scale as an explicit generation/runtime profile recorded with the match seed, not an incidental renderer transform.
-- Re-evaluate camera framing/look-ahead, movement and dash travel, projectile range/lifetime, enemy visibility and spawn distance, interaction radii, lighting/shadows, floor-detail density, and overview fitting. Tune these independently for readable pacing rather than applying one global multiplier.
-- Validate minimum doorway widths, objective footprints, holdout capacity, ingress separation, sightline bands, and traversal distances in world units and in player-diameter units.
+Fortress V1 acceptance currently requires:
+
+| Metric | Minimum |
+|---|---:|
+| Doorway width | 3.5 player diameters |
+| Every substantial-room area | 270 player-diameter squares |
+| Anchor-room area | 300 player-diameter squares |
+| Hub/Anchor/Exit local clearance | 2.25 player diameters |
+| Anchor-room center span | 18 player diameters |
+| Start-to-Exit traversable route | 135 player diameters |
+| Maximum usable cross-room ingress separation | 130 player diameters |
+| Statically usable enemy spawn candidates | 220 |
+| Rooms with statically usable spawn candidates | 12 |
+| Hub published doorway degree | 3 |
+
+Static spawn usability currently means reachable in the immutable all-open graph, sufficient enemy-sized source clearance, and no overlap with immutable walls. It does not claim that a candidate is reachable through current locks, far from the player's dynamic position, or unoccupied at a particular spawn step.
+
+The remaining physical work is pacing and deeper validation: connector-specific dimensions, true sightline bands, opening-component ingress/circulation/economy, traversal time, movement/dash, projectile reach/lifetime, enemy visibility, interaction radii, lighting/shadows, floor-detail density, and navigation performance.
 
 ### 5. Bind concurrent recipe-authored quests
 
@@ -282,7 +301,7 @@ Replace the current hard-coded `Round 2` Anchor and `Round 5` Exit checks with r
 
 ### 6. Rework generation for sustained endless play
 
-The current radius-5 recipes prove topology but are not sufficient as normal endless-combat spaces. Random generation and candidate scoring need to account for:
+Fortress V1 establishes large random spaces but does not yet prove sustained endless-combat quality. Generation and candidate scoring still need to account for:
 
 - Multiple separated enemy ingress regions with wall-safe spawn capacity.
 - Loops, alternate kiting routes, and recovery space after gates open.
@@ -292,22 +311,21 @@ The current radius-5 recipes prove topology but are not sufficient as normal end
 - Population capacity, sightline variety, ranged-enemy positions, and late-round navigation cost.
 - Economy pacing and unlock order under automatic rounds, including a viable opening component before the first gate purchase.
 
-Keep the three small recipes as deterministic regression fixtures. Normal endurance play must use fresh validated random layouts, with larger grid extent and larger world-space geometry. Candidate validation must reject maps that cannot sustain the configured active-enemy cap, provide enough valid ingress lanes as the opened component expands, realize the selected quest recipe, or meet actor-relative physical-scale targets. Curated large configurations may support balancing and fallback coverage but must not replace random normal play.
+Keep the three small recipes as deterministic regression fixtures. Normal play now uses fresh validated Fortress V1 layouts with larger extent and world-space geometry. Current gates prove map-wide spawn capacity and ingress separation; the next validation must prove capacity within the currently opened component, enough valid ingress lanes as it expands, authored quest realization, circulation, and economy order. Curated large configurations may support balancing but must not replace random normal play.
 
 ### 7. Acceptance and test coverage
 
 Headless coverage now verifies automatic Round 1 startup, cleanup → intermission → next-round transitions, input and puzzle independence, deterministic recipe-aware schedules, snapshots at rounds 1/5/10/25/100, monotonic bounded pressure, maximum-round arithmetic, concurrent Anchor progress, explicit extraction, tiered upgrades, scaled economy rewards, and reset of countdown/difficulty/match state.
 
-The new match-generation suite now covers different seeds deriving different geometry inputs, exact same-seed accepted-layout and retry reproduction, `R` preserving the accepted map, the separate generation path used by `N`, scale-profile derivation, and deterministic visible fallback. The next slices must add coverage for:
+The new match-generation suite covers different seeds deriving different geometry inputs, exact same-seed accepted-layout/profile/retry reproduction, `R` preserving the accepted map, the separate generation path used by `N`, deterministic visible fallback, actor-relative Fortress V1 thresholds, larger-map Hub/Reward semantics, and radius-only rejection. The next slices must add coverage for:
 
-- Different new-match seeds producing structurally distinct larger geometry and semantic quest bindings, beyond the current radius-5 recipe tier.
+- Cross-seed structural diversity and future semantic quest bindings beyond the current spatial-tree tier.
 - Exact reproduction of future semantic anchors and quest placement.
-- Physical room, doorway, objective, sightline, and route measurements relative to unchanged actor dimensions; radius growth alone must not pass these checks.
 - Recipe-authored minimum-round puzzle unlocks that neither reset nor stop the director.
 - Quest completion with continued spawning before voluntary extraction.
 - Generated maps meeting ingress-capacity, circulation, objective-clearance, and late-round navigation constraints.
 
-The updated [`small-puzzle-horde-slice.md`](small-puzzle-horde-slice.md) remains the interactive and headless acceptance guide for the fixed automatic-endless systems baseline. Its successor must cover random new-match generation, physical scale, and quest-aware binding.
+The updated [`small-puzzle-horde-slice.md`](small-puzzle-horde-slice.md) remains the acceptance guide for the fixed automatic-endless systems fixtures. The match-generation suite now covers random generation and physical scale; a successor guide still needs quest-aware binding and full Fortress V1 pacing.
 
 ## Intended horde-mode boundary
 
@@ -339,10 +357,10 @@ Keep the `F1` hard-coded arena as the focused combat regression path. The destin
 
 ## Known limitations
 
-- Normal runtime selection is now fresh and replayable, but still generates within the radius-5 systems tier and validates only the current fixed Anchor/Hub/relay/Exit plan.
-- Runtime geometry still uses `worldScale = 0.16F`; both world-space scale and map extent need to grow relative to unchanged actors.
-- Small maps publish three intentional graph recipes, but substantial rooms still use the compact baseline growth process. Room-shape grammar, districts, negative-space briefs, and puzzle-specific geometry remain the main oatmeal risk.
-- Navigation recomputes a cell BFS per enemy update and is appropriate for the small population cap; larger maps should cache reverse distance fields by player cell and topology revision.
+- Normal runtime selection is fresh, replayable, and physically larger under Fortress V1, but still binds the fixed Anchor/Hub/relay/Exit systems plan rather than an authored semantic quest recipe.
+- Fortress V1 proves actor-relative map-wide geometry and spawn capacity, not opening-component circulation/economy or final pacing. Movement, dash, projectiles, interactions, visibility, lighting, detail density, and traversal time still need large-map playtests.
+- Larger maps use the spatial tree/optional-loop planner and compact-room growth process. Broader topology recipes, room-shape grammar, districts, negative-space briefs, and puzzle-specific geometry remain the main oatmeal risk.
+- Navigation recomputes a cell BFS per enemy update and should be replaced with cached reverse distance fields by player cell and topology revision before raising population/performance targets on Fortress V1.
 - The first economy has one point currency, recipe-scaled gate prices, three tiers each of damage/fire-rate/dash upgrades, pressure-scaled rewards, and repeatable activated-Hub health repair. It has no ammunition economy, traps, service placement variants, or dynamic price balancing.
 - The required Anchor interaction is a combat holdout: press E, remain inside the gold ring for eight accumulated seconds, and resume after leaving. It is a pressure objective, not a logic puzzle. The optional three-relay sequence is the only current puzzle and exposes the next correct target directly, so puzzle depth remains a primary design gap.
 - Hub Circuit deliberately has no Start → Anchor shortcut: each semantic room receives one distinct Hub branch. Broken Ring and Twin Wings may retain their recipe-specific optional route, but accepted Start and Anchor Hub transitions must be separated by at least about 65 degrees.
@@ -350,7 +368,7 @@ Keep the `F1` hard-coded arena as the focused combat regression path. The destin
 - World lighting uses one directional shadow map and two presentation-driven point lights; actor contact shadows remain projected decals rather than full dynamic occlusion.
 - The combat regression ground and debug grid cover a finite 80-by-80 area.
 - Gameplay constants are compiled into their owning modules.
-- Generated-level and combat regression tests retain all prior geometry, doorway, navigation, encounter, projectile, damage, and reset coverage. Room-generation tests enforce exact recipe edges, Hub Circuit's one-branch-per-semantic-room graph, Reward leaf structure, and separated Start/Anchor Hub approaches. `stalberg_horde_match_tests` adds automatic countdown/intermission transitions, puzzle-independent advancement, representative difficulty snapshots, monotonic/capped pressure, maximum-round arithmetic, recipe-aware schedules, recipe sites, progression currency, atomic Anchor purchase/activation, exact point awards, gate traversal, wall-safe spawning/separation, concurrent holdout progress, optional Reward routing, extraction, tiered upgrades, repeatable Hub repair, and whole-match reset. Audio and rendering remain graphical-smoke coverage.
+- Generated-level and combat regression tests retain all prior geometry, doorway, navigation, encounter, projectile, damage, and reset coverage. Room-generation tests enforce exact small-recipe edges plus one Hub/Reward arena on larger layouts. `stalberg_match_generation_tests` covers same-seed profile/layout/retry replay, cross-seed variation, same-map reset, real candidate rejection/fallback, Fortress V1 thresholds, and radius-only failure. `stalberg_horde_match_tests` covers automatic progression, difficulty, economy, gates, spawning, concurrent objectives, extraction, upgrades, repair, and reset. Audio and rendering remain graphical-smoke coverage.
 - Debug runtime builds use debugger-friendly optimization (`-Og` with GCC/Clang or `/O1` with MSVC) for `stalberg_game` and a bundled raylib while retaining debug symbols and assertions. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized instruction-by-instruction stepping is required. Use a separate Release build when profiling performance.
 
 ## Validation and debugging

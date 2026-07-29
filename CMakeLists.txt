@@ -98,6 +98,7 @@ add_library(stalberg_game_core
     src/game/horde_match_plan.cpp
     src/game/level_session.cpp
     src/game/match_generator.cpp
+    src/game/match_map_metrics.cpp
     src/game/player.cpp
     src/game/projectile_pool.cpp
     src/game/target.cpp

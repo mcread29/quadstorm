@@ -1,5 +1,6 @@
 #include "game/horde_match.hpp"
 #include "game/match_generator.hpp"
+#include "game/match_map_metrics.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -42,7 +43,7 @@ bool sameAcceptedLayout(const GeneratedLevel& first,
 bool sameSeedReproducesAcceptedMatch()
 {
     // This seed rejects its first whole-map candidate and accepts a later one.
-    constexpr std::uint64_t seed = 202;
+    constexpr std::uint64_t seed = 3;
     const auto first = generateMatchLevel(MatchGenerationRequest { seed });
     const auto repeated = generateMatchLevel(MatchGenerationRequest { seed });
     const auto& firstInfo = first->matchGeneration();
@@ -112,9 +113,9 @@ bool restartPreservesAcceptedMap()
 
 bool exhaustedBudgetUsesVisibleDeterministicFallback()
 {
-    // Seed 202 rejects attempt one, so a one-attempt budget exercises rejection
+    // Seed 3 rejects attempt one, so a one-attempt budget exercises rejection
     // and exhaustion rather than bypassing the candidate loop.
-    constexpr std::uint64_t seed = 202;
+    constexpr std::uint64_t seed = 3;
     const auto first = generateMatchLevel(MatchGenerationRequest {
         seed, 1
     });
@@ -132,27 +133,88 @@ bool exhaustedBudgetUsesVisibleDeterministicFallback()
     valid &= check(sameAcceptedLayout(*first, *repeated),
         "fallback behavior is deterministic for a requested match seed");
 
-    const auto invalidRequest = generateMatchLevel(MatchGenerationRequest {
-        seed, DEFAULT_MATCH_GENERATION_ATTEMPTS, 1, 0.16F
+    const auto zeroBudget = generateMatchLevel(MatchGenerationRequest {
+        seed, 0, PhysicalMapProfile::FortressV1
     });
-    valid &= check(invalidRequest->matchGeneration()->usedFallback
-            && invalidRequest->matchGeneration()->attempts == 0,
-        "invalid requests do not report candidate attempts that never ran");
+    valid &= check(zeroBudget->matchGeneration()->usedFallback
+            && zeroBudget->matchGeneration()->attempts == 0,
+        "a zero budget does not report candidate attempts that never ran");
+    return valid;
+}
+
+bool fortressProfileRequiresActorRelativeScaleAndCapacity()
+{
+    const auto level = generateMatchLevel(MatchGenerationRequest { 101 });
+    const MatchMapProfile& profile = matchMapProfile(
+        PhysicalMapProfile::FortressV1);
+    const MatchMapMetrics metrics = measureMatchMap(*level);
+
+    bool valid = check(!level->matchGeneration()->usedFallback
+            && level->matchGeneration()->physicalProfile
+                == PhysicalMapProfile::FortressV1,
+        "normal generation records the accepted Fortress V1 profile");
+    valid &= check(level->config().gridRadius == profile.gridRadius
+            && level->worldScale() == profile.worldScale,
+        "Fortress V1 increases both grid extent and generated-to-world scale");
+    valid &= check(matchMapMeetsProfile(*level, profile),
+        "accepted fortress geometry satisfies every physical profile gate");
+    valid &= check(metrics.minimumDoorwayWidthInPlayerDiameters()
+                >= profile.minimumDoorwayWidthInPlayerDiameters
+            && metrics.minimumSubstantialRoomAreaInPlayerDiameterSquares()
+                >= profile.minimumSubstantialRoomAreaInPlayerDiameterSquares
+            && metrics.anchorRoomAreaInPlayerDiameterSquares()
+                >= profile.minimumAnchorRoomAreaInPlayerDiameterSquares
+            && metrics.minimumObjectiveClearanceInPlayerDiameters()
+                >= profile.minimumObjectiveClearanceInPlayerDiameters
+            && metrics.anchorRoomSpanInPlayerDiameters()
+                >= profile.minimumAnchorRoomSpanInPlayerDiameters
+            && metrics.startToExitRouteDistanceInPlayerDiameters()
+                >= profile.minimumRouteDistanceInPlayerDiameters
+            && metrics.maximumUsableIngressSeparationInPlayerDiameters()
+                >= profile.minimumUsableIngressSeparationInPlayerDiameters
+            && metrics.usableEnemySpawnCandidateCount
+                >= profile.minimumUsableEnemySpawnCandidates
+            && metrics.usableEnemySpawnRoomCount
+                >= profile.minimumUsableEnemySpawnRooms
+            && metrics.hubDoorwayDegree >= profile.minimumHubDoorwayDegree,
+        "published metrics expose actor-relative geometry and ingress capacity");
+
+    GeneratedLevelConfig radiusOnlyConfig = level->config();
+    radiusOnlyConfig.worldScale
+        = matchMapProfile(PhysicalMapProfile::SystemsFixture).worldScale;
+    const GeneratedLevel radiusOnly(radiusOnlyConfig);
+    const MatchMapMetrics radiusOnlyMetrics = measureMatchMap(radiusOnly);
+    valid &= check(!matchMapMeetsProfile(radiusOnly, profile),
+        "increasing radius without physical world scale cannot pass Fortress V1");
+    valid &= check(radiusOnlyMetrics.minimumDoorwayWidthInPlayerDiameters()
+                < profile.minimumDoorwayWidthInPlayerDiameters
+            || radiusOnlyMetrics.minimumSubstantialRoomAreaInPlayerDiameterSquares()
+                < profile.minimumSubstantialRoomAreaInPlayerDiameterSquares
+            || radiusOnlyMetrics.minimumObjectiveClearanceInPlayerDiameters()
+                < profile.minimumObjectiveClearanceInPlayerDiameters
+            || radiusOnlyMetrics.startToExitRouteDistanceInPlayerDiameters()
+                < profile.minimumRouteDistanceInPlayerDiameters,
+        "radius-only geometry also fails measured actor-relative thresholds");
+    const GeneratedLevel systems(REPRESENTATIVE_LEVEL_CONFIGS.front());
+    valid &= check(!matchMapMeetsProfile(systems, profile),
+        "the radius-5 systems fixture cannot pass production profile gates");
     return valid;
 }
 
 bool derivationIncludesAttemptAndScaleProfile()
 {
     const MatchGenerationRequest request {
-        505, DEFAULT_MATCH_GENERATION_ATTEMPTS, 5, 0.18F
+        505, DEFAULT_MATCH_GENERATION_ATTEMPTS,
+        PhysicalMapProfile::FortressV1
     };
     const GeneratedLevelConfig first = deriveMatchLevelConfig(request, 0);
     const GeneratedLevelConfig second = deriveMatchLevelConfig(request, 1);
     bool valid = check(first.gridSeed != second.gridSeed
             || first.roomSeed != second.roomSeed,
         "candidate retries derive distinct deterministic inputs");
-    valid &= check(first.gridRadius == request.gridRadius
-            && first.worldScale == request.worldScale,
+    const MatchMapProfile& profile = matchMapProfile(request.physicalProfile);
+    valid &= check(first.gridRadius == profile.gridRadius
+            && first.worldScale == profile.worldScale,
         "the requested extent and physical-scale profile enter derivation");
     return valid;
 }
@@ -166,6 +228,7 @@ int main()
     valid &= differentSeedsVaryNormalMatches();
     valid &= restartPreservesAcceptedMap();
     valid &= exhaustedBudgetUsesVisibleDeterministicFallback();
+    valid &= fortressProfileRequiresActorRelativeScaleAndCapacity();
     valid &= derivationIncludesAttemptAndScaleProfile();
     if (!valid) {
         return 1;

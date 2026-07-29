@@ -1,8 +1,8 @@
 # Small Puzzle Horde Map Vertical Slice
 
-This document is the interactive and headless acceptance guide for the completed small-map horde **systems tier**. Normal play now derives a radius-5, five-substantial-room map from a fresh replayable match seed at `worldScale = 0.16F`; generation selects Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing. `R` preserves the accepted map, `N` generates another, and `--seed` reproduces one. The fixed recipes below remain deterministic regression and fallback fixtures.
+This document is the interactive and headless acceptance guide for the completed small-map horde **systems tier**. The fixed radius-5, five-substantial-room maps use `worldScale = 0.16F` and select Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing. They remain deterministic regression and fallback fixtures available through `--recipe` and F2.
 
-This boundary is not yet the production large-map target. Production maps must enlarge cells, rooms, connectors, and routes relative to unchanged actor bodies; increasing radius alone is insufficient. They must also replace current systems-plan validation with broader endurance and semantic quest validation.
+Normal play now uses the radius-8, `worldScale = 0.22F` Fortress V1 profile with actor-relative physical and capacity gates. `R` preserves the accepted map, `N` generates another, and `--seed` reproduces one within the current build/toolchain. Semantic quest binding and deeper endurance/economy validation remain beyond this fixture guide.
 
 ## Run each recipe
 
@@ -166,4 +166,4 @@ ctest --test-dir build --output-on-failure
 
 The dedicated `stalberg_horde_match_tests` target covers recipe binding and costs, automatic countdown/intermission transitions, puzzle-independent advancement, representative scaling snapshots, bounded and overflow-safe schedules, objective sites, progression-currency reservation, atomic Anchor interaction, exact scaled rewards, gate state, Reward-route safety, geometry-safe spawning/separation, navigation, concurrent Anchor/Hub progression, relay ordering, explicit extraction, tiered upgrades, repeatable Hub repair, and complete reset. Existing generation, geometry, generated-level, collision, combat, and F1 regression tests remain active.
 
-`stalberg_match_generation_tests` now verifies different-seed input variation, exact same-seed accepted-layout replay, same-map restart, bounded deterministic fallback, and scale-profile derivation. The successor acceptance work must add actor-relative world-scale targets, larger-map structural diversity and ingress/circulation capacity, and dynamic quest binding to generated semantic anchors.
+`stalberg_match_generation_tests` now verifies different-seed variation, exact same-seed accepted-layout/profile replay, same-map restart, bounded deterministic fallback, Fortress V1 actor-relative geometry and ingress targets, and explicit failure of radius-only growth. Successor acceptance work must add larger-map structural diversity, opening-component circulation/economy capacity, and dynamic quest binding to generated semantic anchors.

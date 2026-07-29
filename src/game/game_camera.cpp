@@ -8,10 +8,10 @@
 namespace {
 
 constexpr float CAMERA_FOLLOW_SPEED = 10.0F;
-constexpr float CAMERA_HEIGHT = 17.0F;
-constexpr float CAMERA_HORIZONTAL_OFFSET = 12.0F;
-constexpr float CAMERA_FACING_LOOK_AHEAD = 2.15F;
-constexpr float CAMERA_ORTHOGRAPHIC_SIZE = 21.5F;
+constexpr float CAMERA_HEIGHT = 19.5F;
+constexpr float CAMERA_HORIZONTAL_OFFSET = 14.0F;
+constexpr float CAMERA_FACING_LOOK_AHEAD = 2.5F;
+constexpr float CAMERA_ORTHOGRAPHIC_SIZE = 25.0F;
 constexpr float MAXIMUM_GAMEPLAY_ASPECT = 1.9F;
 
 float gameplayCameraSize()

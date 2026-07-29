@@ -361,6 +361,13 @@ bool largeShooterLayoutUsesDirectArenaLinks()
 
     return check(!layout.hasSmallMapRecipe(),
                "large shooter layouts do not misreport a small-map recipe")
+        && check(std::ranges::count(layout.getRooms(),
+                     stalberg::rooms::RoomRole::Hub,
+                     &stalberg::rooms::GeneratedRoom::role) == 1
+                && std::ranges::count(layout.getRooms(),
+                       stalberg::rooms::RoomRole::Reward,
+                       &stalberg::rooms::GeneratedRoom::role) == 1,
+            "large shooter layouts publish one Hub and one Reward arena")
         && check(directArenaLinks > 0,
             "large shooter layouts turn short routes into direct arena links")
         && check(connectorCount <= arenaCount / 2,

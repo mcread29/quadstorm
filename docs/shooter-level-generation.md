@@ -4,7 +4,7 @@ This document describes the default `RoomGenerationMethod::ShooterLayout` pipeli
 
 For the input/output types and physical geometry contract, see [`room-generation-model.md`](room-generation-model.md). For candidate validation, scoring, deterministic retries, and tests, see [`layout-quality-and-testing.md`](layout-quality-and-testing.md). For the next topology-archetype, room-grammar, runtime-overview, and landmark pass, see [`level-identity-pass.md`](level-identity-pass.md).
 
-The `stalberg_game` runtime consumes shooter layouts through immutable `GeneratedLevel`, retaining source grid, dual geometry, neutral room graph, recipe metadata, exact floor, and doorway thresholds. Normal play now derives radius-5 grid/room inputs and a bounded candidate stream from one replayable match seed; fixed presets remain systems fixtures and deterministic fallback. The target still requires a larger physical-scale profile, broader topology, semantic anchors, and quest binding. `LevelSession` owns the authoritative player and synchronized collision/navigation locks; `HordeMatch` owns persistent match state.
+The `stalberg_game` runtime consumes shooter layouts through immutable `GeneratedLevel`, retaining source grid, dual geometry, neutral room graph, recipe metadata, exact floor, and doorway thresholds. Normal play derives radius-8, `worldScale = 0.22` Fortress V1 inputs and a bounded candidate stream from one replayable match seed; fixed radius-5 presets remain systems fixtures and deterministic fallback. Application gates validate actor-relative physical scale and map-wide spawn capacity. The target still requires broader topology/shape metadata, semantic anchors, and quest binding. `LevelSession` owns the authoritative player and synchronized collision/navigation locks; `HordeMatch` owns persistent match state.
 
 ## Goals
 
@@ -24,9 +24,9 @@ The generator works over the irregular dual-cell graph produced by the Stålberg
 
 ### Current identity limitation and next pass
 
-Larger shooter layouts still rely primarily on one noise-perturbed spatial tree and optional loop. Radius-5 layouts use fixed recipe graphs, but all substantial rooms still share the same compact growth process. The runtime also uses a `0.16` generated-to-world scale, so increasing radius alone would create more of the same actor-relative geometry.
+Larger shooter layouts still rely primarily on one noise-perturbed spatial tree and optional loop, and all substantial rooms share the same compact growth process. Normal Fortress V1 runtime generation now combines radius 8 with a `0.22` generated-to-world scale and actor-relative acceptance; the radius-5 fixtures retain `0.16`. Topology and local shape identity remain the larger limitation.
 
-The initial random new-match boundary is implemented. The remaining work in [`level-identity-pass.md`](level-identity-pass.md) is larger world-space geometry, explicit room-shape grammar, broader archetypes, stronger graph signatures, districts, semantic quest anchors, and cross-seed structural validation. The six fixed F2 configurations remain inspection fixtures rather than the normal gameplay pool.
+The random new-match and first larger-world boundary are implemented. The remaining work in [`level-identity-pass.md`](level-identity-pass.md) is explicit room-shape grammar, broader archetypes, stronger graph signatures, districts, semantic quest anchors, opening-component validation, pacing, and cross-seed structural validation. The six fixed F2 configurations remain inspection fixtures rather than the normal gameplay pool.
 
 ### Horde-map interpretation
 
@@ -447,9 +447,9 @@ Tree connectivity and planned-doorway generation ensure every published room par
 
 ## Scaling behavior
 
-The same topology formulas support the demo's radius range of 2–14, but radius controls available cell count—not gameplay scale. `GeneratedLevelConfig::worldScale` independently converts source geometry into world units and is currently `0.16F` in the game.
+The same topology formulas support the demo's radius range of 2–14, but radius controls available cell count—not gameplay scale. `GeneratedLevelConfig::worldScale` independently converts source geometry into world units. Normal Fortress V1 generation uses radius 8 and `0.22F`; systems fixtures remain radius 5 at `0.16F`.
 
-The production large-map pass must increase both available extent and actor-relative physical dimensions. Cell spacing, arena footprint, doorway width, connector length, and route distance must grow relative to unchanged player/enemy radii. Uniformly enlarging actors, interactions, projectiles, and geometry would preserve the effective scale and does not qualify. Generation validation should therefore publish/check world-space and player-diameter measurements, while camera, locomotion, dash, projectile reach, spawn visibility, lighting, and detail density are tuned independently for pacing.
+Fortress V1 increases available extent and actor-relative physical dimensions without enlarging player/enemy radii. Application validation publishes/checks world-space and player-relative doorway, room, objective, room-span, route, statically usable ingress/spawn-capacity, and Hub-degree measurements; a radius-8 map at `0.16F` cannot pass. Room span is not yet a true line-of-sight measurement, and static spawn checks do not model current locks, player position, or occupancy. Camera framing was widened independently rather than applying the geometry multiplier globally. Locomotion, dash, projectile reach, spawn visibility, interactions, lighting, detail density, and navigation performance still require pacing passes.
 
 ### Compact grids
 

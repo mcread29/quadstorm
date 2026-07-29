@@ -153,17 +153,17 @@ Acceptance check: several generated enemies coexist and can be defeated determin
 
 ### Milestone 8B: level identity, physical scale, and legibility — in progress
 
-The current generator is physically valid but often reads as an alternating arena/connector chain, substantial rooms share similar compact growth, and the runtime follow camera hides the complete layout. The active radius-5 preset also converts generated geometry with a `0.16` world scale, producing a systems-test footprint rather than the intended large fortress. Complete the remaining pass in [`level-identity-pass.md`](level-identity-pass.md) before deeper puzzle content.
+The generator is physically valid but often reads as variations on one spatial tree, and substantial rooms still share similar compact growth. Normal runtime generation now uses the radius-8, `worldScale = 0.22` Fortress V1 profile with actor-relative acceptance gates and wider camera framing; the radius-5, `0.16` configurations remain systems fixtures. Complete the topology, room-grammar, and semantic-anchor work in [`level-identity-pass.md`](level-identity-pass.md) before deeper puzzle content.
 
 - **Complete:** add a fitted full-level runtime overview and read-only deterministic representative-seed browser.
 - **Complete for small maps:** select and publish Hub Circuit, Broken Ring, and Twin Wings gameplay recipes before candidate placement and routing.
-- **Complete at systems scale:** normal play generates from a fresh replayable match seed, supports exact `--seed` replay, separates same-map restart from `N` New Match, retries within a bounded budget, and reports fixture fallback.
-- **Next:** expand validation and generation beyond the radius-5 vertical slice, including archetypes and room-shape grammar.
-- Increase both map extent and the world-space size of cells, rooms, connectors, and travel routes relative to unchanged actor bodies; a larger radius alone is insufficient.
+- **Complete:** normal play generates from a fresh replayable match seed, supports same-build `--seed` replay, separates same-map restart from `N` New Match, retries within a bounded budget, and reports fixture fallback.
+- **Complete for Fortress V1:** radius 8 and `worldScale = 0.22` increase extent and physical geometry relative to unchanged actors; actor-relative doorway, room, objective, room-span, route, statically usable ingress/spawn-capacity, and Hub-degree gates reject radius-only growth.
+- **Next:** expand topology archetypes and room-shape grammar beyond the spatial-tree/compact-room baseline.
 - Penalize repetitive room/connector alternation and weak graph signatures.
 - Add role-, shape-, district-, and quest-driven semantic anchors and landmarks.
 - Add per-layout and cross-seed structural diversity tests plus repeatable overview screenshots.
-- Validate generation in gameplay units: actor clearance, ingress capacity, objective footprint, sightline range, traversal time, and projectile/camera suitability.
+- Extend the implemented gameplay-unit gates with opening-component circulation/economy checks, traversal-time targets, and projectile suitability; continue camera and pacing playtests.
 
 Acceptance check: consecutive new matches normally produce different valid maps, entering the same match seed reproduces the same map and quest binding, and restart preserves that seed. Accepted layouts are distinguishable by silhouette, graph structure, room-shape distribution, and landmark hierarchy; their rooms and routes are measurably larger relative to actors than the systems slice; and all deterministic geometry, doorway, navigation, combat, and reset contracts remain correct.
 

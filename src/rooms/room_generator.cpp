@@ -153,19 +153,41 @@ RoomLayout RoomGenerator::generateCandidate(
              arena < shooter.arenaRoomCount && arena < rooms.size(); ++arena) {
             GeneratedRoom& room = rooms[arena];
             if (room.role != RoomRole::Start && room.role != RoomRole::Exit) {
-                room.role = shooter.arenaRoomCount == 5
-                    ? RoomRole::Combat
-                    : doorwayDegrees[arena] >= 3
-                        ? RoomRole::Hub
-                        : RoomRole::Combat;
+                room.role = RoomRole::Combat;
             }
         }
         if (shooter.arenaRoomCount == 5 && rooms.size() > 2) {
             rooms[2].role = RoomRole::Hub;
+        } else if (shooter.arenaRoomCount > 2) {
+            std::size_t hub = 2;
+            for (std::size_t arena = 3;
+                 arena < shooter.arenaRoomCount && arena < rooms.size();
+                 ++arena) {
+                if (doorwayDegrees[arena] > doorwayDegrees[hub]) {
+                    hub = arena;
+                }
+            }
+            rooms[hub].role = RoomRole::Hub;
         }
-        if (shooter.arenaRoomCount == 5
-            && rooms.size() >= shooter.arenaRoomCount) {
-            rooms[shooter.arenaRoomCount - 1].role = RoomRole::Reward;
+        if (rooms.size() >= shooter.arenaRoomCount
+            && shooter.arenaRoomCount > 3) {
+            std::size_t reward = shooter.arenaRoomCount;
+            for (std::size_t arena = shooter.arenaRoomCount;
+                 arena-- > 2;) {
+                if (rooms[arena].role != RoomRole::Combat) {
+                    continue;
+                }
+                if (reward == shooter.arenaRoomCount
+                    || doorwayDegrees[arena] == 1) {
+                    reward = arena;
+                }
+                if (doorwayDegrees[arena] == 1) {
+                    break;
+                }
+            }
+            if (reward < shooter.arenaRoomCount) {
+                rooms[reward].role = RoomRole::Reward;
+            }
         }
         for (const int connector : shooter.connectorRooms) {
             if (connector < 0 || static_cast<std::size_t>(connector) >= rooms.size()) {

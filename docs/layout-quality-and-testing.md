@@ -182,11 +182,11 @@ A geometrically connected floor is not sufficient; accepted circulation must als
 
 This rejects layouts that are topologically valid but do not provide a meaningful shooter route, including the playtest failure where two progression branches collapsed into neighboring doors leading to effectively the same place.
 
-## Planned random-match, physical-scale, quest, and diversity expansion
+## In-progress random-match, physical-scale, quest, and diversity expansion
 
-Current validation proves local correctness and small-map recipe conformance. The game now wraps it in a bounded eight-attempt application-level pipeline: one public match seed derives candidate grid/room seeds, same-seed runs reproduce the accepted layout and retry count, `R` preserves the result, `N` requests another seed, and exhaustion visibly selects a deterministic fixture fallback. This first boundary only validates compatibility with the existing small-map systems plan; it does not yet prove that a result is endurance-ready, physically larger relative to actors, or able to bind a future authored quest safely.
+The game wraps neutral generation in a bounded eight-attempt application-level pipeline: one public match seed derives candidate grid/room seeds and the Fortress V1 profile, same-seed runs reproduce the accepted layout/profile/retry count, `R` preserves the result, `N` requests another seed, and exhaustion visibly selects a deterministic systems fixture. Fortress V1 uses radius 8 and `worldScale = 0.22`; larger shooter layouts now publish one high-degree Hub and prefer a leaf Combat arena for Reward semantics.
 
-The expanded boundary must additionally reproduce a selected quest, broader topology profile, world-scale profile, semantic anchors, and quest binding. Different new-match seeds should produce structurally different accepted maps rather than merely varying current radius-5 geometry. Fixed configurations remain regression fixtures and deterministic fallback coverage.
+Application acceptance requires the current semantic rooms, three relay targets, all four gate purposes, a Hub with at least three published doorway edges, and actor-relative minimums for doorway width, substantial/Anchor area, objective clearance, Anchor room span, Start-to-Exit route distance, statically usable cross-room ingress separation, usable spawn candidates, and spawn-bearing rooms. Static spawn filtering requires all-open reachability, enemy-sized source clearance, and distance from immutable walls; dynamic player separation, occupied slots, and the currently locked component remain runtime concerns. A radius-8 map left at `0.16` fails explicitly. This proves a first physically larger, all-open capacity boundary, not full endurance or quest validity: opening-component circulation/economy, connector-specific measurements, true line-of-sight bands, broader topology profiles, semantic anchors, and authored quest binding remain.
 
 Planned graph measurements include:
 
@@ -197,11 +197,11 @@ Planned graph measurements include:
 - Multi-door substantial-room and meaningful-junction counts.
 - Degree histogram, cycle rank, branch depth, and graph-community separation.
 
-Planned room-geometry measurements include compactness, elongation, concavity, lobe/neck structure, doorway count, doorway angular spread, and local clearance. Gameplay-scale measurements additionally include cell spacing, doorway width, room footprint, connector length, ingress separation, sightline bands, objective clearance, and route travel in both world units and player-diameter units. Increasing radius without increasing these actor-relative dimensions must fail the large-map acceptance gate. Quest validation checks semantic-role availability, required route ordering/separation, objective capacity, and optional-branch viability without fixed coordinates.
+Planned room-geometry measurements include compactness, elongation, concavity, lobe/neck structure, doorway count, doorway angular spread, and local clearance. Implemented gameplay-scale measurements cover doorway width, room footprint, objective clearance, Anchor room-center span, route travel, statically usable cross-room ingress separation, and all-open spawn capacity in world/player-relative units. The room span is a size proxy, not a line-of-sight proof. Connector-specific dimensions, true sightline bands, traversal-time checks, and opening-component capacity remain. Quest validation must check semantic-role availability, required route ordering/separation, objective capacity, and optional-branch viability without fixed coordinates.
 
 Accepted cross-seed sets should contain multiple topology, room-shape, and quest-placement signatures without introducing nondeterminism: repeated identical match inputs must still publish identical layouts, metadata, scores, and bindings.
 
-These checks are not implemented yet. The 100-point score below remains the current authoritative formula until the identity pass explicitly revises and rebaselines it.
+The physical checks are application-level acceptance gates and do not alter the neutral 100-point candidate score below. Planned graph/shape/diversity checks remain unimplemented until the identity pass explicitly revises and rebaselines that score.
 
 ## Candidate quality score
 
