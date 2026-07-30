@@ -72,6 +72,9 @@ bool sameSeedReproducesAcceptedMatch()
             && firstInfo->validCandidateCount
                 == repeatedInfo->validCandidateCount
             && firstInfo->score == repeatedInfo->score
+            && firstInfo->rejectionCounts == repeatedInfo->rejectionCounts
+            && firstInfo->constructionFailureCount
+                == repeatedInfo->constructionFailureCount
             && firstInfo->usedFallback == repeatedInfo->usedFallback,
         "the same match seed reproduces selection and fallback metadata");
     valid &= check(!firstInfo->usedFallback && firstInfo->attempts > 1,
@@ -147,6 +150,9 @@ bool exhaustedBudgetUsesVisibleDeterministicFallback()
     valid &= check(sameConfig(
                        first->config(), REPRESENTATIVE_LEVEL_CONFIGS.front()),
         "fallback publishes the known-valid regression fixture");
+    valid &= check(!first->matchGeneration()->rejectionCounts.empty()
+            || first->matchGeneration()->constructionFailureCount > 0,
+        "fallback metadata explains why the candidate budget was exhausted");
     valid &= check(sameAcceptedLayout(*first, *repeated),
         "fallback behavior is deterministic for a requested match seed");
 
@@ -269,7 +275,9 @@ bool fixedBriefSurvivesGeometryRetries()
             .usedFallback = false,
             .brief = brief,
             .briefHash = briefHash,
-            .score = {}
+            .score = {},
+            .rejectionCounts = {},
+            .constructionFailureCount = 0
         };
     };
     const GeneratedLevel first(firstConfig, makeInfo(0));
@@ -316,7 +324,9 @@ bool bestValidCandidateIsSelectedWithinBudget()
                 .usedFallback = false,
                 .brief = brief,
                 .briefHash = generationBriefHash(brief),
-                .score = {}
+                .score = {},
+                .rejectionCounts = {},
+                .constructionFailureCount = 0
             });
             const MatchValidationReport report
                 = validateMatchMap(candidate, profile);

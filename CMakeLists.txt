@@ -111,6 +111,13 @@ target_link_libraries(stalberg_game_core
 enable_project_warnings(stalberg_game_core)
 enable_debug_runtime_optimization(stalberg_game_core)
 
+if(NOT EMSCRIPTEN)
+    add_executable(stalberg_level_seed_audit
+        src/game/level_seed_audit.cpp)
+    target_link_libraries(stalberg_level_seed_audit PRIVATE stalberg_game_core)
+    enable_project_warnings(stalberg_level_seed_audit)
+endif()
+
 add_executable(stalberg_game
     src/game/combat_audio.cpp
     src/game/game_camera.cpp
@@ -203,4 +210,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     enable_project_warnings(stalberg_match_generation_tests)
     add_test(NAME stalberg_match_generation_tests
         COMMAND stalberg_match_generation_tests)
+
+    add_test(NAME stalberg_level_seed_audit_smoke
+        COMMAND stalberg_level_seed_audit 1 1)
 endif()

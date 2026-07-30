@@ -81,6 +81,21 @@ void addRequiredFailure(MatchValidationReport& report,
     addMinimumFailure(report, code, present ? 1.0 : 0.0, 1.0);
 }
 
+std::vector<MatchRejectionCount> publishedRejectionCounts(
+    const std::array<std::size_t,
+        static_cast<std::size_t>(MatchValidationFailureCode::Count)>& counts)
+{
+    std::vector<MatchRejectionCount> result;
+    for (std::size_t code = 0; code < counts.size(); ++code) {
+        if (counts[code] > 0) {
+            result.push_back(MatchRejectionCount {
+                static_cast<std::uint16_t>(code), counts[code]
+            });
+        }
+    }
+    return result;
+}
+
 } // namespace
 
 const MatchMapProfile& matchMapProfile(PhysicalMapProfile profile)
@@ -154,6 +169,8 @@ const char* matchValidationFailureName(MatchValidationFailureCode code)
         return "stage_objective_reachability";
     case MatchValidationFailureCode::StageGateValue:
         return "stage_gate_value";
+    case MatchValidationFailureCode::Count:
+        break;
     }
     return "unknown";
 }
@@ -396,6 +413,10 @@ std::unique_ptr<GeneratedLevel> generateMatchLevel(
     std::size_t firstValidAttempt = 0;
     std::size_t selectedAttempt = 0;
     CandidateScoreBreakdown selectedScore;
+    std::array<std::size_t,
+        static_cast<std::size_t>(MatchValidationFailureCode::Count)>
+        rejectionCounts {};
+    std::size_t constructionFailureCount = 0;
     std::unique_ptr<GeneratedLevel> selectedLevel;
     const GenerationBrief brief = deriveGenerationBrief(request);
     const std::uint64_t briefHash = generationBriefHash(brief);
@@ -414,11 +435,18 @@ std::unique_ptr<GeneratedLevel> generateMatchLevel(
                         .usedFallback = false,
                         .brief = brief,
                         .briefHash = briefHash,
-                        .score = {}
+                        .score = {},
+                        .rejectionCounts = {},
+                        .constructionFailureCount = 0
                     });
                 const MatchValidationReport report
                     = validateMatchMap(*level, profile);
                 if (!report.passed()) {
+                    for (const MatchValidationFailure& failure
+                        : report.failures) {
+                        ++rejectionCounts[static_cast<std::size_t>(
+                            failure.code)];
+                    }
                     if (firstValidAttempt > 0
                         && attempt + 1 >= firstValidAttempt
                                 + request.rankingAttemptBudget) {
@@ -447,7 +475,7 @@ std::unique_ptr<GeneratedLevel> generateMatchLevel(
                     break;
                 }
             } catch (const std::exception&) {
-                // A construction failure advances the deterministic stream.
+                ++constructionFailureCount;
             }
         }
     }
@@ -462,7 +490,9 @@ std::unique_ptr<GeneratedLevel> generateMatchLevel(
             .usedFallback = false,
             .brief = brief,
             .briefHash = briefHash,
-            .score = selectedScore
+            .score = selectedScore,
+            .rejectionCounts = publishedRejectionCounts(rejectionCounts),
+            .constructionFailureCount = constructionFailureCount
         });
         return selectedLevel;
     }
@@ -476,6 +506,8 @@ std::unique_ptr<GeneratedLevel> generateMatchLevel(
             .usedFallback = true,
             .brief = brief,
             .briefHash = briefHash,
-            .score = {}
+            .score = {},
+            .rejectionCounts = publishedRejectionCounts(rejectionCounts),
+            .constructionFailureCount = constructionFailureCount
         });
 }

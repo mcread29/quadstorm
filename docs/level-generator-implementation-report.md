@@ -180,3 +180,30 @@ ranked:       fallback=5  mean attempts=3.34  mean score=45.1403
 Evaluation: **Positive**.
 
 The mean score increased by 0.8 percent, and fallback use did not change. Mean attempts increased by 28 percent. A wider ranking budget produced only a small additional score gain, so the default budget was reduced to one extra attempt.
+
+### 6. Rejection records and seed-matrix audit tool
+
+Changes:
+
+- Recorded named rejection counts and construction-failure counts in match metadata.
+- Added `stalberg_level_seed_audit`.
+- Added stable CSV columns for the fixed brief, selection, score domains, topology, and rejection counts.
+- Added a CTest smoke test for the audit executable.
+
+Example:
+
+```text
+./build/stalberg_level_seed_audit 1 100 > level-audit.csv
+```
+
+Tests:
+
+- Confirmed same-seed rejection records are identical.
+- Confirmed exhausted fallback metadata contains a rejection or construction reason.
+- Build passed without warnings.
+- Tests: 8 of 8 passed in 25.73 seconds.
+- The audit smoke test took 0.23 seconds.
+
+Evaluation: **Positive**.
+
+The change does not alter map admission or quality. It makes each retry and fallback measurable. Future constraint changes can now use repository-owned CSV data instead of temporary audit programs.

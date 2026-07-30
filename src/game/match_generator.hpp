@@ -60,7 +60,8 @@ enum class MatchValidationFailureCode : std::uint8_t {
     HubDoorwayDegree,
     StageGateApproach,
     StageObjectiveReachability,
-    StageGateValue
+    StageGateValue,
+    Count
 };
 
 struct MatchValidationFailure {

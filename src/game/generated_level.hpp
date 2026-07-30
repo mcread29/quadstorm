@@ -52,6 +52,13 @@ struct CandidateScoreBreakdown {
     bool operator==(const CandidateScoreBreakdown&) const = default;
 };
 
+struct MatchRejectionCount {
+    std::uint16_t code = 0;
+    std::size_t count = 0;
+
+    bool operator==(const MatchRejectionCount&) const = default;
+};
+
 struct MatchGenerationInfo {
     std::uint64_t matchSeed = 0;
     std::size_t attempts = 0;
@@ -62,6 +69,8 @@ struct MatchGenerationInfo {
     std::optional<GenerationBrief> brief;
     std::uint64_t briefHash = 0;
     CandidateScoreBreakdown score;
+    std::vector<MatchRejectionCount> rejectionCounts;
+    std::size_t constructionFailureCount = 0;
 };
 
 // Fixed read-only browser and deterministic fallback matrix.
