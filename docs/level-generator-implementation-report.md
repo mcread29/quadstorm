@@ -119,3 +119,34 @@ The previous result had two fallbacks and 2.02 mean attempts. Most new failures 
 Evaluation: **Neutral**.
 
 The safety result is positive because accepted Fortress maps now pass the complete gate sequence. The production yield result is negative because fallback use increased to 11 percent. The safety gate remains enabled. The next change must improve gate binding instead of weakening the safety check.
+
+### 4. Deterministic semantic gate and Anchor binding
+
+Changes:
+
+- Tested ordered doorway choices for all four gate purposes.
+- Selected the first binding that passes the complete stage simulation.
+- Used deterministic failure count as the fallback binding rank.
+- Tested alternate Combat rooms as Anchor rooms when the first role-based choice failed.
+- Kept Reward gates optional and isolated from the Start-to-Exit route.
+
+Tests:
+
+- The two known softlocked candidate configurations now receive valid gate and Anchor bindings.
+- Every simulated gate is approachable and every stage objective is reachable for those regressions.
+- Build passed without warnings.
+- Tests: 7 of 7 passed in 24.13 seconds.
+
+Seed 1–100 audit:
+
+```text
+fallback=5
+mean attempts=2.60
+accepted archetypes=16,13,26,18,22
+```
+
+The stage-admission-only result had 11 fallbacks and 2.84 mean attempts. Binding reduced fallback use by more than half. The full test run increased by approximately 0.8 seconds because candidate gate bindings now run stage simulation.
+
+Evaluation: **Positive**.
+
+The change repairs known softlocks instead of only rejecting them. It also improves production yield while all hard stage checks stay active. Five percent fallback use remains higher than the two percent result before stage checks, so further construction work is still useful.

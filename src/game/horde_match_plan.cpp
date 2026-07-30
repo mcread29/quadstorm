@@ -1,9 +1,11 @@
 #include "horde_match.hpp"
 
 #include "generated_level_queries.hpp"
+#include "match_map_metrics.hpp"
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <queue>
 #include <ranges>
 #include <set>
@@ -185,6 +187,96 @@ void addSafeRewardGate(const GeneratedLevel& level,
     }
 }
 
+std::vector<std::size_t> orderedDoorwayCandidates(
+    std::span<const std::size_t> path, bool fromFront)
+{
+    std::vector<std::size_t> result(path.begin(), path.end());
+    if (!fromFront) {
+        std::ranges::reverse(result);
+    }
+    return result;
+}
+
+std::vector<std::size_t> safeRewardDoorways(const GeneratedLevel& level,
+    std::span<const std::size_t> rewardPath, int startRoom,
+    int rewardRoom, int exitRoom)
+{
+    std::vector<std::size_t> result;
+    for (auto doorway = rewardPath.rbegin(); doorway != rewardPath.rend();
+         ++doorway) {
+        if (roomsRemainConnectedWithoutDoorway(
+                level, startRoom, exitRoom, *doorway)
+            && !roomsRemainConnectedWithoutDoorway(
+                level, startRoom, rewardRoom, *doorway)) {
+            result.push_back(*doorway);
+        }
+    }
+    return result;
+}
+
+bool selectStageSafeGates(const GeneratedLevel& level, SmallMapPlan& plan,
+    std::span<const std::size_t> expansionPath,
+    std::span<const std::size_t> anchorPath,
+    std::span<const std::size_t> exitPath,
+    std::span<const std::size_t> rewardPath)
+{
+    const std::vector<std::size_t> expansionCandidates
+        = orderedDoorwayCandidates(expansionPath, true);
+    const std::vector<std::size_t> anchorCandidates
+        = orderedDoorwayCandidates(anchorPath, false);
+    const std::vector<std::size_t> exitCandidates
+        = orderedDoorwayCandidates(exitPath, false);
+    const std::vector<std::size_t> rewardCandidates = safeRewardDoorways(level,
+        rewardPath, plan.startRoom, plan.rewardRoom, plan.exitRoom);
+    if (expansionCandidates.empty() || anchorCandidates.empty()
+        || exitCandidates.empty() || rewardCandidates.empty()) {
+        return false;
+    }
+
+    std::vector<MapGate> best = plan.gates;
+    std::size_t bestFailureCount = std::numeric_limits<std::size_t>::max();
+    for (const std::size_t expansion : expansionCandidates) {
+        for (const std::size_t anchor : anchorCandidates) {
+            if (anchor == expansion) {
+                continue;
+            }
+            for (const std::size_t exit : exitCandidates) {
+                if (exit == expansion || exit == anchor) {
+                    continue;
+                }
+                for (const std::size_t reward : rewardCandidates) {
+                    if (reward == expansion || reward == anchor
+                        || reward == exit) {
+                        continue;
+                    }
+                    SmallMapPlan candidate = plan;
+                    candidate.gates = {
+                        { expansion, GatePurpose::Expansion,
+                            scaleMapCost(500, plan.recipe), false },
+                        { anchor, GatePurpose::Anchor,
+                            scaleMapCost(750, plan.recipe), false },
+                        { exit, GatePurpose::Exit, 0, false },
+                        { reward, GatePurpose::Reward,
+                            scaleMapCost(800, plan.recipe), false }
+                    };
+                    const GateStageValidationReport validation
+                        = validateMatchStages(level, candidate, 2);
+                    if (validation.failures.size() < bestFailureCount) {
+                        bestFailureCount = validation.failures.size();
+                        best = std::move(candidate.gates);
+                    }
+                    if (validation.passed()) {
+                        plan.gates = std::move(best);
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    plan.gates = std::move(best);
+    return false;
+}
+
 } // namespace
 
 SmallMapPlan buildSmallMapPlan(const GeneratedLevel& level)
@@ -265,6 +357,30 @@ SmallMapPlan buildSmallMapPlan(const GeneratedLevel& level)
             plan.relayTargets.push_back(RelayTarget {
                 cell, generated_level::worldCellCenter(level, cell)
             });
+        }
+    }
+
+    if (selectStageSafeGates(level, plan, startToHub, hubToAnchor,
+            hubToExit, hubToReward)) {
+        return plan;
+    }
+
+    for (const auto& room : level.roomLayout().getRooms()) {
+        if (room.role != stalberg::rooms::RoomRole::Combat
+            || room.id == plan.rewardRoom || room.id == plan.anchorRoom) {
+            continue;
+        }
+        SmallMapPlan candidate = plan;
+        candidate.anchorRoom = room.id;
+        candidate.anchorCell = highestClearanceCell(level, room.id);
+        candidate.anchorPosition = generated_level::worldCellCenter(
+            level, candidate.anchorCell);
+        const std::vector<std::size_t> candidateAnchorPath
+            = doorwayPath(level, candidate.hubRoom, candidate.anchorRoom);
+        if (selectStageSafeGates(level, candidate, startToHub,
+                candidateAnchorPath, hubToExit, hubToReward)) {
+            plan = std::move(candidate);
+            return plan;
         }
     }
     return plan;

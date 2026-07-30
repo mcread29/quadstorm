@@ -214,7 +214,7 @@ bool fortressProfileRequiresActorRelativeScaleAndCapacity()
     return valid;
 }
 
-bool progressionStageValidationRejectsKnownSoftlocks()
+bool semanticGateBindingRepairsKnownSoftlocks()
 {
     const std::array badConfigs {
         GeneratedLevelConfig {
@@ -229,16 +229,14 @@ bool progressionStageValidationRejectsKnownSoftlocks()
         const GeneratedLevel level(config);
         const GateStageValidationReport stages = validateMatchStages(
             level, buildSmallMapPlan(level), 2);
-        valid &= check(!stages.passed()
-                && std::ranges::any_of(stages.failures,
-                    [](const GateStageFailure& failure) {
-                        return failure.stage == GateStage::AnchorOpen
-                            && (failure.code
-                                    == GateStageFailureCode::GateNotApproachable
-                                || failure.code
-                                    == GateStageFailureCode::ObjectiveUnreachable);
+        valid &= check(stages.passed()
+                && stages.stages.size() == 4
+                && std::ranges::all_of(stages.stages,
+                    [](const GateStageMetrics& stage) {
+                        return stage.gateWasApproachable
+                            && stage.objectiveIsReachable;
                     }),
-            "known Anchor softlocks fail at the Anchor progression stage");
+            "semantic gate binding repairs known Anchor softlocks");
     }
 
     for (const std::uint64_t seed : { 71ULL, 89ULL }) {
@@ -362,7 +360,7 @@ int main()
     valid &= restartPreservesAcceptedMap();
     valid &= exhaustedBudgetUsesVisibleDeterministicFallback();
     valid &= fortressProfileRequiresActorRelativeScaleAndCapacity();
-    valid &= progressionStageValidationRejectsKnownSoftlocks();
+    valid &= semanticGateBindingRepairsKnownSoftlocks();
     valid &= fixedBriefSurvivesGeometryRetries();
     valid &= structuredValidationReportsExplainAdmission();
     valid &= derivationIncludesAttemptAndScaleProfile();
