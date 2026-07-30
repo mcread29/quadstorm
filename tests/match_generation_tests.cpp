@@ -50,7 +50,7 @@ bool sameAcceptedLayout(const GeneratedLevel& first,
 bool sameSeedReproducesAcceptedMatch()
 {
     // This seed rejects its first whole-map candidate and accepts a later one.
-    constexpr std::uint64_t seed = 3;
+    constexpr std::uint64_t seed = 4;
     const auto first = generateMatchLevel(MatchGenerationRequest { seed });
     const auto repeated = generateMatchLevel(MatchGenerationRequest { seed });
     const auto& firstInfo = first->matchGeneration();
@@ -133,9 +133,9 @@ bool restartPreservesAcceptedMap()
 
 bool exhaustedBudgetUsesVisibleDeterministicFallback()
 {
-    // Seed 3 rejects attempt one, so a one-attempt budget exercises rejection
+    // Seed 4 rejects attempt one, so a one-attempt budget exercises rejection
     // and exhaustion rather than bypassing the candidate loop.
-    constexpr std::uint64_t seed = 3;
+    constexpr std::uint64_t seed = 4;
     const auto first = generateMatchLevel(MatchGenerationRequest {
         seed, 1
     });
@@ -305,7 +305,7 @@ bool fixedBriefSurvivesGeometryRetries()
 
 bool bestValidCandidateIsSelectedWithinBudget()
 {
-    const MatchGenerationRequest request { 3 };
+    const MatchGenerationRequest request { 32 };
     const auto selected = generateMatchLevel(request);
     const MatchGenerationInfo& info = *selected->matchGeneration();
     const MatchMapProfile& profile = matchMapProfile(request.physicalProfile);
