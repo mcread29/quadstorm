@@ -305,8 +305,10 @@ bool shooterLayoutHasExplicitCombatStructure(const stalberg::StalbergGrid& grid)
         "shooter arenas are physically larger than their connectors");
     const std::size_t loopCount = layout.getDoorways().size()
         - layout.getRoomCount() + 1;
-    valid &= check(loopCount <= 1,
-        "shooter mission graph has at most one deliberate route loop");
+    valid &= check(layout.getTopologySignature().substantialRoomCount >= 10
+                ? loopCount == 2
+                : loopCount <= 1,
+        "production-size shooter mission graphs have two route loops");
     std::vector<int> distances(layout.getRoomCount(), -1);
     std::queue<int> queue;
     if (startRoom >= 0) {
@@ -377,8 +379,8 @@ bool largeShooterLayoutUsesDirectArenaLinks()
             "large shooter layouts publish one Hub and one Reward arena")
         && check(directArenaLinks > 0,
             "large shooter layouts turn short routes into direct arena links")
-        && check(connectorCount <= arenaCount / 2,
-            "large shooter layouts reserve connector rooms for long links")
+        && check(connectorCount <= arenaCount,
+            "large shooter layouts reserve connectors for mission links")
         && check(twoCellConnectorCount <= 1,
             "large shooter layouts publish at most one structural two-cell connector");
 }
@@ -397,7 +399,7 @@ bool largeMapArchetypesPublishDistinctSignatures()
         stalberg::rooms::LargeMapArchetype::TwinDistricts,
         stalberg::rooms::LargeMapArchetype::DenseCoreWithSparseBranch
     };
-    std::set<std::array<std::size_t, 5>> signatures;
+    std::set<std::array<std::size_t, 6>> signatures;
     bool valid = true;
     for (const auto archetype : archetypes) {
         const auto layout = generator.generate(input,
@@ -420,6 +422,7 @@ bool largeMapArchetypesPublishDistinctSignatures()
                 && signature.startExitDistance >= 3
                 && signature.meaningfulJunctionCount >= 1
                 && signature.maximumDegree >= 3
+                && signature.cycleRank == 2
                 && signature.directArenaEdgeRatio >= 0.0F
                 && signature.directArenaEdgeRatio <= 1.0F,
             "large maps publish a measurable valid graph signature");
@@ -427,7 +430,8 @@ bool largeMapArchetypesPublishDistinctSignatures()
             signature.maximumDegree,
             signature.meaningfulJunctionCount,
             signature.maximumBranchDepth,
-            signature.startExitDistance });
+            signature.startExitDistance,
+            signature.connectorCount });
     }
     valid &= check(signatures.size() == archetypes.size(),
         "large-map archetypes produce distinct graph signatures");

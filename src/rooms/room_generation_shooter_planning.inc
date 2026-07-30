@@ -902,6 +902,50 @@ std::vector<std::pair<int, int>> planSpatialTreeConnections(
     return edges;
 }
 
+void addRequiredCycleEars(const RoomGrid& grid,
+    const std::vector<CellIndex>& arenaSeeds,
+    std::vector<std::pair<int, int>>& edges)
+{
+    const std::size_t targetEdgeCount = arenaSeeds.size() + 1;
+    while (edges.size() < targetEdgeCount) {
+        std::vector<std::vector<int>> graph(arenaSeeds.size());
+        for (const auto& [first, second] : edges) {
+            graph[static_cast<std::size_t>(first)].push_back(second);
+            graph[static_cast<std::size_t>(second)].push_back(first);
+        }
+        std::pair<int, int> selected { -1, -1 };
+        float selectedScore = -std::numeric_limits<float>::infinity();
+        for (std::size_t first = 0; first < arenaSeeds.size(); ++first) {
+            const std::vector<int> distances
+                = breadthFirstDistances(graph, static_cast<int>(first));
+            for (std::size_t second = first + 1;
+                 second < arenaSeeds.size(); ++second) {
+                const auto edge = canonicalArenaEdge(
+                    static_cast<int>(first), static_cast<int>(second));
+                if (distances[second] < 3
+                    || std::ranges::find(edges, edge) != edges.end()) {
+                    continue;
+                }
+                const float physicalDistance = std::max(
+                    arenaSeedDistance(grid, arenaSeeds,
+                        static_cast<int>(first), static_cast<int>(second)),
+                    0.001F);
+                const float score = static_cast<float>(distances[second])
+                    / physicalDistance;
+                if (score > selectedScore
+                    || (score == selectedScore && edge < selected)) {
+                    selected = edge;
+                    selectedScore = score;
+                }
+            }
+        }
+        if (selected.first < 0) {
+            break;
+        }
+        addArenaEdge(edges, selected.first, selected.second);
+    }
+}
+
 std::vector<std::pair<int, int>> planArenaConnections(
     const RoomGrid& grid,
     const std::vector<CellIndex>& arenaSeeds,
@@ -931,6 +975,13 @@ std::vector<std::pair<int, int>> planArenaConnections(
     const std::size_t requiredEdgeCount = arenaSeeds.size() - 1;
     if (edges.size() < requiredEdgeCount) {
         return {};
+    }
+    if (grid.getCellCount()
+        >= detail::MINIMUM_PRODUCTION_CYCLE_GRID_CELLS) {
+        addRequiredCycleEars(grid, arenaSeeds, edges);
+        if (edges.size() < arenaSeeds.size() + 1) {
+            return {};
+        }
     }
     std::ranges::sort(edges.begin(),
         edges.begin() + static_cast<std::ptrdiff_t>(requiredEdgeCount),

@@ -63,7 +63,8 @@ ShooterGenerationResult generateShooterLayout(
         std::clamp<std::size_t>(
             buildableCells.size() / 55, minimumArenaCount, 20));
     const float averageTarget = static_cast<float>(buildableCells.size())
-        * 0.36F / static_cast<float>(std::max<std::size_t>(desiredArenaCount, 1));
+        * 0.36F
+        / static_cast<float>(std::max<std::size_t>(desiredArenaCount, 1));
     const ArenaDistributionBrief distribution = chooseArenaDistribution(
         buildableCells.size(), desiredArenaCount, requestedSeed, generationSeed);
 
@@ -275,11 +276,10 @@ ShooterGenerationResult generateShooterLayout(
     result.arenaRoomCount = arenaSeeds.size();
     result.startCell = arenaSeeds.front();
     result.exitCell = arenaSeeds[1];
-    bool loopAdded = false;
+    bool smallMapLoopAdded = false;
     std::vector<std::size_t> connectionOrder;
     const std::size_t requiredConnectionCount = arenaSeeds.size() - 1;
-    if (!usesSmallMapRecipe
-        && largeMapArchetype == LargeMapArchetype::RingAndBranches
+    if (usesLargeMapArchetype
         && plannedConnections.size() > requiredConnectionCount) {
         for (std::size_t index = requiredConnectionCount;
              index < plannedConnections.size(); ++index) {
@@ -300,7 +300,9 @@ ShooterGenerationResult generateShooterLayout(
     for (const std::size_t connectionIndex : connectionOrder) {
         const bool requiredTreeEdge
             = connectionIndex < requiredConnectionCount;
-        if (!requiredTreeEdge && loopAdded) {
+        const bool requiredMissionEdge
+            = requiredTreeEdge || usesLargeMapArchetype;
+        if (!requiredMissionEdge && smallMapLoopAdded) {
             continue;
         }
         const auto [first, second] = plannedConnections[connectionIndex];
@@ -317,10 +319,10 @@ ShooterGenerationResult generateShooterLayout(
             rooms,
             result.connectorRooms,
             result.requiredDoorways);
-        if (!connected && requiredTreeEdge) {
+        if (!connected && requiredMissionEdge) {
             result.complete = false;
-        } else if (connected && !requiredTreeEdge) {
-            loopAdded = true;
+        } else if (connected && !requiredMissionEdge) {
+            smallMapLoopAdded = true;
         }
     }
     std::vector<bool> floor(assignments.size(), false);

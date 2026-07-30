@@ -207,3 +207,41 @@ Tests:
 Evaluation: **Positive**.
 
 The change does not alter map admission or quality. It makes each retry and fallback measurable. Future constraint changes can now use repository-owned CSV data instead of temporary audit programs.
+
+### 7. Cycle-first production mission graphs
+
+Changes:
+
+- Added two required cycle ears to every production-size large-map graph.
+- Required physical realization of both cycle edges.
+- Rejected a production candidate when either cycle route failed.
+- Selected cycle endpoints with at least three graph transitions of separation.
+- Routed required cycle edges before tree edges to preserve cycle space.
+- Kept compact systems fixtures on their existing zero-or-one-cycle rules.
+- Replaced the test that required no more than one loop.
+
+Tests:
+
+- Every tested production-size archetype has exactly two contracted cycles.
+- The full room-generation matrix passed.
+- Build passed without warnings.
+- Tests: 8 of 8 passed in 30.47 seconds.
+
+Seed 1–100 comparison:
+
+```text
+before required cycles: fallback=5  mean attempts=3.34  mean score=45.140
+                         mean cycles=0–1  historical multi-entry=49.14%
+after required cycles:  fallback=6  mean attempts=2.99  mean score=58.159
+                         mean cycles=2.00  mean multi-entry=65.4%
+```
+
+Evaluation: **Positive**.
+
+Accepted production maps now meet the two-cycle circulation requirement. Mean multi-entry coverage increased substantially. Fallback use increased by one map, but mean attempts decreased because stronger topology also increased the quality score.
+
+#### Reverted experiment: immediate 70 percent multi-entry hard gate
+
+The experiment added a third cycle when needed and rejected layouts below 70 percent multi-entry coverage. Ring and Branches and Twin Districts could not realize the rule reliably. Several room-generation regressions returned empty layouts. The experiment was **Negative** and was reverted.
+
+The retained two-cycle design reaches 65.4 percent multi-entry coverage on average. A future bounded-leaf archetype redesign is necessary before the 70 percent rule can become a hard gate.

@@ -16,6 +16,8 @@
 
 namespace stalberg::rooms::detail {
 
+inline constexpr std::size_t MINIMUM_PRODUCTION_CYCLE_GRID_CELLS = 600;
+
 inline std::uint64_t mix(std::uint64_t value)
 {
     value += 0x9e3779b97f4a7c15ULL;
@@ -430,25 +432,62 @@ inline bool shooterCandidateIsValid(
             || signature.meaningfulJunctionCount < 1) {
             return false;
         }
+        if (grid.getCellCount() < MINIMUM_PRODUCTION_CYCLE_GRID_CELLS) {
+            switch (layout.getLargeMapArchetype()) {
+            case LargeMapArchetype::HubAndSpokes:
+                if (signature.maximumDegree < 4 || signature.cycleRank != 0) {
+                    return false;
+                }
+                break;
+            case LargeMapArchetype::RingAndBranches:
+                if (signature.maximumDegree < 3 || signature.cycleRank != 1) {
+                    return false;
+                }
+                break;
+            case LargeMapArchetype::MainSpine:
+                if (signature.cycleRank != 0
+                    || signature.maximumBranchDepth < 2) {
+                    return false;
+                }
+                break;
+            case LargeMapArchetype::TwinDistricts:
+                if (signature.cycleRank != 0
+                    || (arenaCount >= 6
+                        && signature.meaningfulJunctionCount < 2)) {
+                    return false;
+                }
+                break;
+            case LargeMapArchetype::DenseCoreWithSparseBranch:
+                if (signature.maximumDegree < 3
+                    || signature.maximumBranchDepth < 2
+                    || signature.cycleRank > 1) {
+                    return false;
+                }
+                break;
+            }
+            const std::vector<int> distances
+                = breadthFirstDistances(roomGraph, startRoom);
+            return distances[static_cast<std::size_t>(exitRoom)] >= 3;
+        }
         switch (layout.getLargeMapArchetype()) {
         case LargeMapArchetype::HubAndSpokes:
-            if (signature.maximumDegree < 4 || signature.cycleRank != 0) {
+            if (signature.maximumDegree < 4 || signature.cycleRank != 2) {
                 return false;
             }
             break;
         case LargeMapArchetype::RingAndBranches:
-            if (signature.maximumDegree < 3 || signature.cycleRank != 1) {
+            if (signature.maximumDegree < 3 || signature.cycleRank != 2) {
                 return false;
             }
             break;
         case LargeMapArchetype::MainSpine:
-            if (signature.cycleRank != 0
+            if (signature.cycleRank != 2
                 || signature.maximumBranchDepth < 2) {
                 return false;
             }
             break;
         case LargeMapArchetype::TwinDistricts:
-            if (signature.cycleRank != 0
+            if (signature.cycleRank != 2
                 || (arenaCount >= 6
                     && signature.meaningfulJunctionCount < 2)) {
                 return false;
@@ -457,7 +496,7 @@ inline bool shooterCandidateIsValid(
         case LargeMapArchetype::DenseCoreWithSparseBranch:
             if (signature.maximumDegree < 3
                 || signature.maximumBranchDepth < 2
-                || signature.cycleRank > 1) {
+                || signature.cycleRank != 2) {
                 return false;
             }
             break;
