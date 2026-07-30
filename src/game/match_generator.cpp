@@ -266,6 +266,83 @@ bool matchMapMeetsProfile(const GeneratedLevel& level,
     return validateMatchMap(level, profile).passed();
 }
 
+CandidateScoreBreakdown scoreMatchCandidate(const GeneratedLevel& level,
+    const MatchValidationReport& report, const MatchMapProfile& profile)
+{
+    CandidateScoreBreakdown score;
+    const auto& signature = level.roomLayout().getTopologySignature();
+    if (signature.substantialRoomCount > 0) {
+        const float roomCount
+            = static_cast<float>(signature.substantialRoomCount);
+        const float multiEntryRatio
+            = static_cast<float>(signature.multiDoorSubstantialRoomCount)
+            / roomCount;
+        const float leafRatio
+            = static_cast<float>(signature.degreeHistogram[1]) / roomCount;
+        score.circulation = multiEntryRatio * 20.0F
+            + std::min(static_cast<float>(signature.cycleRank), 3.0F)
+                / 3.0F * 10.0F
+            + (1.0F - std::clamp(leafRatio, 0.0F, 1.0F)) * 10.0F;
+    }
+
+    float physicalMarginTotal = 0.0F;
+    std::size_t physicalMetricCount = 0;
+    const auto addPhysicalMargin = [&](double actual, double minimum) {
+        if (minimum <= 0.0) {
+            return;
+        }
+        const double relativeMargin = actual / minimum - 1.0;
+        physicalMarginTotal += static_cast<float>(
+            std::clamp(relativeMargin / 0.5, 0.0, 1.0));
+        ++physicalMetricCount;
+    };
+    const MatchMapMetrics& metrics = report.metrics;
+    addPhysicalMargin(metrics.minimumDoorwayWidthInPlayerDiameters(),
+        profile.minimumDoorwayWidthInPlayerDiameters);
+    addPhysicalMargin(
+        metrics.minimumSubstantialRoomAreaInPlayerDiameterSquares(),
+        profile.minimumSubstantialRoomAreaInPlayerDiameterSquares);
+    addPhysicalMargin(metrics.anchorRoomAreaInPlayerDiameterSquares(),
+        profile.minimumAnchorRoomAreaInPlayerDiameterSquares);
+    addPhysicalMargin(metrics.minimumObjectiveClearanceInPlayerDiameters(),
+        profile.minimumObjectiveClearanceInPlayerDiameters);
+    addPhysicalMargin(metrics.anchorRoomSpanInPlayerDiameters(),
+        profile.minimumAnchorRoomSpanInPlayerDiameters);
+    addPhysicalMargin(metrics.startToExitRouteDistanceInPlayerDiameters(),
+        profile.minimumRouteDistanceInPlayerDiameters);
+    addPhysicalMargin(
+        metrics.maximumUsableIngressSeparationInPlayerDiameters(),
+        profile.minimumUsableIngressSeparationInPlayerDiameters);
+    addPhysicalMargin(metrics.usableEnemySpawnCandidateCount,
+        profile.minimumUsableEnemySpawnCandidates);
+    addPhysicalMargin(metrics.usableEnemySpawnRoomCount,
+        profile.minimumUsableEnemySpawnRooms);
+    if (physicalMetricCount > 0) {
+        score.physicalMargin = physicalMarginTotal
+            / static_cast<float>(physicalMetricCount) * 25.0F;
+    }
+
+    std::size_t newlyReachableCells = 0;
+    std::size_t routeSavings = 0;
+    for (const GateStageMetrics& stage : report.stages.stages) {
+        newlyReachableCells += stage.newlyReachableCellCount;
+        routeSavings += stage.routeSavingsTransitions;
+    }
+    const float cellCount = static_cast<float>(
+        std::max<std::size_t>(1, level.roomGrid().getCellCount()));
+    score.progression = std::clamp(
+            static_cast<float>(newlyReachableCells) / cellCount,
+            0.0F, 1.0F)
+            * 20.0F
+        + std::clamp(static_cast<float>(routeSavings) / 10.0F,
+            0.0F, 1.0F)
+            * 5.0F;
+    score.generatorQuality = std::clamp(
+        level.roomLayout().getQualityScore() / 100.0F, 0.0F, 1.0F)
+        * 10.0F;
+    return score;
+}
+
 GenerationBrief deriveGenerationBrief(const MatchGenerationRequest& request)
 {
     constexpr std::uint64_t archetypeCount = 5;
@@ -315,6 +392,11 @@ std::unique_ptr<GeneratedLevel> generateMatchLevel(
     const bool requestIsValid = profile.gridRadius >= 2
         && std::isfinite(profile.worldScale) && profile.worldScale > 0.0F;
     std::size_t attemptsPerformed = 0;
+    std::size_t validCandidateCount = 0;
+    std::size_t firstValidAttempt = 0;
+    std::size_t selectedAttempt = 0;
+    CandidateScoreBreakdown selectedScore;
+    std::unique_ptr<GeneratedLevel> selectedLevel;
     const GenerationBrief brief = deriveGenerationBrief(request);
     const std::uint64_t briefHash = generationBriefHash(brief);
     if (requestIsValid) {
@@ -327,18 +409,62 @@ std::unique_ptr<GeneratedLevel> generateMatchLevel(
                     MatchGenerationInfo {
                         .matchSeed = request.matchSeed,
                         .attempts = attempt + 1,
+                        .selectedAttempt = attempt + 1,
                         .physicalProfile = profile.id,
                         .usedFallback = false,
                         .brief = brief,
-                        .briefHash = briefHash
+                        .briefHash = briefHash,
+                        .score = {}
                     });
-                if (matchMapMeetsProfile(*level, profile)) {
-                    return level;
+                const MatchValidationReport report
+                    = validateMatchMap(*level, profile);
+                if (!report.passed()) {
+                    if (firstValidAttempt > 0
+                        && attempt + 1 >= firstValidAttempt
+                                + request.rankingAttemptBudget) {
+                        break;
+                    }
+                    continue;
+                }
+                ++validCandidateCount;
+                if (firstValidAttempt == 0) {
+                    firstValidAttempt = attempt + 1;
+                }
+                const CandidateScoreBreakdown score
+                    = scoreMatchCandidate(*level, report, profile);
+                if (selectedLevel == nullptr
+                    || score.total() > selectedScore.total()) {
+                    selectedAttempt = attempt + 1;
+                    selectedScore = score;
+                    selectedLevel = std::move(level);
+                }
+                if (selectedScore.total() >= request.qualityMargin
+                    || validCandidateCount
+                        >= std::max<std::size_t>(
+                            1, request.validCandidateBudget)
+                    || attempt + 1 >= firstValidAttempt
+                            + request.rankingAttemptBudget) {
+                    break;
                 }
             } catch (const std::exception&) {
-                // A rejected candidate advances through the deterministic stream.
+                // A construction failure advances the deterministic stream.
             }
         }
+    }
+
+    if (selectedLevel != nullptr) {
+        selectedLevel->finalizeMatchGeneration(MatchGenerationInfo {
+            .matchSeed = request.matchSeed,
+            .attempts = attemptsPerformed,
+            .selectedAttempt = selectedAttempt,
+            .validCandidateCount = validCandidateCount,
+            .physicalProfile = profile.id,
+            .usedFallback = false,
+            .brief = brief,
+            .briefHash = briefHash,
+            .score = selectedScore
+        });
+        return selectedLevel;
     }
 
     return std::make_unique<GeneratedLevel>(
@@ -349,6 +475,7 @@ std::unique_ptr<GeneratedLevel> generateMatchLevel(
             .physicalProfile = PhysicalMapProfile::SystemsFixture,
             .usedFallback = true,
             .brief = brief,
-            .briefHash = briefHash
+            .briefHash = briefHash,
+            .score = {}
         });
 }

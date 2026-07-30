@@ -290,6 +290,11 @@ bool GeneratedLevel::canTraverse(CellIndex first, CellIndex second) const
     return std::ranges::find(neighbors, second) != neighbors.end();
 }
 
+void GeneratedLevel::finalizeMatchGeneration(MatchGenerationInfo generation)
+{
+    generationInfo = std::move(generation);
+}
+
 std::optional<CellIndex> GeneratedLevel::cellAtWorldPoint(Vector2 point) const
 {
     const auto cell = stalberg::findDualCellAtPoint(

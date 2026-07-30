@@ -38,13 +38,30 @@ struct GenerationBrief {
     bool operator==(const GenerationBrief&) const = default;
 };
 
+struct CandidateScoreBreakdown {
+    float circulation = 0.0F;
+    float physicalMargin = 0.0F;
+    float progression = 0.0F;
+    float generatorQuality = 0.0F;
+
+    float total() const
+    {
+        return circulation + physicalMargin + progression + generatorQuality;
+    }
+
+    bool operator==(const CandidateScoreBreakdown&) const = default;
+};
+
 struct MatchGenerationInfo {
     std::uint64_t matchSeed = 0;
     std::size_t attempts = 0;
+    std::size_t selectedAttempt = 0;
+    std::size_t validCandidateCount = 0;
     PhysicalMapProfile physicalProfile = PhysicalMapProfile::SystemsFixture;
     bool usedFallback = false;
     std::optional<GenerationBrief> brief;
     std::uint64_t briefHash = 0;
+    CandidateScoreBreakdown score;
 };
 
 // Fixed read-only browser and deterministic fallback matrix.
@@ -105,6 +122,7 @@ public:
     {
         return generationInfo;
     }
+    void finalizeMatchGeneration(MatchGenerationInfo generation);
 
 private:
     GeneratedLevelConfig configData;

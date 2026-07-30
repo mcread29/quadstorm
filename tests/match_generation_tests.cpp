@@ -68,8 +68,12 @@ bool sameSeedReproducesAcceptedMatch()
                 == generationBriefHash(*firstInfo->brief),
         "the same match seed reproduces its fixed generation brief");
     valid &= check(firstInfo->attempts == repeatedInfo->attempts
+            && firstInfo->selectedAttempt == repeatedInfo->selectedAttempt
+            && firstInfo->validCandidateCount
+                == repeatedInfo->validCandidateCount
+            && firstInfo->score == repeatedInfo->score
             && firstInfo->usedFallback == repeatedInfo->usedFallback,
-        "the same match seed reproduces retry and fallback metadata");
+        "the same match seed reproduces selection and fallback metadata");
     valid &= check(!firstInfo->usedFallback && firstInfo->attempts > 1,
         "same-seed replay includes a deterministic retry winner");
     valid &= check(sameAcceptedLayout(*first, *repeated),
@@ -264,7 +268,8 @@ bool fixedBriefSurvivesGeometryRetries()
             .physicalProfile = request.physicalProfile,
             .usedFallback = false,
             .brief = brief,
-            .briefHash = briefHash
+            .briefHash = briefHash,
+            .score = {}
         };
     };
     const GeneratedLevel first(firstConfig, makeInfo(0));
@@ -287,6 +292,57 @@ bool fixedBriefSurvivesGeometryRetries()
     valid &= check(first.matchGeneration()->briefHash == briefHash
             && second.matchGeneration()->briefHash == briefHash,
         "whole-map retry metadata retains the generation binding hash");
+    return valid;
+}
+
+bool bestValidCandidateIsSelectedWithinBudget()
+{
+    const MatchGenerationRequest request { 3 };
+    const auto selected = generateMatchLevel(request);
+    const MatchGenerationInfo& info = *selected->matchGeneration();
+    const MatchMapProfile& profile = matchMapProfile(request.physicalProfile);
+    const GenerationBrief brief = deriveGenerationBrief(request);
+    float bestScore = -1.0F;
+    std::size_t bestAttempt = 0;
+    std::size_t validCandidates = 0;
+    for (std::size_t attempt = 0; attempt < info.attempts; ++attempt) {
+        try {
+            const GeneratedLevel candidate(deriveMatchLevelConfig(
+                request, attempt), MatchGenerationInfo {
+                .matchSeed = request.matchSeed,
+                .attempts = attempt + 1,
+                .selectedAttempt = attempt + 1,
+                .physicalProfile = request.physicalProfile,
+                .usedFallback = false,
+                .brief = brief,
+                .briefHash = generationBriefHash(brief),
+                .score = {}
+            });
+            const MatchValidationReport report
+                = validateMatchMap(candidate, profile);
+            if (!report.passed()) {
+                continue;
+            }
+            ++validCandidates;
+            const float score
+                = scoreMatchCandidate(candidate, report, profile).total();
+            if (score > bestScore) {
+                bestScore = score;
+                bestAttempt = attempt + 1;
+            }
+        } catch (const std::exception&) {
+        }
+    }
+
+    bool valid = check(!info.usedFallback && info.validCandidateCount >= 1,
+        "candidate ranking uses only hard-valid maps");
+    valid &= check(info.validCandidateCount == validCandidates
+            && info.selectedAttempt == bestAttempt
+            && info.score.total() == bestScore,
+        "match generation selects the best valid candidate it evaluated");
+    valid &= check(sameConfig(selected->config(),
+                       deriveMatchLevelConfig(request, bestAttempt - 1)),
+        "selection metadata identifies the accepted geometry attempt");
     return valid;
 }
 
@@ -362,6 +418,7 @@ int main()
     valid &= fortressProfileRequiresActorRelativeScaleAndCapacity();
     valid &= semanticGateBindingRepairsKnownSoftlocks();
     valid &= fixedBriefSurvivesGeometryRetries();
+    valid &= bestValidCandidateIsSelectedWithinBudget();
     valid &= structuredValidationReportsExplainAdmission();
     valid &= derivationIncludesAttemptAndScaleProfile();
     if (!valid) {

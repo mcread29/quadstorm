@@ -150,3 +150,33 @@ The stage-admission-only result had 11 fallbacks and 2.84 mean attempts. Binding
 Evaluation: **Positive**.
 
 The change repairs known softlocks instead of only rejecting them. It also improves production yield while all hard stage checks stay active. Five percent fallback use remains higher than the two percent result before stage checks, so further construction work is still useful.
+
+### 5. Best-valid candidate selection
+
+Changes:
+
+- Added separate score domains for circulation, physical margin, progression, and generator quality.
+- Kept hard validation separate from ranking.
+- Retained the best valid candidate within a deterministic ranking budget.
+- Added a configurable quality-margin stop.
+- Recorded attempts performed, selected attempt, valid candidate count, and score details.
+- Limited default ranking work to one attempt after the first valid candidate.
+
+Tests:
+
+- Rebuilt every evaluated candidate for a fixed seed and confirmed that the selected attempt has the best score.
+- Confirmed that invalid candidates do not enter ranking.
+- Confirmed same-seed score and selection metadata.
+- Build passed without warnings.
+- Tests: 7 of 7 passed in 25.59 seconds.
+
+Seed 1–100 comparison:
+
+```text
+first valid:  fallback=5  mean attempts=2.60  mean score=44.7821
+ranked:       fallback=5  mean attempts=3.34  mean score=45.1403
+```
+
+Evaluation: **Positive**.
+
+The mean score increased by 0.8 percent, and fallback use did not change. Mean attempts increased by 28 percent. A wider ranking budget produced only a small additional score gain, so the default budget was reduced to one extra attempt.

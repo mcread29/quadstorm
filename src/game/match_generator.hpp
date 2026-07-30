@@ -32,6 +32,9 @@ struct MatchGenerationRequest {
     std::uint64_t matchSeed = 0;
     std::size_t attemptBudget = DEFAULT_MATCH_GENERATION_ATTEMPTS;
     PhysicalMapProfile physicalProfile = PhysicalMapProfile::FortressV1;
+    float qualityMargin = 50.0F;
+    std::size_t validCandidateBudget = 2;
+    std::size_t rankingAttemptBudget = 1;
 };
 
 enum class MatchValidationFailureCode : std::uint8_t {
@@ -86,6 +89,9 @@ const char* matchValidationFailureName(MatchValidationFailureCode code);
 MatchValidationReport validateMatchMap(const GeneratedLevel& level,
     const MatchMapProfile& profile);
 bool matchMapMeetsProfile(const GeneratedLevel& level,
+    const MatchMapProfile& profile);
+CandidateScoreBreakdown scoreMatchCandidate(const GeneratedLevel& level,
+    const MatchValidationReport& report,
     const MatchMapProfile& profile);
 GenerationBrief deriveGenerationBrief(const MatchGenerationRequest& request);
 std::uint64_t generationBriefHash(const GenerationBrief& brief);
