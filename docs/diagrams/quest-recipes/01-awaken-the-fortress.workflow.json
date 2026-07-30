@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "01 / Awaken the Fortress",
+    "subtitle": "Clue order \u2192 parallel combat trials \u2192 shortcut \u2192 voluntary extraction",
+    "output": "01-awaken-the-fortress.html"
+  },
+  "lanes": [
+    {
+      "id": "discovery",
+      "label": "Discovery"
+    },
+    {
+      "id": "interpret",
+      "label": "Interpretation"
+    },
+    {
+      "id": "trial_a",
+      "label": "Parallel Trial A"
+    },
+    {
+      "id": "trial_b",
+      "label": "Parallel Trial B"
+    },
+    {
+      "id": "transform",
+      "label": "Fortress Transformation"
+    },
+    {
+      "id": "outcome",
+      "label": "Outcome"
+    }
+  ],
+  "phases": [
+    {
+      "id": "discover",
+      "label": "Discover",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "solve",
+      "label": "Interpret + act",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "transform",
+      "label": "Transform + reward",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "hub",
+      "lane": "discovery",
+      "col": 0,
+      "type": "external",
+      "label": "Dormant Hub",
+      "sublabel": "inspect machine"
+    },
+    {
+      "id": "clues",
+      "lane": "discovery",
+      "col": 1,
+      "type": "database",
+      "label": "Find Clues",
+      "sublabel": "split fragments"
+    },
+    {
+      "id": "power",
+      "lane": "interpret",
+      "col": 2,
+      "type": "backend",
+      "label": "Power Pair",
+      "sublabel": "infer order"
+    },
+    {
+      "id": "hold",
+      "lane": "trial_a",
+      "col": 3,
+      "type": "security",
+      "label": "Hold Zone",
+      "sublabel": "pressure trial"
+    },
+    {
+      "id": "kills",
+      "lane": "trial_b",
+      "col": 3,
+      "type": "security",
+      "label": "Feed Conduit",
+      "sublabel": "nearby kills"
+    },
+    {
+      "id": "shortcut",
+      "lane": "transform",
+      "col": 4,
+      "type": "messagebus",
+      "label": "Open Loop",
+      "sublabel": "restore shortcut"
+    },
+    {
+      "id": "target",
+      "lane": "transform",
+      "col": 5,
+      "type": "backend",
+      "label": "Hidden Target",
+      "sublabel": "exposed lens"
+    },
+    {
+      "id": "return",
+      "lane": "outcome",
+      "col": 5,
+      "type": "cloud",
+      "label": "Awaken Hub",
+      "sublabel": "return + extract",
+      "tag": "major reward"
+    }
+  ],
+  "edges": [
+    {
+      "from": "hub",
+      "to": "clues"
+    },
+    {
+      "from": "clues",
+      "to": "power",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "power",
+      "to": "hold",
+      "label": "parallel",
+      "variant": "emphasis",
+      "role": "branch",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "power",
+      "to": "kills",
+      "variant": "emphasis",
+      "role": "branch",
+      "fromSide": "right",
+      "toSide": "right",
+      "route": "outside-right"
+    },
+    {
+      "from": "hold",
+      "to": "shortcut",
+      "fromSide": "left",
+      "toSide": "left",
+      "route": "return-left"
+    },
+    {
+      "from": "kills",
+      "to": "shortcut",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "shortcut",
+      "to": "target"
+    },
+    {
+      "from": "target",
+      "to": "return",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Clue Language",
+      "items": [
+        "Repeated symbols establish device order",
+        "Directive reports only broad power state"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Recovery",
+      "items": [
+        "Wrong order resets only the pair",
+        "Hold pauses; conduit kills persist"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "World Change + Reward",
+      "items": [
+        "Shortcut materially reduces return travel",
+        "Hub transforms; extraction becomes voluntary"
+      ]
+    }
+  ]
+}

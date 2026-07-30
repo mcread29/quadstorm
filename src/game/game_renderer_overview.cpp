@@ -102,12 +102,14 @@ const char* baselineGeometryLabel(stalberg::rooms::RoomRole role)
 
 const char* baselineTopologyLabel(const GeneratedLevel& level)
 {
-    if (!level.roomLayout().hasSmallMapRecipe()) {
-        const std::size_t rooms = level.roomLayout().getRoomCount();
-        const std::size_t doors = level.roomLayout().getDoorways().size();
-        return doors >= rooms ? "SPATIAL TREE + LOOP" : "SPATIAL TREE";
+    if (level.roomLayout().hasSmallMapRecipe()) {
+        return smallMapRecipeName(level.roomLayout().getSmallMapRecipe());
     }
-    return smallMapRecipeName(level.roomLayout().getSmallMapRecipe());
+    if (level.roomLayout().hasLargeMapArchetype()) {
+        return largeMapArchetypeName(
+            level.roomLayout().getLargeMapArchetype());
+    }
+    return "UNPUBLISHED TOPOLOGY";
 }
 
 void drawOverviewLandmark(Vector2 center,
@@ -344,18 +346,25 @@ void GameRenderer::drawGeneratedOverview(const GeneratedLevel& level,
     detailsY += 27;
     drawText(baselineTopologyLabel(level), detailsX, detailsY, 17, primary);
     detailsY += 25;
-    const std::size_t roomCount = level.roomLayout().getRoomCount();
     const std::size_t doorwayCount = level.roomLayout().getDoorways().size();
-    const std::size_t cycleRank
-        = doorwayCount >= roomCount ? doorwayCount - roomCount + 1U : 0U;
-    drawText(TextFormat("rooms %i   doors %i   cycles %i",
-                 static_cast<int>(roomCount), static_cast<int>(doorwayCount),
-                 static_cast<int>(cycleRank)),
+    const auto& signature = level.roomLayout().getTopologySignature();
+    drawText(TextFormat("arenas %i  passages %i  cycles %i",
+                 static_cast<int>(signature.substantialRoomCount),
+                 static_cast<int>(signature.connectorCount),
+                 static_cast<int>(signature.cycleRank)),
         detailsX, detailsY, 15, secondary);
     detailsY += 22;
-    drawText(TextFormat("locked %i   open %i",
+    drawText(TextFormat("junctions %i  depth %i  direct %.0f%%",
+                 static_cast<int>(signature.meaningfulJunctionCount),
+                 static_cast<int>(signature.maximumBranchDepth),
+                 signature.directArenaEdgeRatio * 100.0F),
+        detailsX, detailsY, 15, secondary);
+    detailsY += 22;
+    drawText(TextFormat("alternation %i  route %i  locked %i/%i",
+                 static_cast<int>(signature.longestAlternatingChain),
+                 static_cast<int>(signature.startExitDistance),
                  static_cast<int>(lockedDoorways),
-                 static_cast<int>(doorwayCount - lockedDoorways)),
+                 static_cast<int>(doorwayCount)),
         detailsX, detailsY, 15, secondary);
     detailsY += 22;
     drawText("puzzle graph: anchor -> hub -> exit", detailsX, detailsY,

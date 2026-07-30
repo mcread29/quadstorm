@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "10 / The Living Lock",
+    "subtitle": "Route a living horde through occupancy sensors before defeating it in the final chamber",
+    "output": "10-the-living-lock.html"
+  },
+  "lanes": [
+    {
+      "id": "discovery",
+      "label": "Living Gate"
+    },
+    {
+      "id": "calibration",
+      "label": "Sensor Calibration"
+    },
+    {
+      "id": "outer",
+      "label": "Outer Occupancy"
+    },
+    {
+      "id": "route_control",
+      "label": "Route Control"
+    },
+    {
+      "id": "inner_sensor",
+      "label": "Inner Occupancy"
+    },
+    {
+      "id": "final",
+      "label": "Final Chamber"
+    },
+    {
+      "id": "reward",
+      "label": "Lock Open"
+    }
+  ],
+  "phases": [
+    {
+      "id": "discover",
+      "label": "Discover",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "solve",
+      "label": "Interpret + act",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "transform",
+      "label": "Transform + reward",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "gate",
+      "lane": "discovery",
+      "col": 0,
+      "type": "external",
+      "label": "Living Gate",
+      "sublabel": "bio sensors"
+    },
+    {
+      "id": "calibrate",
+      "lane": "calibration",
+      "col": 1,
+      "type": "backend",
+      "label": "Calibrate",
+      "sublabel": "wake zones"
+    },
+    {
+      "id": "outer",
+      "lane": "outer",
+      "col": 2,
+      "type": "security",
+      "label": "Fill Outer",
+      "sublabel": "crowd presence"
+    },
+    {
+      "id": "redirect",
+      "lane": "route_control",
+      "col": 3,
+      "type": "messagebus",
+      "label": "Redirect",
+      "sublabel": "change route"
+    },
+    {
+      "id": "inner",
+      "lane": "inner_sensor",
+      "col": 4,
+      "type": "security",
+      "label": "Fill Inner",
+      "sublabel": "survivors cross"
+    },
+    {
+      "id": "kill",
+      "lane": "final",
+      "col": 5,
+      "type": "security",
+      "label": "Final Kill",
+      "sublabel": "marked chamber"
+    },
+    {
+      "id": "open",
+      "lane": "reward",
+      "col": 5,
+      "type": "cloud",
+      "label": "Open Lock",
+      "sublabel": "crowd-control reward",
+      "tag": "large-crowd bonus"
+    }
+  ],
+  "edges": [
+    {
+      "from": "gate",
+      "to": "calibrate",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "calibrate",
+      "to": "outer",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "outer",
+      "to": "redirect",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "redirect",
+      "to": "inner",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "inner",
+      "to": "kill",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "kill",
+      "to": "open",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Clue Language",
+      "items": [
+        "Zones brighten with occupancy and point to the next sensor",
+        "Final symbol changes from movement to defeat"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Recovery",
+      "items": [
+        "Charge decays only to the current stage floor",
+        "Early kills delay progress but never fail the quest"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "World Change + Reward",
+      "items": [
+        "Living gate opens permanently",
+        "Larger intact crowd unlocks a mastery cache"
+      ]
+    }
+  ]
+}

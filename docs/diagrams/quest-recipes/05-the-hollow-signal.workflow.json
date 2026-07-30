@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "05 / The Hollow Signal",
+    "subtitle": "Triangulate an unknown broadcast, reveal its hidden passage, then follow the return signal",
+    "output": "05-the-hollow-signal.html"
+  },
+  "lanes": [
+    {
+      "id": "discovery",
+      "label": "Signal Discovery"
+    },
+    {
+      "id": "receivers",
+      "label": "Separated Receivers"
+    },
+    {
+      "id": "optional_receiver",
+      "label": "Optional Receiver"
+    },
+    {
+      "id": "inference",
+      "label": "Spatial Inference"
+    },
+    {
+      "id": "reveal",
+      "label": "Hidden Passage"
+    },
+    {
+      "id": "source",
+      "label": "Transmitter"
+    },
+    {
+      "id": "return",
+      "label": "Return Signal"
+    }
+  ],
+  "phases": [
+    {
+      "id": "discover",
+      "label": "Discover",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "solve",
+      "label": "Interpret + act",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "transform",
+      "label": "Transform + reward",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "signal",
+      "lane": "discovery",
+      "col": 0,
+      "type": "external",
+      "label": "Odd Signal",
+      "sublabel": "intermittent pulse"
+    },
+    {
+      "id": "receiver_a",
+      "lane": "receivers",
+      "col": 1,
+      "type": "database",
+      "label": "Receiver A",
+      "sublabel": "broad bearing"
+    },
+    {
+      "id": "receiver_b",
+      "lane": "receivers",
+      "col": 3,
+      "type": "database",
+      "label": "Receiver B",
+      "sublabel": "cross bearing"
+    },
+    {
+      "id": "receiver_c",
+      "lane": "optional_receiver",
+      "col": 4,
+      "type": "database",
+      "label": "Receiver C",
+      "sublabel": "optional clarity"
+    },
+    {
+      "id": "infer",
+      "lane": "inference",
+      "col": 4,
+      "type": "backend",
+      "label": "Find Source",
+      "sublabel": "intersect arcs"
+    },
+    {
+      "id": "wall",
+      "lane": "reveal",
+      "col": 4,
+      "type": "messagebus",
+      "label": "Open Wall",
+      "sublabel": "matching control"
+    },
+    {
+      "id": "transmitter",
+      "lane": "source",
+      "col": 5,
+      "type": "security",
+      "label": "Stop Signal",
+      "sublabel": "shoot or stabilize"
+    },
+    {
+      "id": "return",
+      "lane": "return",
+      "col": 5,
+      "type": "cloud",
+      "label": "Trace Return",
+      "sublabel": "changed landmark"
+    }
+  ],
+  "edges": [
+    {
+      "from": "signal",
+      "to": "receiver_a",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "receiver_a",
+      "to": "receiver_b"
+    },
+    {
+      "from": "receiver_b",
+      "to": "infer",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "left",
+      "route": "return-left"
+    },
+    {
+      "from": "receiver_b",
+      "to": "receiver_c",
+      "label": "optional",
+      "variant": "dashed",
+      "role": "branch",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "receiver_c",
+      "to": "infer",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "infer",
+      "to": "wall",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "wall",
+      "to": "transmitter",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "transmitter",
+      "to": "return",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Clue Language",
+      "items": [
+        "Receivers show directional arcs, pulse strength, and sound",
+        "Optional third receiver removes ambiguity"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Recovery",
+      "items": [
+        "Wrong wall control rejects but remains usable",
+        "Mandatory transmitter cannot be lost early"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "World Change + Reward",
+      "items": [
+        "Hidden route and weapon cache become accessible",
+        "Return pulse changes a known landmark"
+      ]
+    }
+  ]
+}

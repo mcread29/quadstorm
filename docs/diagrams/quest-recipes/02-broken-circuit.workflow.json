@@ -1,0 +1,219 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "02 / Broken Circuit",
+    "subtitle": "Diagnose a faulty branch, repair both endpoints, then choose where power flows first",
+    "output": "02-broken-circuit.html"
+  },
+  "lanes": [
+    {
+      "id": "discovery",
+      "label": "Network Discovery"
+    },
+    {
+      "id": "diagnosis",
+      "label": "Diagnosis"
+    },
+    {
+      "id": "repair_a",
+      "label": "Repair Endpoint A"
+    },
+    {
+      "id": "repair_b",
+      "label": "Repair Endpoint B"
+    },
+    {
+      "id": "choice",
+      "label": "Power Routing"
+    },
+    {
+      "id": "optional",
+      "label": "Optional Completion"
+    }
+  ],
+  "phases": [
+    {
+      "id": "discover",
+      "label": "Discover",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "solve",
+      "label": "Interpret + act",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "transform",
+      "label": "Transform + reward",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "terminal",
+      "lane": "discovery",
+      "col": 0,
+      "type": "external",
+      "label": "Bad Network",
+      "sublabel": "unstable terminal"
+    },
+    {
+      "id": "tests",
+      "lane": "discovery",
+      "col": 1,
+      "type": "database",
+      "label": "Pulse Tests",
+      "sublabel": "compare returns"
+    },
+    {
+      "id": "fault",
+      "lane": "diagnosis",
+      "col": 2,
+      "type": "backend",
+      "label": "Find Fault",
+      "sublabel": "mismatched branch"
+    },
+    {
+      "id": "isolate",
+      "lane": "diagnosis",
+      "col": 3,
+      "type": "backend",
+      "label": "Isolate",
+      "sublabel": "cut bad route"
+    },
+    {
+      "id": "defend",
+      "lane": "repair_a",
+      "col": 3,
+      "type": "security",
+      "label": "Repair A",
+      "sublabel": "defend endpoint"
+    },
+    {
+      "id": "cleanse",
+      "lane": "repair_b",
+      "col": 3,
+      "type": "security",
+      "label": "Repair B",
+      "sublabel": "kills nearby"
+    },
+    {
+      "id": "reconnect",
+      "lane": "choice",
+      "col": 4,
+      "type": "messagebus",
+      "label": "Reconnect",
+      "sublabel": "route restored"
+    },
+    {
+      "id": "destination",
+      "lane": "choice",
+      "col": 5,
+      "type": "cloud",
+      "label": "Choose Power",
+      "sublabel": "shortcut / armory"
+    },
+    {
+      "id": "second",
+      "lane": "optional",
+      "col": 5,
+      "type": "security",
+      "label": "Power Both",
+      "sublabel": "optional surge"
+    }
+  ],
+  "edges": [
+    {
+      "from": "terminal",
+      "to": "tests"
+    },
+    {
+      "from": "tests",
+      "to": "fault",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "fault",
+      "to": "isolate"
+    },
+    {
+      "from": "isolate",
+      "to": "defend",
+      "label": "repair",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "isolate",
+      "to": "cleanse",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "right",
+      "route": "outside-right"
+    },
+    {
+      "from": "defend",
+      "to": "reconnect",
+      "fromSide": "left",
+      "toSide": "left",
+      "route": "return-left"
+    },
+    {
+      "from": "cleanse",
+      "to": "reconnect",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "reconnect",
+      "to": "destination"
+    },
+    {
+      "from": "destination",
+      "to": "second",
+      "label": "optional",
+      "variant": "dashed",
+      "role": "branch",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Clue Language",
+      "items": [
+        "Healthy branches return matching pulses",
+        "Fault reverses rhythm and breaks floor trace"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Recovery",
+      "items": [
+        "Wrong isolation visibly rejects and re-arms",
+        "Both endpoint repairs persist"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "World Change + Reward",
+      "items": [
+        "Choose shortcut or armory first",
+        "Harder surge can restore the second destination"
+      ]
+    }
+  ]
+}

@@ -3,6 +3,7 @@
 #include "rooms/room_doorway_planning.hpp"
 #include "rooms/room_generation_random.hpp"
 #include "rooms/room_generation_scoring.hpp"
+#include "rooms/room_topology.hpp"
 
 #include <algorithm>
 #include <array>
@@ -42,6 +43,22 @@ SmallMapRecipe smallMapRecipeForSeed(std::uint32_t seed)
     }
 }
 
+LargeMapArchetype largeMapArchetypeForSeed(std::uint32_t seed)
+{
+    switch ((seed - 1U) % 5U) {
+    case 0:
+        return LargeMapArchetype::HubAndSpokes;
+    case 1:
+        return LargeMapArchetype::RingAndBranches;
+    case 2:
+        return LargeMapArchetype::MainSpine;
+    case 3:
+        return LargeMapArchetype::TwinDistricts;
+    default:
+        return LargeMapArchetype::DenseCoreWithSparseBranch;
+    }
+}
+
 using detail::breadthFirstDistances;
 using detail::CellAdjacency;
 using detail::DisjointSet;
@@ -69,6 +86,7 @@ RoomLayout RoomGenerator::generateCandidate(
     std::uint32_t variantSeed,
     RoomGenerationMethod method,
     SmallMapRecipe smallMapRecipe,
+    LargeMapArchetype largeMapArchetype,
     const std::vector<CellIndex>& entranceOrder,
     std::size_t entranceTargetCount) const
 {
@@ -76,6 +94,7 @@ RoomLayout RoomGenerator::generateCandidate(
     result.seed = requestedSeed;
     result.method = method;
     result.smallMapRecipe = smallMapRecipe;
+    result.largeMapArchetype = largeMapArchetype;
     auto& rooms = result.rooms;
     auto& doorways = result.doorways;
     auto& connectedEntrances = result.connectedEntrances;
@@ -117,11 +136,13 @@ RoomLayout RoomGenerator::generateCandidate(
             requestedSeed,
             generationSeed,
             smallMapRecipe,
+            largeMapArchetype,
             random,
             cellAssignments,
             rooms,
             connectedEntrances);
-        result.smallMapRecipeSelected = shooter.arenaRoomCount == 5;
+        result.smallMapRecipeSelected = shooter.smallMapRecipeSelected;
+        result.largeMapArchetypeSelected = shooter.largeMapArchetypeSelected;
         if (!shooter.complete || rooms.size() < 2
             || !generatePlannedDoorways(grid,
                 adjacency,
@@ -198,6 +219,7 @@ RoomLayout RoomGenerator::generateCandidate(
                 room.role = RoomRole::Connector;
             }
         }
+        result.topologySignature = detail::measureTopology(result);
         return result;
     }
     if (method == RoomGenerationMethod::OrganicGrowth) {
@@ -411,7 +433,8 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
     return generate(grid, seed, RoomGenerationOptions {
         .method = method,
         .candidateCount = 6,
-        .smallMapRecipe = std::nullopt
+        .smallMapRecipe = std::nullopt,
+        .largeMapArchetype = std::nullopt
     });
 }
 
@@ -426,6 +449,8 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
         prepared.buildableCells.size() < 160
             ? SmallMapRecipe::HubCircuit
             : smallMapRecipeForSeed(seed));
+    const LargeMapArchetype largeMapArchetype
+        = options.largeMapArchetype.value_or(largeMapArchetypeForSeed(seed));
     std::size_t candidateLimit = candidateCount;
     RoomLayout best;
     bool haveBest = false;
@@ -451,6 +476,7 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
             variantSeed,
             options.method,
             smallMapRecipe,
+            largeMapArchetype,
             entranceBrief.order,
             entranceBrief.targetCount);
         candidate.selectedCandidate = candidateIndex;
@@ -499,6 +525,7 @@ RoomLayout RoomGenerator::generate(const RoomGrid& grid,
     empty.seed = seed;
     empty.method = options.method;
     empty.smallMapRecipe = smallMapRecipe;
+    empty.largeMapArchetype = largeMapArchetype;
     empty.cellAssignments.assign(grid.getCellCount(), EMPTY_CELL);
     return empty;
 }

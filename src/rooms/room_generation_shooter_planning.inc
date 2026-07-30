@@ -2,6 +2,8 @@ struct ShooterGenerationResult {
     CellIndex startCell = 0;
     CellIndex exitCell = 0;
     std::size_t arenaRoomCount = 0;
+    bool smallMapRecipeSelected = false;
+    bool largeMapArchetypeSelected = false;
     std::vector<int> connectorRooms;
     std::vector<std::pair<int, int>> requiredDoorways;
     bool complete = true;
@@ -468,36 +470,417 @@ std::vector<std::pair<int, int>> planRecipeArenaConnections(
     return edges;
 }
 
-std::vector<std::pair<int, int>> planArenaConnections(
+std::pair<int, int> canonicalArenaEdge(int first, int second)
+{
+    return std::minmax(first, second);
+}
+
+void addArenaEdge(std::vector<std::pair<int, int>>& edges, int first, int second)
+{
+    if (first == second) {
+        return;
+    }
+    const auto edge = canonicalArenaEdge(first, second);
+    if (std::ranges::find(edges, edge) == edges.end()) {
+        edges.push_back(edge);
+    }
+}
+
+float arenaSeedDistance(const RoomGrid& grid,
+    const std::vector<CellIndex>& arenaSeeds, int first, int second)
+{
+    return distance(grid.cells[arenaSeeds[static_cast<std::size_t>(first)]].position,
+        grid.cells[arenaSeeds[static_cast<std::size_t>(second)]].position);
+}
+
+int arenaMedoid(const RoomGrid& grid,
+    const std::vector<CellIndex>& arenaSeeds,
+    const std::vector<int>& candidates,
+    int avoided = -1)
+{
+    int selected = candidates.front();
+    float selectedDistance = std::numeric_limits<float>::infinity();
+    for (const int candidate : candidates) {
+        if (candidate == avoided && candidates.size() > 1) {
+            continue;
+        }
+        float totalDistance = 0.0F;
+        for (const int other : candidates) {
+            totalDistance += arenaSeedDistance(
+                grid, arenaSeeds, candidate, other);
+        }
+        if (totalDistance < selectedDistance
+            || (totalDistance == selectedDistance && candidate < selected)) {
+            selected = candidate;
+            selectedDistance = totalDistance;
+        }
+    }
+    return selected;
+}
+
+std::vector<std::pair<int, int>> planHubAndSpokes(
+    const RoomGrid& grid, const std::vector<CellIndex>& arenaSeeds)
+{
+    std::vector<int> hubCandidates;
+    for (std::size_t arena = 2; arena < arenaSeeds.size(); ++arena) {
+        hubCandidates.push_back(static_cast<int>(arena));
+    }
+    const int hub = arenaMedoid(grid, arenaSeeds, hubCandidates);
+    int startSpoke = -1;
+    float startSpokeDistance = std::numeric_limits<float>::infinity();
+    for (std::size_t arena = 2; arena < arenaSeeds.size(); ++arena) {
+        if (static_cast<int>(arena) == hub) {
+            continue;
+        }
+        const float candidateDistance = arenaSeedDistance(
+            grid, arenaSeeds, 0, static_cast<int>(arena));
+        if (candidateDistance < startSpokeDistance) {
+            startSpoke = static_cast<int>(arena);
+            startSpokeDistance = candidateDistance;
+        }
+    }
+
+    std::vector<std::pair<int, int>> edges;
+    std::vector<bool> connected(arenaSeeds.size(), false);
+    addArenaEdge(edges, 0, startSpoke);
+    addArenaEdge(edges, startSpoke, hub);
+    addArenaEdge(edges, hub, 1);
+    connected[0] = true;
+    connected[1] = true;
+    connected[static_cast<std::size_t>(hub)] = true;
+    connected[static_cast<std::size_t>(startSpoke)] = true;
+
+    // Keep the landmark junction readable instead of creating an unroutable
+    // all-to-one star on twenty-arena maps.
+    for (int spoke = 0; spoke < 2; ++spoke) {
+        int selected = -1;
+        float selectedDistance = std::numeric_limits<float>::infinity();
+        for (std::size_t arena = 2; arena < arenaSeeds.size(); ++arena) {
+            if (connected[arena]) {
+                continue;
+            }
+            const float candidateDistance = arenaSeedDistance(
+                grid, arenaSeeds, hub, static_cast<int>(arena));
+            if (candidateDistance < selectedDistance) {
+                selected = static_cast<int>(arena);
+                selectedDistance = candidateDistance;
+            }
+        }
+        if (selected >= 0) {
+            addArenaEdge(edges, hub, selected);
+            connected[static_cast<std::size_t>(selected)] = true;
+        }
+    }
+    while (std::ranges::find(connected, false) != connected.end()) {
+        int selected = -1;
+        int parent = -1;
+        float selectedDistance = std::numeric_limits<float>::infinity();
+        for (std::size_t arena = 0; arena < arenaSeeds.size(); ++arena) {
+            if (connected[arena]) {
+                continue;
+            }
+            for (std::size_t candidateParent = 0;
+                 candidateParent < arenaSeeds.size(); ++candidateParent) {
+                if (!connected[candidateParent]
+                    || static_cast<int>(candidateParent) == hub) {
+                    continue;
+                }
+                const float candidateDistance = arenaSeedDistance(grid,
+                    arenaSeeds,
+                    static_cast<int>(arena),
+                    static_cast<int>(candidateParent));
+                if (candidateDistance < selectedDistance) {
+                    selected = static_cast<int>(arena);
+                    parent = static_cast<int>(candidateParent);
+                    selectedDistance = candidateDistance;
+                }
+            }
+        }
+        if (selected < 0) {
+            break;
+        }
+        addArenaEdge(edges, parent, selected);
+        connected[static_cast<std::size_t>(selected)] = true;
+    }
+    return edges;
+}
+
+std::vector<std::pair<int, int>> planRingAndBranches(
+    const RoomGrid& grid, const std::vector<CellIndex>& arenaSeeds)
+{
+    const std::size_t arenaCount = arenaSeeds.size();
+    CellPoint center {};
+    for (const CellIndex seed : arenaSeeds) {
+        center.x += grid.cells[seed].position.x;
+        center.y += grid.cells[seed].position.y;
+    }
+    center.x /= static_cast<float>(arenaCount);
+    center.y /= static_cast<float>(arenaCount);
+
+    std::vector<int> outerCandidates;
+    for (std::size_t arena = 2; arena < arenaCount; ++arena) {
+        outerCandidates.push_back(static_cast<int>(arena));
+    }
+    std::ranges::sort(outerCandidates, [&](int lhs, int rhs) {
+        const float left = distance(center,
+            grid.cells[arenaSeeds[static_cast<std::size_t>(lhs)]].position);
+        const float right = distance(center,
+            grid.cells[arenaSeeds[static_cast<std::size_t>(rhs)]].position);
+        return left != right ? left > right : lhs < rhs;
+    });
+    const std::size_t ringTarget = std::clamp<std::size_t>(
+        arenaCount / 2, std::min<std::size_t>(6, arenaCount), 8);
+    std::vector<int> ring { 0, 1 };
+    for (const int candidate : outerCandidates) {
+        if (ring.size() >= ringTarget) {
+            break;
+        }
+        ring.push_back(candidate);
+    }
+    std::ranges::sort(ring, [&](int lhs, int rhs) {
+        const CellPoint left = grid.cells[arenaSeeds[static_cast<std::size_t>(lhs)]].position;
+        const CellPoint right = grid.cells[arenaSeeds[static_cast<std::size_t>(rhs)]].position;
+        const float leftAngle = std::atan2(left.y - center.y, left.x - center.x);
+        const float rightAngle = std::atan2(right.y - center.y, right.x - center.x);
+        return leftAngle != rightAngle ? leftAngle < rightAngle : lhs < rhs;
+    });
+    const auto startPosition = std::ranges::find(ring, 0) - ring.begin();
+    const auto exitPosition = std::ranges::find(ring, 1) - ring.begin();
+    const std::size_t clockwise = static_cast<std::size_t>(
+        std::abs(static_cast<std::ptrdiff_t>(startPosition - exitPosition)));
+    const std::size_t ringDistance = std::min(clockwise, ring.size() - clockwise);
+    if (ringDistance < 3 && ring.size() >= 6) {
+        const std::size_t opposite
+            = (static_cast<std::size_t>(startPosition) + ring.size() / 2)
+            % ring.size();
+        std::iter_swap(ring.begin() + exitPosition,
+            ring.begin() + static_cast<std::ptrdiff_t>(opposite));
+    }
+
+    std::vector<std::pair<int, int>> ringEdges;
+    for (std::size_t index = 0; index < ring.size(); ++index) {
+        addArenaEdge(ringEdges, ring[index], ring[(index + 1) % ring.size()]);
+    }
+    const auto optionalLoop = *std::ranges::min_element(ringEdges,
+        [&](const auto& lhs, const auto& rhs) {
+            const float left = arenaSeedDistance(
+                grid, arenaSeeds, lhs.first, lhs.second);
+            const float right = arenaSeedDistance(
+                grid, arenaSeeds, rhs.first, rhs.second);
+            return left != right ? left < right : lhs < rhs;
+        });
+    std::vector<std::pair<int, int>> edges;
+    for (const auto& edge : ringEdges) {
+        if (edge != optionalLoop) {
+            addArenaEdge(edges, edge.first, edge.second);
+        }
+    }
+    for (std::size_t arena = 2; arena < arenaCount; ++arena) {
+        const int branch = static_cast<int>(arena);
+        if (std::ranges::find(ring, branch) != ring.end()) {
+            continue;
+        }
+        int branchTarget = ring.front();
+        float targetDistance = std::numeric_limits<float>::infinity();
+        for (const int room : ring) {
+            const float candidateDistance
+                = arenaSeedDistance(grid, arenaSeeds, branch, room);
+            if (candidateDistance < targetDistance) {
+                branchTarget = room;
+                targetDistance = candidateDistance;
+            }
+        }
+        addArenaEdge(edges, branch, branchTarget);
+    }
+    // Optional edges follow the required tree. Use the shortest ring segment so
+    // the final closure remains physically routable after the tree is embedded.
+    addArenaEdge(edges, optionalLoop.first, optionalLoop.second);
+    return edges;
+}
+
+std::vector<std::pair<int, int>> planMainSpine(
+    const RoomGrid& grid, const std::vector<CellIndex>& arenaSeeds)
+{
+    const CellPoint start = grid.cells[arenaSeeds[0]].position;
+    const CellPoint exit = grid.cells[arenaSeeds[1]].position;
+    const float axisX = exit.x - start.x;
+    const float axisY = exit.y - start.y;
+    const float axisLength = std::max(std::hypot(axisX, axisY), 0.001F);
+    std::vector<int> candidates;
+    for (std::size_t arena = 2; arena < arenaSeeds.size(); ++arena) {
+        candidates.push_back(static_cast<int>(arena));
+    }
+    std::ranges::sort(candidates, [&](int lhs, int rhs) {
+        const CellPoint left = grid.cells[arenaSeeds[static_cast<std::size_t>(lhs)]].position;
+        const CellPoint right = grid.cells[arenaSeeds[static_cast<std::size_t>(rhs)]].position;
+        const float leftOffset = std::abs(axisX * (left.y - start.y)
+            - axisY * (left.x - start.x)) / axisLength;
+        const float rightOffset = std::abs(axisX * (right.y - start.y)
+            - axisY * (right.x - start.x)) / axisLength;
+        if (leftOffset != rightOffset) {
+            return leftOffset > rightOffset;
+        }
+        return lhs < rhs;
+    });
+    const std::size_t branchCount = std::min<std::size_t>(
+        std::max<std::size_t>(1, arenaSeeds.size() / 3),
+        candidates.size() > 2 ? candidates.size() - 2 : 1);
+    std::vector<int> branches(
+        candidates.begin(), candidates.begin() + static_cast<std::ptrdiff_t>(branchCount));
+    std::vector<int> spine(candidates.begin() + static_cast<std::ptrdiff_t>(branchCount),
+        candidates.end());
+    std::ranges::sort(spine, [&](int lhs, int rhs) {
+        const CellPoint left = grid.cells[arenaSeeds[static_cast<std::size_t>(lhs)]].position;
+        const CellPoint right = grid.cells[arenaSeeds[static_cast<std::size_t>(rhs)]].position;
+        const float leftProjection = (left.x - start.x) * axisX
+            + (left.y - start.y) * axisY;
+        const float rightProjection = (right.x - start.x) * axisX
+            + (right.y - start.y) * axisY;
+        return leftProjection != rightProjection
+            ? leftProjection < rightProjection : lhs < rhs;
+    });
+    spine.insert(spine.begin(), 0);
+    spine.push_back(1);
+
+    std::vector<std::pair<int, int>> edges;
+    for (std::size_t index = 1; index < spine.size(); ++index) {
+        addArenaEdge(edges, spine[index - 1], spine[index]);
+    }
+    for (std::size_t index = 0; index < branches.size(); ++index) {
+        int target = spine[spine.size() / 2];
+        if (index > 0) {
+            float targetDistance = std::numeric_limits<float>::infinity();
+            for (std::size_t spineIndex = 1;
+                 spineIndex + 1 < spine.size(); ++spineIndex) {
+                const float candidateDistance = arenaSeedDistance(
+                    grid, arenaSeeds, branches[index], spine[spineIndex]);
+                if (candidateDistance < targetDistance) {
+                    target = spine[spineIndex];
+                    targetDistance = candidateDistance;
+                }
+            }
+        }
+        addArenaEdge(edges, branches[index], target);
+    }
+    return edges;
+}
+
+std::vector<std::pair<int, int>> planTwinDistricts(
+    const RoomGrid& grid, const std::vector<CellIndex>& arenaSeeds)
+{
+    const CellPoint start = grid.cells[arenaSeeds[0]].position;
+    const CellPoint exit = grid.cells[arenaSeeds[1]].position;
+    const float axisX = exit.x - start.x;
+    const float axisY = exit.y - start.y;
+    std::vector<int> ordered;
+    for (std::size_t arena = 2; arena < arenaSeeds.size(); ++arena) {
+        ordered.push_back(static_cast<int>(arena));
+    }
+    std::ranges::sort(ordered, [&](int lhs, int rhs) {
+        const CellPoint left = grid.cells[arenaSeeds[static_cast<std::size_t>(lhs)]].position;
+        const CellPoint right = grid.cells[arenaSeeds[static_cast<std::size_t>(rhs)]].position;
+        const float leftProjection = (left.x - start.x) * axisX
+            + (left.y - start.y) * axisY;
+        const float rightProjection = (right.x - start.x) * axisX
+            + (right.y - start.y) * axisY;
+        return leftProjection != rightProjection
+            ? leftProjection < rightProjection : lhs < rhs;
+    });
+    const std::size_t split = (ordered.size() + 1) / 2;
+    std::vector<int> firstDistrict { 0 };
+    std::vector<int> secondDistrict { 1 };
+    firstDistrict.insert(firstDistrict.end(), ordered.begin(),
+        ordered.begin() + static_cast<std::ptrdiff_t>(split));
+    secondDistrict.insert(secondDistrict.end(),
+        ordered.begin() + static_cast<std::ptrdiff_t>(split), ordered.end());
+    const int firstHub = arenaMedoid(grid, arenaSeeds, firstDistrict, 0);
+    const int secondHub = arenaMedoid(grid, arenaSeeds, secondDistrict, 1);
+
+    std::vector<std::pair<int, int>> edges;
+    for (const int room : firstDistrict) {
+        if (room != firstHub) {
+            addArenaEdge(edges, firstHub, room);
+        }
+    }
+    for (const int room : secondDistrict) {
+        if (room != secondHub) {
+            addArenaEdge(edges, secondHub, room);
+        }
+    }
+    addArenaEdge(edges, firstHub, secondHub);
+    return edges;
+}
+
+std::vector<std::pair<int, int>> planDenseCoreWithSparseBranch(
+    const RoomGrid& grid, const std::vector<CellIndex>& arenaSeeds)
+{
+    std::vector<std::pair<int, int>> edges
+        = planMainSpine(grid, arenaSeeds);
+    std::vector<std::vector<int>> graph(arenaSeeds.size());
+    for (const auto& [first, second] : edges) {
+        graph[static_cast<std::size_t>(first)].push_back(second);
+        graph[static_cast<std::size_t>(second)].push_back(first);
+    }
+    std::pair<int, int> loop { -1, -1 };
+    float loopDistance = std::numeric_limits<float>::infinity();
+    for (std::size_t first = 2; first < arenaSeeds.size(); ++first) {
+        const std::vector<int> distances
+            = breadthFirstDistances(graph, static_cast<int>(first));
+        for (std::size_t second = first + 1;
+             second < arenaSeeds.size(); ++second) {
+            if (distances[second] < 2
+                || std::ranges::find(edges,
+                       canonicalArenaEdge(
+                           static_cast<int>(first), static_cast<int>(second)))
+                    != edges.end()) {
+                continue;
+            }
+            const float candidateDistance = arenaSeedDistance(grid,
+                arenaSeeds,
+                static_cast<int>(first),
+                static_cast<int>(second));
+            if (candidateDistance < loopDistance) {
+                loop = { static_cast<int>(first), static_cast<int>(second) };
+                loopDistance = candidateDistance;
+            }
+        }
+    }
+    if (loop.first >= 0) {
+        addArenaEdge(edges, loop.first, loop.second);
+    }
+    return edges;
+}
+
+std::vector<std::pair<int, int>> planSpatialTreeConnections(
     const RoomGrid& grid,
     const std::vector<CellIndex>& arenaSeeds,
     std::uint32_t generationSeed)
 {
-    const std::size_t arenaCount = arenaSeeds.size();
     std::vector<std::pair<int, int>> edges;
-    if (arenaCount < 2) {
+    if (arenaSeeds.size() < 2) {
         return edges;
     }
-
-    std::vector<bool> connected(arenaCount, false);
+    std::vector<bool> connected(arenaSeeds.size(), false);
     connected[0] = true;
-    while (edges.size() + 1 < arenaCount) {
-        std::size_t selectedFirst = arenaCount;
-        std::size_t selectedSecond = arenaCount;
+    while (edges.size() + 1 < arenaSeeds.size()) {
+        std::size_t selectedFirst = arenaSeeds.size();
+        std::size_t selectedSecond = arenaSeeds.size();
         float selectedCost = std::numeric_limits<float>::infinity();
-        for (std::size_t first = 0; first < arenaCount; ++first) {
+        for (std::size_t first = 0; first < arenaSeeds.size(); ++first) {
             if (!connected[first]) {
                 continue;
             }
-            for (std::size_t second = 0; second < arenaCount; ++second) {
+            for (std::size_t second = 0; second < arenaSeeds.size(); ++second) {
                 if (connected[second]
-                    || (arenaCount > 2
+                    || (arenaSeeds.size() > 2
                         && ((first == 0 && second == 1)
                             || (first == 1 && second == 0)))) {
                     continue;
                 }
-                const float length = distance(grid.cells[arenaSeeds[first]].position,
-                    grid.cells[arenaSeeds[second]].position);
+                const float length = arenaSeedDistance(grid,
+                    arenaSeeds,
+                    static_cast<int>(first),
+                    static_cast<int>(second));
                 const float noise = unitNoise(generationSeed,
                     first * 4099U + second * 65537U);
                 const float cost = length * (0.92F + noise * 0.16F);
@@ -508,64 +891,56 @@ std::vector<std::pair<int, int>> planArenaConnections(
                 }
             }
         }
-        if (selectedSecond == arenaCount) {
-            break;
+        if (selectedSecond == arenaSeeds.size()) {
+            return {};
         }
-        edges.emplace_back(
-            static_cast<int>(selectedFirst), static_cast<int>(selectedSecond));
+        addArenaEdge(edges,
+            static_cast<int>(selectedFirst),
+            static_cast<int>(selectedSecond));
         connected[selectedSecond] = true;
     }
+    return edges;
+}
 
-    std::vector<std::vector<int>> graph(arenaCount);
-    for (const auto& [first, second] : edges) {
-        graph[static_cast<std::size_t>(first)].push_back(second);
-        graph[static_cast<std::size_t>(second)].push_back(first);
+std::vector<std::pair<int, int>> planArenaConnections(
+    const RoomGrid& grid,
+    const std::vector<CellIndex>& arenaSeeds,
+    LargeMapArchetype archetype)
+{
+    if (arenaSeeds.size() < 5) {
+        return {};
     }
-    if (arenaCount < 5) {
-        return edges;
+    std::vector<std::pair<int, int>> edges;
+    switch (archetype) {
+    case LargeMapArchetype::HubAndSpokes:
+        edges = planHubAndSpokes(grid, arenaSeeds);
+        break;
+    case LargeMapArchetype::RingAndBranches:
+        edges = planRingAndBranches(grid, arenaSeeds);
+        break;
+    case LargeMapArchetype::MainSpine:
+        edges = planMainSpine(grid, arenaSeeds);
+        break;
+    case LargeMapArchetype::TwinDistricts:
+        edges = planTwinDistricts(grid, arenaSeeds);
+        break;
+    case LargeMapArchetype::DenseCoreWithSparseBranch:
+        edges = planDenseCoreWithSparseBranch(grid, arenaSeeds);
+        break;
     }
-    struct LoopCandidate {
-        std::pair<int, int> edge;
-        float score;
-    };
-    std::vector<LoopCandidate> loopCandidates;
-    for (std::size_t first = 0; first < arenaCount; ++first) {
-        const std::vector<int> distances
-            = breadthFirstDistances(graph, static_cast<int>(first));
-        for (std::size_t second = first + 1; second < arenaCount; ++second) {
-            if (first < 2 || second < 2) {
-                continue;
-            }
-            const bool alreadyConnected = std::ranges::any_of(
-                edges, [&](const auto& edge) {
-                    return (edge.first == static_cast<int>(first)
-                               && edge.second == static_cast<int>(second))
-                        || (edge.first == static_cast<int>(second)
-                            && edge.second == static_cast<int>(first));
-                });
-            if (alreadyConnected || distances[second] < 3) {
-                continue;
-            }
-            const float physicalDistance = distance(
-                grid.cells[arenaSeeds[first]].position,
-                grid.cells[arenaSeeds[second]].position);
-            loopCandidates.push_back(LoopCandidate {
-                { static_cast<int>(first), static_cast<int>(second) },
-                static_cast<float>(distances[second]) * 1000.0F - physicalDistance
-            });
-        }
+    const std::size_t requiredEdgeCount = arenaSeeds.size() - 1;
+    if (edges.size() < requiredEdgeCount) {
+        return {};
     }
-    std::ranges::sort(loopCandidates, [](const LoopCandidate& lhs,
-                                           const LoopCandidate& rhs) {
-        if (lhs.score != rhs.score) {
-            return lhs.score > rhs.score;
-        }
-        return lhs.edge < rhs.edge;
-    });
-    const std::size_t retryCount = std::min<std::size_t>(6, loopCandidates.size());
-    for (std::size_t candidate = 0; candidate < retryCount; ++candidate) {
-        edges.push_back(loopCandidates[candidate].edge);
-    }
+    std::ranges::sort(edges.begin(),
+        edges.begin() + static_cast<std::ptrdiff_t>(requiredEdgeCount),
+        [&](const auto& lhs, const auto& rhs) {
+            const float left = arenaSeedDistance(
+                grid, arenaSeeds, lhs.first, lhs.second);
+            const float right = arenaSeedDistance(
+                grid, arenaSeeds, rhs.first, rhs.second);
+            return left != right ? left < right : lhs < rhs;
+        });
     return edges;
 }
 

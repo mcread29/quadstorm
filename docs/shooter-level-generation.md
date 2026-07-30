@@ -4,7 +4,7 @@ This document describes the default `RoomGenerationMethod::ShooterLayout` pipeli
 
 For the input/output types and physical geometry contract, see [`room-generation-model.md`](room-generation-model.md). For candidate validation, scoring, deterministic retries, and tests, see [`layout-quality-and-testing.md`](layout-quality-and-testing.md). For the next topology-archetype, room-grammar, runtime-overview, and landmark pass, see [`level-identity-pass.md`](level-identity-pass.md).
 
-The `stalberg_game` runtime consumes shooter layouts through immutable `GeneratedLevel`, retaining source grid, dual geometry, neutral room graph, recipe metadata, exact floor, and doorway thresholds. Normal play derives radius-8, `worldScale = 0.22` Fortress V1 inputs and a bounded candidate stream from one replayable match seed; fixed radius-5 presets remain systems fixtures and deterministic fallback. Application gates validate actor-relative physical scale and map-wide spawn capacity. The target still requires broader topology/shape metadata, semantic anchors, and quest binding. `LevelSession` owns the authoritative player and synchronized collision/navigation locks; `HordeMatch` owns persistent match state.
+The `stalberg_game` runtime consumes shooter layouts through immutable `GeneratedLevel`, retaining source grid, dual geometry, neutral room graph, topology/recipe metadata, exact floor, and doorway thresholds. Normal play derives radius-8, `worldScale = 0.22` Fortress V1 inputs and a bounded candidate stream from one replayable match seed; fixed radius-5 presets remain systems fixtures and deterministic fallback. Larger layouts select one of five graph archetypes and publish a measured topology signature. Application gates validate actor-relative physical scale and map-wide spawn capacity. The target still requires room-shape metadata, semantic anchors, and quest binding. `LevelSession` owns the authoritative player and synchronized collision/navigation locks; `HordeMatch` owns persistent match state.
 
 ## Goals
 
@@ -24,9 +24,9 @@ The generator works over the irregular dual-cell graph produced by the Stålberg
 
 ### Current identity limitation and next pass
 
-Larger shooter layouts still rely primarily on one noise-perturbed spatial tree and optional loop, and all substantial rooms share the same compact growth process. Normal Fortress V1 runtime generation now combines radius 8 with a `0.22` generated-to-world scale and actor-relative acceptance; the radius-5 fixtures retain `0.16`. Topology and local shape identity remain the larger limitation.
+Larger shooter layouts now select Hub and Spokes, Ring and Branches, Main Spine, Twin Districts, or Dense Core/Sparse Branch before routing, but all substantial rooms still share the same compact growth process. Normal Fortress V1 runtime generation combines radius 8 with a `0.22` generated-to-world scale and actor-relative acceptance; the radius-5 fixtures retain `0.16`. Local shape identity and physical anti-repetition scoring are now the larger limitations.
 
-The random new-match and first larger-world boundary are implemented. The remaining work in [`level-identity-pass.md`](level-identity-pass.md) is explicit room-shape grammar, broader archetypes, stronger graph signatures, districts, semantic quest anchors, opening-component validation, pacing, and cross-seed structural validation. The six fixed F2 configurations remain inspection fixtures rather than the normal gameplay pool.
+The random new-match, first larger-world boundary, topology archetypes, and measured graph signatures are implemented. The remaining work in [`level-identity-pass.md`](level-identity-pass.md) is explicit room-shape grammar, score use of the graph signatures, districts, semantic quest anchors, opening-component validation, pacing, and cross-seed structural validation. The six fixed F2 configurations remain inspection fixtures rather than the normal gameplay pool.
 
 ### Horde-map interpretation
 
@@ -72,7 +72,7 @@ select one fixed small-map gameplay recipe when applicable
         ↓
 choose start, exit, Hub, and additional arena seeds
         ↓
-materialize recipe edges, or plan the larger-map spatial tree/loop
+materialize small-recipe edges, or plan the selected large-map archetype
         ↓
 grow connected combat arenas around every seed
         ↓
@@ -184,7 +184,7 @@ Every requested seed is reserved before room growth. Growth also protects the on
 
 ## Stage 5: plan the abstract arena graph
 
-For radius-5-sized layouts, the requested room seed fixes one `SmallMapRecipe` across every candidate: Hub Circuit, Broken Ring, or Twin Wings. `planRecipeArenaConnections()` publishes exact required semantic edges before physical routing; Hub is arena `2`, Anchor is `3`, Reward is the leaf arena `4`, and Exit is `1`. Hub Circuit is an exact four-edge spoke graph and deliberately has no Start → Anchor shortcut: playtesting showed that shortcut could place the first and Anchor progression gates beside each other around the same destination. Broken Ring and Twin Wings may attempt one recipe-specific shortcut, but their required graph never depends on it. Candidate validation requires the Start and Anchor approaches to leave Hub at least approximately 65 degrees apart. Broken Ring also places intermediate seeds along a bent Start-to-Exit brief so its intentional chain routes physically. For larger layouts, `planArenaConnections()` retains the spatial tree and optional-loop behavior below.
+For radius-5-sized layouts, the requested room seed fixes one `SmallMapRecipe` across every candidate: Hub Circuit, Broken Ring, or Twin Wings. `planRecipeArenaConnections()` publishes exact required semantic edges before physical routing; Hub is arena `2`, Anchor is `3`, Reward is the leaf arena `4`, and Exit is `1`. Hub Circuit is an exact four-edge spoke graph and deliberately has no Start → Anchor shortcut: playtesting showed that shortcut could place the first and Anchor progression gates beside each other around the same destination. Broken Ring and Twin Wings may attempt one recipe-specific shortcut, but their required graph never depends on it. Candidate validation requires the Start and Anchor approaches to leave Hub at least approximately 65 degrees apart. Broken Ring also places intermediate seeds along a bent Start-to-Exit brief so its intentional chain routes physically. For larger layouts, `planArenaConnections()` materializes the selected `LargeMapArchetype`: a bounded-degree central hub, a circulation ring with branches, a Start-to-Exit spine with side leaves, two locally connected districts with one bridge, or a denser core feeding a sparse branch. Required edges are routed shortest-first; Ring and Branches attempts its shortest loop closure before the required tree so the one-cycle identity remains physically realizable. Compact four-arena layouts retain a Prim-like spatial-tree fallback.
 
 ### Required tree
 
@@ -518,7 +518,7 @@ function generateShooterCandidate(grid, entranceBrief, candidateSeed):
 |---|---|
 | `interiorCellForEntrance()` | Move a boundary entrance to a usable interior arena anchor |
 | `growArenaRoom()` | Grow one connected compact combat arena |
-| `planArenaConnections()` | Build the required spatial tree and optional loop alternatives |
+| `planArenaConnections()` | Build the selected large-map archetype and optional loop |
 | `routeBetweenRooms()` | Find a physical-cost route between two assigned arenas |
 | `connectionCost()` | Penalize distance, low clearance, and narrow portals |
 | `widenCorridor()` | Opportunistically add high-clearance lateral corridor cells |

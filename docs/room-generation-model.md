@@ -320,11 +320,11 @@ Roles:
 | `Reward` | Legacy-method leaf room selected by generic role annotation |
 | `Exit` | Goal/transition arena |
 
-Shooter layouts normalize planned arena and corridor roles after common annotation. `Reward` is not currently assigned to shooter arenas.
+Shooter layouts normalize planned arena and corridor roles after common annotation. Small recipes reserve their authored Reward arena; larger layouts prefer a leaf Combat arena for Reward.
 
 ### Planned identity metadata
 
-`RoomRole` remains a semantic gameplay classification and is not overloaded to describe geometry. Radius-5 shooter layouts now independently publish `SmallMapRecipe` metadata for Hub Circuit, Broken Ring, or Twin Wings. These are regression fixtures for the current systems slice. Production random maps need broader topology metadata, room-shape grammar, and generator-owned semantic anchors so a selected quest recipe can bind to generated roles and anchor types without fixed room IDs or world coordinates.
+`RoomRole` remains a semantic gameplay classification and is not overloaded to describe geometry. Radius-5 shooter layouts independently publish `SmallMapRecipe` metadata for Hub Circuit, Broken Ring, or Twin Wings. Larger layouts publish `LargeMapArchetype` metadata for Hub and Spokes, Ring and Branches, Main Spine, Twin Districts, or Dense Core/Sparse Branch. They also publish a deterministic `TopologySignature` containing room/connector and contracted/direct-edge counts, direct-link ratio, alternation length, degree histogram and maximum, junction count, cycle rank, branch depth, and Start-to-Exit distance. Production random maps still need room-shape grammar and generator-owned semantic anchors so a selected quest recipe can bind to generated roles and anchor types without fixed room IDs or world coordinates.
 
 A layout archetype describes graph structure across rooms. A room shape describes the generated geometry of one substantial room. District or landmark metadata describes presentation/gameplay grouping. These concepts remain separate so, for example, two `Combat` rooms can have different shapes and landmarks without inventing new gameplay roles.
 
@@ -356,6 +356,9 @@ For shooter layouts, only mission-authorized contacts become doorways. A 3D wall
 |---|---|
 | `getSeed()` | Requested user seed, not internal variant seed |
 | `getMethod()` | Requested generation method |
+| `hasSmallMapRecipe()` / `getSmallMapRecipe()` | Fixed systems-recipe metadata when selected |
+| `hasLargeMapArchetype()` / `getLargeMapArchetype()` | Large-map graph brief when selected |
+| `getTopologySignature()` | Measured contracted graph and alternation signature |
 | `getQualityScore()` | Best candidate's weighted score |
 | `getSelectedCandidate()` | Winning candidate index |
 | `getConnectedEntrances()` | Boundary cell IDs for the exact selected exterior entrances connected to floor |
@@ -366,7 +369,7 @@ Connected entrances are not `Doorway` objects. They do not include an exterior s
 
 ## Gameplay consumption
 
-> Runtime status: `stalberg_game` consumes the complete generation chain through immutable `GeneratedLevel`, renders exact assigned floors, retains exact doorway thresholds, and publishes door-aware navigation. Normal play chooses a fresh replayable match seed, derives radius-8 Fortress V1 grid/room inputs at `worldScale = 0.22`, retries candidates within a bounded budget, and visibly reports deterministic radius-5 fixture fallback. `R` resets the same accepted map, `N` requests another, and `--seed` replays one within the same build/toolchain. Larger layouts publish one Hub and one leaf-preferred Reward arena, while application validation checks the current quest plan plus actor-relative physical and spawn-capacity metrics. Semantic quest binding and broader topology/shape validation remain. See [`level-identity-pass.md`](level-identity-pass.md) and [`game-handoff.md`](game-handoff.md).
+> Runtime status: `stalberg_game` consumes the complete generation chain through immutable `GeneratedLevel`, renders exact assigned floors, retains exact doorway thresholds, and publishes door-aware navigation. Normal play chooses a fresh replayable match seed, derives radius-8 Fortress V1 grid/room inputs at `worldScale = 0.22`, retries candidates within a bounded budget, and visibly reports deterministic radius-5 fixture fallback. `R` resets the same accepted map, `N` requests another, and `--seed` replays one within the same build/toolchain. Larger layouts publish a validated graph archetype/signature plus one Hub and one leaf-preferred Reward arena, while application validation checks the current quest plan plus actor-relative physical and spawn-capacity metrics. Semantic quest binding and room-shape validation remain. See [`level-identity-pass.md`](level-identity-pass.md) and [`game-handoff.md`](game-handoff.md).
 
 ### Runtime physical scale
 

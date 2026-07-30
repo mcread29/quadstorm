@@ -1,0 +1,184 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "03 / Resonant Sequence",
+    "subtitle": "Collect overlapping audiovisual fragments and perform the reconstructed sequence under pressure",
+    "output": "03-resonant-sequence.html"
+  },
+  "lanes": [
+    {
+      "id": "discovery",
+      "label": "Sealed Chamber"
+    },
+    {
+      "id": "fragments",
+      "label": "Distributed Observations"
+    },
+    {
+      "id": "interpret",
+      "label": "Sequence Reconstruction"
+    },
+    {
+      "id": "performance",
+      "label": "Combat Performance"
+    },
+    {
+      "id": "response",
+      "label": "Fortress Response"
+    },
+    {
+      "id": "outcome",
+      "label": "Chamber Reward"
+    }
+  ],
+  "phases": [
+    {
+      "id": "discover",
+      "label": "Discover",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "solve",
+      "label": "Interpret + act",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "transform",
+      "label": "Transform + reward",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "door",
+      "lane": "discovery",
+      "col": 0,
+      "type": "external",
+      "label": "Sealed Door",
+      "sublabel": "resonant lock"
+    },
+    {
+      "id": "fragments",
+      "lane": "fragments",
+      "col": 1,
+      "type": "database",
+      "label": "Find Pieces",
+      "sublabel": "tone + symbols"
+    },
+    {
+      "id": "sequence",
+      "lane": "interpret",
+      "col": 2,
+      "type": "backend",
+      "label": "Infer Order",
+      "sublabel": "overlap fragments"
+    },
+    {
+      "id": "prime",
+      "lane": "interpret",
+      "col": 3,
+      "type": "backend",
+      "label": "Prime Room",
+      "sublabel": "arm resonators"
+    },
+    {
+      "id": "perform",
+      "lane": "performance",
+      "col": 4,
+      "type": "security",
+      "label": "Play Pattern",
+      "sublabel": "shoot in order"
+    },
+    {
+      "id": "survive",
+      "lane": "response",
+      "col": 5,
+      "type": "security",
+      "label": "Endure Echo",
+      "sublabel": "answering surge"
+    },
+    {
+      "id": "chamber",
+      "lane": "outcome",
+      "col": 5,
+      "type": "cloud",
+      "label": "Enter Vault",
+      "sublabel": "reward chamber",
+      "tag": "flawless bonus"
+    }
+  ],
+  "edges": [
+    {
+      "from": "door",
+      "to": "fragments",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "fragments",
+      "to": "sequence",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "sequence",
+      "to": "prime"
+    },
+    {
+      "from": "prime",
+      "to": "perform",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "perform",
+      "to": "survive",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "survive",
+      "to": "chamber",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Clue Language",
+      "items": [
+        "Fragments overlap to reveal one combined order",
+        "Shapes duplicate tones for accessibility"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Recovery",
+      "items": [
+        "Wrong hit resets only performance progress",
+        "Console can replay discovered fragments"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "World Change + Reward",
+      "items": [
+        "Sealed chamber opens permanently",
+        "Error-free performance reveals a bonus cache"
+      ]
+    }
+  ]
+}

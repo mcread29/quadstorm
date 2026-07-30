@@ -1,6 +1,20 @@
 # Game Handoff
 
-This is the continuation guide for the `stalberg_game` runtime. Read [`game-roadmap.md`](game-roadmap.md) for the milestone sequence, [`level-identity-pass.md`](level-identity-pass.md) for the immediate anti-oatmeal generation pass, and the generator documents for current procedural-level contracts.
+This is the continuation guide for the `stalberg_game` runtime. The previous future milestone sequence is superseded. Read [`level-generation-lock-in.md`](level-generation-lock-in.md) for the only active roadmap and acceptance gates; use the generator documents for current procedural-level contracts. [`level-identity-pass.md`](level-identity-pass.md) is retained as historical context for the first, insufficient anti-oatmeal pass.
+
+## Planning reset — generation and quests only
+
+The topology-label pass did not solve the oatmeal problem. A named graph archetype may still produce zero useful cycles, many single-entry arenas, repetitive dead-end traversal, and uniformly compact room mechanics. Those results are no longer acceptable normal-map output.
+
+Until the lock-in exits, do not advance bosses, enemy roster, economy breadth, meta-progression, controller work, or unrelated polish. The active order is:
+
+1. Require two or three useful cycles, multi-entry substantial rooms, limited intentional leaves, shallow routine dead ends, and progression-driven shortcuts.
+2. Generate and validate distinct room-shape/combat briefs with safe entrances, multiple firing lanes, objective footprints, and separated ingress.
+3. Publish semantic anchors and bind one authored main quest plus an optional discovery path without fixed coordinates or room IDs.
+4. Validate every gate stage for circulation, population, economy, quest solvability, and backtracking saved by shortcuts.
+5. Iterate through deterministic bad-seed regressions and manual feel reviews until fresh maps are consistently memorable in both F2 and play.
+
+The current five large-map archetypes and `TopologySignature` remain useful construction inputs and diagnostics, not proof of quality. Candidate acceptance must enforce the stronger gates in [`level-generation-lock-in.md`](level-generation-lock-in.md).
 
 ## Product destination
 
@@ -42,7 +56,7 @@ Controls:
 
 The runtime starts by creating a fresh public match seed and deterministically deriving radius-8 Fortress V1 grid/room inputs. The application-level generator has an eight-attempt budget, accepts only candidates that satisfy the current systems plan plus Fortress V1 physical/capacity gates, and visibly publishes the known radius-5 Hub Circuit fixture if that budget is exhausted. `--seed=<unsigned decimal>` reproduces the accepted inputs, profile, retry count, and geometry with the same game build/toolchain; `N` requests another seed, while `R` only resets mutable state. `--recipe=hub|ring|wings` still launches fixed diagnostic fixtures and cannot be combined with `--seed`.
 
-`GeneratedLevel` retains the accepted match/profile metadata, relaxed grid, exact dual geometry, neutral room graph, shooter layout, exact floor, walls, doorway thresholds, and immutable navigation. Larger layouts publish one high-degree Hub and prefer a leaf arena for Reward semantics. `LevelSession` owns the authoritative player, current room, dynamic doorway collision, and matching traversal state. `HordeMatch` owns points, permanent gate purchases, upgrades, persistent player attack state, the deterministic round schedule, map-wide enemies and hostile projectiles, Anchor/Hub/relay/Exit state, and whole-match reset. Broader topology/room grammar, semantic anchors, dynamic quest binding, opening-component validation, and full larger-map pacing are not implemented yet.
+`GeneratedLevel` retains the accepted match/profile metadata, relaxed grid, exact dual geometry, neutral room graph, shooter layout, exact floor, walls, doorway thresholds, and immutable navigation. Larger layouts select and publish Hub and Spokes, Ring and Branches, Main Spine, Twin Districts, or Dense Core/Sparse Branch before candidate routing; they publish one high-degree Hub and prefer a leaf arena for Reward semantics. `LevelSession` owns the authoritative player, current room, dynamic doorway collision, and matching traversal state. `HordeMatch` owns points, permanent gate purchases, upgrades, persistent player attack state, the deterministic round schedule, map-wide enemies and hostile projectiles, Anchor/Hub/relay/Exit state, and whole-match reset. Room-shape grammar, semantic anchors, dynamic quest binding, opening-component validation, and full larger-map pacing are not implemented yet.
 
 Round 1 guarantees enough points to buy the recipe-scaled first gate; Round 2 guarantees the Anchor route. Optional spending stays disabled until the required Anchor route is funded. Drifters and Runners pursue through the currently opened exact cell graph, while Casters and Elites use difficulty-scaled ranged fan patterns and local separation prevents complete crowd overlap. E resolves contextual gate/device interactions; the gate HUD prompt and authoritative purchase query share the same 2.2-world-unit threshold distance. At the Anchor, E can atomically fund a still-closed Anchor gate and begin the holdout when affordable. Rounds continue independently through active or incomplete Anchor/Hub state. The Hub sells three increasingly expensive tiers of each authoritative upgrade through 1/2/3, repairs one missing health per E interaction for a pressure-scaled price after activation, and the relay grants the next fire-rate tier. Locked gates render as one connected barred frame rather than disconnected posts. The F2 overview renders exact floor triangles, recipe graph, live lock state, semantic objective sites, relay order, seeds, candidate, and quality score. Browsing previews never mutates the active match.
 
@@ -245,7 +259,9 @@ One reproducible profile now derives from round index and map recipe:
 
 Health tops out at 1.8×, movement at 1.25×, hostile projectile speed at 1.4×, firing interval at 0.65×, damage at two, and reward income at 1.5×. Spawn budget and simultaneous population cap by Round 25; attribute and role-substitution scaling reaches its final pressure tier at Round 51, while five-round Elite events continue. Recipe-scaled gate costs preserve the opening economy, three increasingly expensive tiers of each upgrade match the bounded threat curve, and activated-Hub repairs remain a repeatable post-cap sink. Bespoke bosses and mutation events remain future content.
 
-## In-progress implementation slice: random, physically larger, quest-valid maps
+## Generation foundation status and superseded plan notes
+
+Sections 3–4 record completed foundations. The old ordering in sections 5–7 is superseded by the circulation → room grammar → semantic anchors/quests → component validation → feel-gate sequence in [`level-generation-lock-in.md`](level-generation-lock-in.md). Keep the technical constraints below, but do not implement them in their former order.
 
 ### 3. Add the new-match generation boundary — complete
 
@@ -357,9 +373,10 @@ Keep the `F1` hard-coded arena as the focused combat regression path. The destin
 
 ## Known limitations
 
+- The current large-map archetype pass still accepts zero/one-cycle trees, too many single-entry Combat rooms, deep routine dead ends, and uniformly compact room mechanics. This is the primary blocker; named archetypes and F2 signatures do not satisfy the new feel gate.
 - Normal runtime selection is fresh, replayable, and physically larger under Fortress V1, but still binds the fixed Anchor/Hub/relay/Exit systems plan rather than an authored semantic quest recipe.
 - Fortress V1 proves actor-relative map-wide geometry and spawn capacity, not opening-component circulation/economy or final pacing. Movement, dash, projectiles, interactions, visibility, lighting, detail density, and traversal time still need large-map playtests.
-- Larger maps use the spatial tree/optional-loop planner and compact-room growth process. Broader topology recipes, room-shape grammar, districts, negative-space briefs, and puzzle-specific geometry remain the main oatmeal risk.
+- Larger maps now use five deterministic topology archetypes with archetype-specific graph validation and published structural signatures. They still share compact-room growth, so room-shape grammar, districts, negative-space briefs, and puzzle-specific geometry remain the main oatmeal risk.
 - Navigation recomputes a cell BFS per enemy update and should be replaced with cached reverse distance fields by player cell and topology revision before raising population/performance targets on Fortress V1.
 - The first economy has one point currency, recipe-scaled gate prices, three tiers each of damage/fire-rate/dash upgrades, pressure-scaled rewards, and repeatable activated-Hub health repair. It has no ammunition economy, traps, service placement variants, or dynamic price balancing.
 - The required Anchor interaction is a combat holdout: press E, remain inside the gold ring for eight accumulated seconds, and resume after leaving. It is a pressure objective, not a logic puzzle. The optional three-relay sequence is the only current puzzle and exposes the next correct target directly, so puzzle depth remains a primary design gap.

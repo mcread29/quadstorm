@@ -37,7 +37,13 @@ bool sameAcceptedLayout(const GeneratedLevel& first,
         && first.roomLayout().getSelectedCandidate()
             == second.roomLayout().getSelectedCandidate()
         && first.roomLayout().getQualityScore()
-            == second.roomLayout().getQualityScore();
+            == second.roomLayout().getQualityScore()
+        && first.roomLayout().hasLargeMapArchetype()
+            == second.roomLayout().hasLargeMapArchetype()
+        && first.roomLayout().getLargeMapArchetype()
+            == second.roomLayout().getLargeMapArchetype()
+        && first.roomLayout().getTopologySignature()
+            == second.roomLayout().getTopologySignature();
 }
 
 bool sameSeedReproducesAcceptedMatch()

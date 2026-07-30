@@ -2,6 +2,7 @@
 
 #include "rooms/room_grid.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -31,6 +32,34 @@ enum class SmallMapRecipe : std::uint8_t {
     HubCircuit,
     BrokenRing,
     TwinWings
+};
+
+enum class LargeMapArchetype : std::uint8_t {
+    HubAndSpokes,
+    RingAndBranches,
+    MainSpine,
+    TwinDistricts,
+    DenseCoreWithSparseBranch
+};
+
+struct TopologySignature {
+    static constexpr std::size_t DEGREE_BUCKETS = 7;
+
+    std::size_t substantialRoomCount = 0;
+    std::size_t connectorCount = 0;
+    std::size_t contractedEdgeCount = 0;
+    std::size_t directArenaEdgeCount = 0;
+    std::size_t longestAlternatingChain = 0;
+    std::size_t multiDoorSubstantialRoomCount = 0;
+    std::size_t meaningfulJunctionCount = 0;
+    std::size_t maximumDegree = 0;
+    std::size_t cycleRank = 0;
+    std::size_t maximumBranchDepth = 0;
+    std::size_t startExitDistance = 0;
+    std::array<std::size_t, DEGREE_BUCKETS> degreeHistogram {};
+    float directArenaEdgeRatio = 0.0F;
+
+    bool operator==(const TopologySignature&) const = default;
 };
 
 struct GeneratedRoom {
@@ -65,6 +94,12 @@ public:
     RoomGenerationMethod getMethod() const { return method; }
     bool hasSmallMapRecipe() const { return smallMapRecipeSelected; }
     SmallMapRecipe getSmallMapRecipe() const { return smallMapRecipe; }
+    bool hasLargeMapArchetype() const { return largeMapArchetypeSelected; }
+    LargeMapArchetype getLargeMapArchetype() const { return largeMapArchetype; }
+    const TopologySignature& getTopologySignature() const
+    {
+        return topologySignature;
+    }
     std::size_t getRoomCount() const { return rooms.size(); }
     float getQualityScore() const { return qualityScore; }
     std::size_t getSelectedCandidate() const { return selectedCandidate; }
@@ -85,6 +120,9 @@ private:
     RoomGenerationMethod method {};
     SmallMapRecipe smallMapRecipe = SmallMapRecipe::HubCircuit;
     bool smallMapRecipeSelected = false;
+    LargeMapArchetype largeMapArchetype = LargeMapArchetype::HubAndSpokes;
+    bool largeMapArchetypeSelected = false;
+    TopologySignature topologySignature;
     std::vector<int> cellAssignments;
     std::vector<GeneratedRoom> rooms;
     std::vector<Doorway> doorways;

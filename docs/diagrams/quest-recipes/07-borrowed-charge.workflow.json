@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "07 / Borrowed Charge",
+    "subtitle": "Carry unstable power through a chosen route and keep it alive at passageway stabilizers",
+    "output": "07-borrowed-charge.html"
+  },
+  "lanes": [
+    {
+      "id": "discovery",
+      "label": "Charge Discovery"
+    },
+    {
+      "id": "priming",
+      "label": "Charge Priming"
+    },
+    {
+      "id": "route",
+      "label": "Route Choice"
+    },
+    {
+      "id": "stabilizers",
+      "label": "Passageway Stabilizers"
+    },
+    {
+      "id": "risk_route",
+      "label": "Optional High-Charge Route"
+    },
+    {
+      "id": "install",
+      "label": "Destination Install"
+    },
+    {
+      "id": "return",
+      "label": "Return Shortcut"
+    }
+  ],
+  "phases": [
+    {
+      "id": "discover",
+      "label": "Discover",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "solve",
+      "label": "Interpret + act",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "transform",
+      "label": "Transform + reward",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "cradle",
+      "lane": "discovery",
+      "col": 0,
+      "type": "external",
+      "label": "Charge Cradle",
+      "sublabel": "portable cell"
+    },
+    {
+      "id": "prime",
+      "lane": "priming",
+      "col": 1,
+      "type": "backend",
+      "label": "Prime Cell",
+      "sublabel": "stability starts"
+    },
+    {
+      "id": "choose",
+      "lane": "route",
+      "col": 2,
+      "type": "messagebus",
+      "label": "Choose Route",
+      "sublabel": "two approaches"
+    },
+    {
+      "id": "stabilize",
+      "lane": "stabilizers",
+      "col": 3,
+      "type": "security",
+      "label": "Stabilize",
+      "sublabel": "kills or hold"
+    },
+    {
+      "id": "risk",
+      "lane": "risk_route",
+      "col": 4,
+      "type": "database",
+      "label": "Skip Socket",
+      "sublabel": "optional risk"
+    },
+    {
+      "id": "install",
+      "lane": "install",
+      "col": 5,
+      "type": "backend",
+      "label": "Install Cell",
+      "sublabel": "beat decay"
+    },
+    {
+      "id": "shortcut",
+      "lane": "return",
+      "col": 5,
+      "type": "cloud",
+      "label": "Power Route",
+      "sublabel": "return loop opens",
+      "tag": "high-charge bonus"
+    }
+  ],
+  "edges": [
+    {
+      "from": "cradle",
+      "to": "prime",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "prime",
+      "to": "choose",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "choose",
+      "to": "stabilize",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "stabilize",
+      "to": "install",
+      "fromSide": "left",
+      "toSide": "left",
+      "route": "return-left"
+    },
+    {
+      "from": "stabilize",
+      "to": "risk",
+      "label": "risk",
+      "variant": "dashed",
+      "role": "branch",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "risk",
+      "to": "install",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "install",
+      "to": "shortcut",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Clue Language",
+      "items": [
+        "Charge pulse accelerates as stability falls",
+        "Matching sockets are visible in passageways"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Recovery",
+      "items": [
+        "Lost cell returns to last safe stabilizer",
+        "Mandatory component never disappears permanently"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "World Change + Reward",
+      "items": [
+        "Destination service and return shortcut activate",
+        "High residual charge powers a bonus cache"
+      ]
+    }
+  ]
+}

@@ -9,6 +9,7 @@ ShooterGenerationResult generateShooterLayout(
     std::uint32_t requestedSeed,
     std::uint32_t generationSeed,
     SmallMapRecipe smallMapRecipe,
+    LargeMapArchetype largeMapArchetype,
     std::mt19937& random,
     std::vector<int>& assignments,
     std::vector<GeneratedRoom>& rooms,
@@ -198,9 +199,15 @@ ShooterGenerationResult generateShooterLayout(
     }
 
     const bool usesSmallMapRecipe = requestedSeeds.size() == 5;
+    const bool usesLargeMapArchetype = requestedSeeds.size() > 5;
+    result.smallMapRecipeSelected = usesSmallMapRecipe;
+    result.largeMapArchetypeSelected = usesLargeMapArchetype;
     const auto plannedConnections = usesSmallMapRecipe
         ? planRecipeArenaConnections(requestedSeeds.size(), smallMapRecipe)
-        : planArenaConnections(grid, requestedSeeds, generationSeed);
+        : (usesLargeMapArchetype
+                ? planArenaConnections(grid, requestedSeeds, largeMapArchetype)
+                : planSpatialTreeConnections(
+                    grid, requestedSeeds, generationSeed));
     // A passage shorter than an arena's approximate diameter is a doorway
     // transition, not another room. Keep one explicit connector for shooter
     // structure, then reserve additional connector identities for long routes.
@@ -222,7 +229,7 @@ ShooterGenerationResult generateShooterLayout(
         std::size_t maximumTarget = 60;
         if (distribution.distribution == ArenaDistribution::Landmark) {
             featureScale = featured
-                ? 2.0F
+                ? 2.1F
                 : static_cast<float>(requestedSeeds.size() - 2)
                     / static_cast<float>(requestedSeeds.size() - 1);
             maximumTarget = featured ? 96 : 60;
@@ -269,9 +276,30 @@ ShooterGenerationResult generateShooterLayout(
     result.startCell = arenaSeeds.front();
     result.exitCell = arenaSeeds[1];
     bool loopAdded = false;
-    for (std::size_t connectionIndex = 0;
-         connectionIndex < plannedConnections.size(); ++connectionIndex) {
-        const bool requiredTreeEdge = connectionIndex + 1 < arenaSeeds.size();
+    std::vector<std::size_t> connectionOrder;
+    const std::size_t requiredConnectionCount = arenaSeeds.size() - 1;
+    if (!usesSmallMapRecipe
+        && largeMapArchetype == LargeMapArchetype::RingAndBranches
+        && plannedConnections.size() > requiredConnectionCount) {
+        for (std::size_t index = requiredConnectionCount;
+             index < plannedConnections.size(); ++index) {
+            connectionOrder.push_back(index);
+        }
+    }
+    for (std::size_t index = 0;
+         index < std::min(requiredConnectionCount, plannedConnections.size());
+         ++index) {
+        connectionOrder.push_back(index);
+    }
+    if (connectionOrder.size() < plannedConnections.size()) {
+        for (std::size_t index = requiredConnectionCount;
+             index < plannedConnections.size(); ++index) {
+            connectionOrder.push_back(index);
+        }
+    }
+    for (const std::size_t connectionIndex : connectionOrder) {
+        const bool requiredTreeEdge
+            = connectionIndex < requiredConnectionCount;
         if (!requiredTreeEdge && loopAdded) {
             continue;
         }

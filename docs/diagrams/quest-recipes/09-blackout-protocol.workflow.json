@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "09 / Blackout Protocol",
+    "subtitle": "Navigate a controlled blackout by physical pulses, restore both districts, and reveal hidden structure",
+    "output": "09-blackout-protocol.html"
+  },
+  "lanes": [
+    {
+      "id": "discovery",
+      "label": "Emergency Console"
+    },
+    {
+      "id": "blackout",
+      "label": "Controlled Blackout"
+    },
+    {
+      "id": "district_a",
+      "label": "District A"
+    },
+    {
+      "id": "district_b",
+      "label": "District B"
+    },
+    {
+      "id": "restart",
+      "label": "District Recovery"
+    },
+    {
+      "id": "defense",
+      "label": "Master Restart"
+    },
+    {
+      "id": "reveal",
+      "label": "Revealed Structure"
+    }
+  ],
+  "phases": [
+    {
+      "id": "discover",
+      "label": "Discover",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "solve",
+      "label": "Interpret + act",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "transform",
+      "label": "Transform + reward",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "console",
+      "lane": "discovery",
+      "col": 0,
+      "type": "external",
+      "label": "Power Console",
+      "sublabel": "emergency mode"
+    },
+    {
+      "id": "blackout",
+      "lane": "blackout",
+      "col": 1,
+      "type": "backend",
+      "label": "Kill Lights",
+      "sublabel": "pulse paths start"
+    },
+    {
+      "id": "sub_a",
+      "lane": "district_a",
+      "col": 2,
+      "type": "backend",
+      "label": "Restore A",
+      "sublabel": "follow pulses"
+    },
+    {
+      "id": "sub_b",
+      "lane": "district_b",
+      "col": 2,
+      "type": "backend",
+      "label": "Restore B",
+      "sublabel": "follow pulses"
+    },
+    {
+      "id": "first",
+      "lane": "restart",
+      "col": 3,
+      "type": "messagebus",
+      "label": "First Online",
+      "sublabel": "opens second route"
+    },
+    {
+      "id": "master",
+      "lane": "defense",
+      "col": 4,
+      "type": "security",
+      "label": "Master Start",
+      "sublabel": "defend restart"
+    },
+    {
+      "id": "reveal",
+      "lane": "reveal",
+      "col": 5,
+      "type": "cloud",
+      "label": "Reveal Path",
+      "sublabel": "lit clue / route",
+      "tag": "hard-route cache"
+    }
+  ],
+  "edges": [
+    {
+      "from": "console",
+      "to": "blackout",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "blackout",
+      "to": "sub_a",
+      "label": "choose",
+      "variant": "emphasis",
+      "role": "branch",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "blackout",
+      "to": "sub_b",
+      "variant": "emphasis",
+      "role": "branch",
+      "fromSide": "right",
+      "toSide": "right",
+      "route": "outside-right"
+    },
+    {
+      "from": "sub_a",
+      "to": "first",
+      "fromSide": "left",
+      "toSide": "left",
+      "route": "return-left"
+    },
+    {
+      "from": "sub_b",
+      "to": "first",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "first",
+      "to": "master",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "master",
+      "to": "reveal",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Clue Language",
+      "items": [
+        "Emergency pulses physically lead toward substations",
+        "Shape and contrast preserve accessibility"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Recovery",
+      "items": [
+        "Substation progress persists",
+        "Console can replay the pulse pattern"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "World Change + Reward",
+      "items": [
+        "Restart reveals a clue, service, or passage",
+        "Dangerous district first preserves a hidden cache"
+      ]
+    }
+  ]
+}

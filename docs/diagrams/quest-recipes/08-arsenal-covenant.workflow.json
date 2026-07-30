@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "08 / Arsenal Covenant",
+    "subtitle": "Learn weapon properties from the environment, satisfy two trials, then choose an arsenal path",
+    "output": "08-arsenal-covenant.html"
+  },
+  "lanes": [
+    {
+      "id": "discovery",
+      "label": "Armory Discovery"
+    },
+    {
+      "id": "clues",
+      "label": "Weapon Traces"
+    },
+    {
+      "id": "trial_a",
+      "label": "Trial / Piercing"
+    },
+    {
+      "id": "trial_b",
+      "label": "Trial / Blast"
+    },
+    {
+      "id": "trial_c",
+      "label": "Trial / Sustain"
+    },
+    {
+      "id": "choice",
+      "label": "Covenant Reward"
+    }
+  ],
+  "phases": [
+    {
+      "id": "discover",
+      "label": "Discover",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "solve",
+      "label": "Interpret + act",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "transform",
+      "label": "Transform + reward",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "armory",
+      "lane": "discovery",
+      "col": 0,
+      "type": "external",
+      "label": "Sealed Armory",
+      "sublabel": "three sigils"
+    },
+    {
+      "id": "traces",
+      "lane": "clues",
+      "col": 1,
+      "type": "database",
+      "label": "Read Traces",
+      "sublabel": "property examples"
+    },
+    {
+      "id": "pierce",
+      "lane": "trial_a",
+      "col": 2,
+      "type": "security",
+      "label": "Pierce",
+      "sublabel": "aligned seals"
+    },
+    {
+      "id": "blast",
+      "lane": "trial_b",
+      "col": 2,
+      "type": "security",
+      "label": "Detonate",
+      "sublabel": "clustered seals"
+    },
+    {
+      "id": "sustain",
+      "lane": "trial_c",
+      "col": 2,
+      "type": "security",
+      "label": "Sustain",
+      "sublabel": "moving plate"
+    },
+    {
+      "id": "two_of_three",
+      "lane": "choice",
+      "col": 4,
+      "type": "backend",
+      "label": "Pass Any Two",
+      "sublabel": "trial threshold"
+    },
+    {
+      "id": "covenant",
+      "lane": "choice",
+      "col": 5,
+      "type": "cloud",
+      "label": "Choose Arsenal",
+      "sublabel": "weapon family",
+      "tag": "all-three bonus"
+    }
+  ],
+  "edges": [
+    {
+      "from": "armory",
+      "to": "traces",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "traces",
+      "to": "pierce",
+      "label": "property",
+      "variant": "emphasis",
+      "role": "branch",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "traces",
+      "to": "blast",
+      "variant": "emphasis",
+      "role": "branch",
+      "fromSide": "left",
+      "toSide": "left",
+      "route": "return-left"
+    },
+    {
+      "from": "traces",
+      "to": "sustain",
+      "variant": "emphasis",
+      "role": "branch",
+      "fromSide": "right",
+      "toSide": "right",
+      "route": "outside-right"
+    },
+    {
+      "from": "pierce",
+      "to": "two_of_three",
+      "fromSide": "left",
+      "toSide": "left",
+      "route": "return-left"
+    },
+    {
+      "from": "blast",
+      "to": "two_of_three",
+      "fromSide": "left",
+      "toSide": "left",
+      "route": "return-left"
+    },
+    {
+      "from": "sustain",
+      "to": "two_of_three",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "two_of_three",
+      "to": "covenant"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Clue Language",
+      "items": [
+        "Damage traces demonstrate each weapon property",
+        "Passageway stations guarantee valid trial tools"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Recovery",
+      "items": [
+        "Each trial is independently retryable",
+        "Only two of three are mandatory"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "World Change + Reward",
+      "items": [
+        "Choose a weapon family and future drop weighting",
+        "All three trials grant an enhanced reward"
+      ]
+    }
+  ]
+}

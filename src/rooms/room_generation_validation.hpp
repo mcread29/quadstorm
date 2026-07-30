@@ -421,6 +421,49 @@ inline bool shooterCandidateIsValid(
         }
     }
 
+    if (layout.hasLargeMapArchetype()) {
+        const TopologySignature& signature = layout.getTopologySignature();
+        if (layout.hasSmallMapRecipe()
+            || signature.substantialRoomCount != arenaCount
+            || signature.connectorCount != connectorCount
+            || signature.startExitDistance < 3
+            || signature.meaningfulJunctionCount < 1) {
+            return false;
+        }
+        switch (layout.getLargeMapArchetype()) {
+        case LargeMapArchetype::HubAndSpokes:
+            if (signature.maximumDegree < 4 || signature.cycleRank != 0) {
+                return false;
+            }
+            break;
+        case LargeMapArchetype::RingAndBranches:
+            if (signature.maximumDegree < 3 || signature.cycleRank != 1) {
+                return false;
+            }
+            break;
+        case LargeMapArchetype::MainSpine:
+            if (signature.cycleRank != 0
+                || signature.maximumBranchDepth < 2) {
+                return false;
+            }
+            break;
+        case LargeMapArchetype::TwinDistricts:
+            if (signature.cycleRank != 0
+                || (arenaCount >= 6
+                    && signature.meaningfulJunctionCount < 2)) {
+                return false;
+            }
+            break;
+        case LargeMapArchetype::DenseCoreWithSparseBranch:
+            if (signature.maximumDegree < 3
+                || signature.maximumBranchDepth < 2
+                || signature.cycleRank > 1) {
+                return false;
+            }
+            break;
+        }
+    }
+
     const std::vector<int> distances
         = breadthFirstDistances(roomGraph, startRoom);
     return distances[static_cast<std::size_t>(exitRoom)] >= 3;

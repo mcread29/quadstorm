@@ -59,6 +59,23 @@ const char* smallMapRecipeName(stalberg::rooms::SmallMapRecipe recipe)
     return "SMALL MAP";
 }
 
+const char* largeMapArchetypeName(stalberg::rooms::LargeMapArchetype archetype)
+{
+    switch (archetype) {
+    case stalberg::rooms::LargeMapArchetype::HubAndSpokes:
+        return "HUB AND SPOKES";
+    case stalberg::rooms::LargeMapArchetype::RingAndBranches:
+        return "RING AND BRANCHES";
+    case stalberg::rooms::LargeMapArchetype::MainSpine:
+        return "MAIN SPINE";
+    case stalberg::rooms::LargeMapArchetype::TwinDistricts:
+        return "TWIN DISTRICTS";
+    case stalberg::rooms::LargeMapArchetype::DenseCoreWithSparseBranch:
+        return "DENSE CORE / SPARSE BRANCH";
+    }
+    return "LARGE MAP";
+}
+
 const char* roundPhaseName(RoundPhase phase)
 {
     switch (phase) {

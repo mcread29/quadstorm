@@ -246,7 +246,8 @@ void GameRenderer::drawGeneratedHud(const Player& player,
             28, 150, 15, Color { 180, 203, 200, 255 });
         const char* topology = level.roomLayout().hasSmallMapRecipe()
             ? smallMapRecipeName(level.roomLayout().getSmallMapRecipe())
-            : "SPATIAL TREE";
+            : largeMapArchetypeName(
+                level.roomLayout().getLargeMapArchetype());
         drawText(TextFormat("%s  rooms %i  doors %i  walls %i  r%i  s%.2f",
                      topology,
                      static_cast<int>(level.roomLayout().getRoomCount()),

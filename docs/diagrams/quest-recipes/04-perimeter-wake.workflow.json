@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "04 / Perimeter Wake",
+    "subtitle": "Wake stations around the outer route and complete a new circulation loop",
+    "output": "04-perimeter-wake.html"
+  },
+  "lanes": [
+    {
+      "id": "discovery",
+      "label": "Perimeter Discovery"
+    },
+    {
+      "id": "wake",
+      "label": "Wake Propagation"
+    },
+    {
+      "id": "stations",
+      "label": "Outer Stations"
+    },
+    {
+      "id": "defense",
+      "label": "Final Station"
+    },
+    {
+      "id": "transform",
+      "label": "Circulation Change"
+    },
+    {
+      "id": "finale",
+      "label": "Two-Sided Finale"
+    }
+  ],
+  "phases": [
+    {
+      "id": "discover",
+      "label": "Discover",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "solve",
+      "label": "Interpret + act",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "transform",
+      "label": "Transform + reward",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "station0",
+      "lane": "discovery",
+      "col": 0,
+      "type": "external",
+      "label": "Sleep Station",
+      "sublabel": "outer mechanism"
+    },
+    {
+      "id": "pulse",
+      "lane": "wake",
+      "col": 1,
+      "type": "database",
+      "label": "Follow Wake",
+      "sublabel": "visible wall pulse"
+    },
+    {
+      "id": "stations",
+      "lane": "stations",
+      "col": 2,
+      "type": "backend",
+      "label": "Wake Ring",
+      "sublabel": "3\u20134 stations"
+    },
+    {
+      "id": "reverse",
+      "lane": "stations",
+      "col": 3,
+      "type": "database",
+      "label": "Reverse Path",
+      "sublabel": "hidden option"
+    },
+    {
+      "id": "defend",
+      "lane": "defense",
+      "col": 4,
+      "type": "security",
+      "label": "Final Stand",
+      "sublabel": "split ingress"
+    },
+    {
+      "id": "loop",
+      "lane": "transform",
+      "col": 5,
+      "type": "messagebus",
+      "label": "Close Loop",
+      "sublabel": "missing link opens"
+    },
+    {
+      "id": "finale",
+      "lane": "finale",
+      "col": 5,
+      "type": "cloud",
+      "label": "Twin Approach",
+      "sublabel": "choose either side"
+    }
+  ],
+  "edges": [
+    {
+      "from": "station0",
+      "to": "pulse",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "pulse",
+      "to": "stations",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "stations",
+      "to": "reverse",
+      "label": "optional",
+      "variant": "dashed",
+      "role": "branch",
+      "labelDy": 50
+    },
+    {
+      "from": "stations",
+      "to": "defend",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "reverse",
+      "to": "defend",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "defend",
+      "to": "loop",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "loop",
+      "to": "finale",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Clue Language",
+      "items": [
+        "Each station sends a physical pulse onward",
+        "No global marker reveals the next room"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Recovery",
+      "items": [
+        "Woken stations remain active",
+        "Final defense pauses when abandoned"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "World Change + Reward",
+      "items": [
+        "Missing threshold opens into a useful cycle",
+        "Reverse traversal exposes a hidden cache"
+      ]
+    }
+  ]
+}

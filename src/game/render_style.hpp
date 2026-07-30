@@ -22,6 +22,7 @@ void beginUiCanvas();
 void endUiCanvas();
 Color roomRoleColor(stalberg::rooms::RoomRole role);
 const char* smallMapRecipeName(stalberg::rooms::SmallMapRecipe recipe);
+const char* largeMapArchetypeName(stalberg::rooms::LargeMapArchetype archetype);
 const char* roundPhaseName(RoundPhase phase);
 const char* roomRoleName(stalberg::rooms::RoomRole role);
 Color generatedFloorColor(const GeneratedLevel& level,

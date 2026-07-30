@@ -119,8 +119,14 @@ bool roomGenerationIsRepeatable(const stalberg::StalbergGrid& grid,
         && check(first.getSelectedCandidate() == second.getSelectedCandidate()
                 && first.getQualityScore() == second.getQualityScore()
                 && first.hasSmallMapRecipe() == second.hasSmallMapRecipe()
-                && first.getSmallMapRecipe() == second.getSmallMapRecipe(),
-            "best-of-N selection and recipe selection are deterministic")
+                && first.getSmallMapRecipe() == second.getSmallMapRecipe()
+                && first.hasLargeMapArchetype()
+                    == second.hasLargeMapArchetype()
+                && first.getLargeMapArchetype()
+                    == second.getLargeMapArchetype()
+                && first.getTopologySignature()
+                    == second.getTopologySignature(),
+            "best-of-N selection and topology metadata are deterministic")
         && check(std::ranges::equal(
                      first.getCellAssignments(), second.getCellAssignments()),
             "same room seed and method produce the same layout")
@@ -182,7 +188,8 @@ bool smallMapRecipesPublishDistinctIntent()
             stalberg::rooms::RoomGenerationOptions {
                 .method = stalberg::rooms::RoomGenerationMethod::ShooterLayout,
                 .candidateCount = 12,
-                .smallMapRecipe = recipes[index]
+                .smallMapRecipe = recipes[index],
+                .largeMapArchetype = {}
             });
         valid &= check(layout.getRoomCount() > 0
                 && layout.hasSmallMapRecipe()
@@ -376,6 +383,57 @@ bool largeShooterLayoutUsesDirectArenaLinks()
             "large shooter layouts publish at most one structural two-cell connector");
 }
 
+bool largeMapArchetypesPublishDistinctSignatures()
+{
+    stalberg::StalbergGrid grid;
+    grid.generate(8, 1);
+    grid.relaxToCompletion();
+    const auto input = stalberg::makeRoomGrid(grid);
+    const stalberg::rooms::RoomGenerator generator;
+    const std::array archetypes {
+        stalberg::rooms::LargeMapArchetype::HubAndSpokes,
+        stalberg::rooms::LargeMapArchetype::RingAndBranches,
+        stalberg::rooms::LargeMapArchetype::MainSpine,
+        stalberg::rooms::LargeMapArchetype::TwinDistricts,
+        stalberg::rooms::LargeMapArchetype::DenseCoreWithSparseBranch
+    };
+    std::set<std::array<std::size_t, 5>> signatures;
+    bool valid = true;
+    for (const auto archetype : archetypes) {
+        const auto layout = generator.generate(input,
+            101,
+            stalberg::rooms::RoomGenerationOptions {
+                .method = stalberg::rooms::RoomGenerationMethod::ShooterLayout,
+                .candidateCount = 20,
+                .smallMapRecipe = {},
+                .largeMapArchetype = archetype
+            });
+        const auto& signature = layout.getTopologySignature();
+        valid &= check(layout.getRoomCount() > 0
+                && !layout.hasSmallMapRecipe()
+                && layout.hasLargeMapArchetype()
+                && layout.getLargeMapArchetype() == archetype,
+            "large-map archetypes are selected before candidate generation");
+        valid &= check(signature.substantialRoomCount >= 6
+                && signature.contractedEdgeCount
+                    >= signature.substantialRoomCount - 1
+                && signature.startExitDistance >= 3
+                && signature.meaningfulJunctionCount >= 1
+                && signature.maximumDegree >= 3
+                && signature.directArenaEdgeRatio >= 0.0F
+                && signature.directArenaEdgeRatio <= 1.0F,
+            "large maps publish a measurable valid graph signature");
+        signatures.insert({ signature.cycleRank,
+            signature.maximumDegree,
+            signature.meaningfulJunctionCount,
+            signature.maximumBranchDepth,
+            signature.startExitDistance });
+    }
+    valid &= check(signatures.size() == archetypes.size(),
+        "large-map archetypes produce distinct graph signatures");
+    return valid;
+}
+
 bool shooterLayoutsCanCreateDenseAreas()
 {
     stalberg::StalbergGrid grid;
@@ -494,14 +552,16 @@ bool bestOfCandidatesDoesNotReduceQuality(const stalberg::StalbergGrid& grid)
         stalberg::rooms::RoomGenerationOptions {
             .method = stalberg::rooms::RoomGenerationMethod::OrganicGrowth,
             .candidateCount = 1,
-            .smallMapRecipe = {}
+            .smallMapRecipe = {},
+            .largeMapArchetype = {}
         });
     const auto selected = stalberg::rooms::RoomGenerator {}.generate(input,
         23,
         stalberg::rooms::RoomGenerationOptions {
             .method = stalberg::rooms::RoomGenerationMethod::OrganicGrowth,
             .candidateCount = 8,
-            .smallMapRecipe = {}
+            .smallMapRecipe = {},
+            .largeMapArchetype = {}
         });
     return check(selected.getQualityScore() >= single.getQualityScore(),
                "best-of-N selection never reduces candidate quality")
@@ -1066,6 +1126,7 @@ int main()
     valid &= smallMapRecipesPublishDistinctIntent();
     valid &= shooterLayoutHasExplicitCombatStructure(grid);
     valid &= largeShooterLayoutUsesDirectArenaLinks();
+    valid &= largeMapArchetypesPublishDistinctSignatures();
     valid &= shooterLayoutsCanCreateDenseAreas();
     valid &= bestOfCandidatesDoesNotReduceQuality(grid);
     valid &= connectionOrderingDoesNotAffectGeneration(grid);

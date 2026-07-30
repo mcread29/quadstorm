@@ -188,20 +188,22 @@ The game wraps neutral generation in a bounded eight-attempt application-level p
 
 Application acceptance requires the current semantic rooms, three relay targets, all four gate purposes, a Hub with at least three published doorway edges, and actor-relative minimums for doorway width, substantial/Anchor area, objective clearance, Anchor room span, Start-to-Exit route distance, statically usable cross-room ingress separation, usable spawn candidates, and spawn-bearing rooms. Static spawn filtering requires all-open reachability, enemy-sized source clearance, and distance from immutable walls; dynamic player separation, occupied slots, and the currently locked component remain runtime concerns. A radius-8 map left at `0.16` fails explicitly. This proves a first physically larger, all-open capacity boundary, not full endurance or quest validity: opening-component circulation/economy, connector-specific measurements, true line-of-sight bands, broader topology profiles, semantic anchors, and authored quest binding remain.
 
-Planned graph measurements include:
+Implemented graph measurements include:
 
-- Published topology archetype and archetype-specific degree/cycle constraints.
-- Direct arena-to-arena edge ratio.
+- Published large-map topology archetype and archetype-specific degree/cycle constraints.
+- Contracted and direct arena-edge counts plus direct arena-to-arena edge ratio.
 - Longest alternating arena/connector chain.
-- Connector count relative to substantial-room count.
+- Connector and substantial-room counts.
 - Multi-door substantial-room and meaningful-junction counts.
-- Degree histogram, cycle rank, branch depth, and graph-community separation.
+- Degree histogram, maximum degree, cycle rank, branch depth, and Start-to-Exit distance.
+
+Graph-community separation and score penalties based on these measurements remain pending.
 
 Planned room-geometry measurements include compactness, elongation, concavity, lobe/neck structure, doorway count, doorway angular spread, and local clearance. Implemented gameplay-scale measurements cover doorway width, room footprint, objective clearance, Anchor room-center span, route travel, statically usable cross-room ingress separation, and all-open spawn capacity in world/player-relative units. The room span is a size proxy, not a line-of-sight proof. Connector-specific dimensions, true sightline bands, traversal-time checks, and opening-component capacity remain. Quest validation must check semantic-role availability, required route ordering/separation, objective capacity, and optional-branch viability without fixed coordinates.
 
 Accepted cross-seed sets should contain multiple topology, room-shape, and quest-placement signatures without introducing nondeterminism: repeated identical match inputs must still publish identical layouts, metadata, scores, and bindings.
 
-The physical checks are application-level acceptance gates and do not alter the neutral 100-point candidate score below. Planned graph/shape/diversity checks remain unimplemented until the identity pass explicitly revises and rebaselines that score.
+The physical checks are application-level acceptance gates and do not alter the neutral 100-point candidate score below. Archetype-specific graph validity is now a neutral hard gate, while the published alternation/direct-link metrics do not yet alter the score. Shape/diversity scoring still needs an explicit rebaseline.
 
 ## Candidate quality score
 

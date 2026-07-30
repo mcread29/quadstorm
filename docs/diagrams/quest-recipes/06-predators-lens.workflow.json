@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "06 / Predator's Lens",
+    "subtitle": "Charge a focusing machine, align its beams, and lure an Elite into the intersection",
+    "output": "06-predators-lens.html"
+  },
+  "lanes": [
+    {
+      "id": "discovery",
+      "label": "Lens Discovery"
+    },
+    {
+      "id": "charge_a",
+      "label": "Sensor Pylon A"
+    },
+    {
+      "id": "charge_b",
+      "label": "Sensor Pylon B"
+    },
+    {
+      "id": "alignment",
+      "label": "Beam Alignment"
+    },
+    {
+      "id": "elite",
+      "label": "Elite Manipulation"
+    },
+    {
+      "id": "trigger",
+      "label": "Lens Event"
+    },
+    {
+      "id": "reward",
+      "label": "Crystallized Output"
+    }
+  ],
+  "phases": [
+    {
+      "id": "discover",
+      "label": "Discover",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "solve",
+      "label": "Interpret + act",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "transform",
+      "label": "Transform + reward",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "lens",
+      "lane": "discovery",
+      "col": 0,
+      "type": "external",
+      "label": "Dead Lens",
+      "sublabel": "ancient machine"
+    },
+    {
+      "id": "pylon_a",
+      "lane": "charge_a",
+      "col": 1,
+      "type": "security",
+      "label": "Charge A",
+      "sublabel": "nearby kills"
+    },
+    {
+      "id": "pylon_b",
+      "lane": "charge_b",
+      "col": 1,
+      "type": "security",
+      "label": "Charge B",
+      "sublabel": "nearby kills"
+    },
+    {
+      "id": "align",
+      "lane": "alignment",
+      "col": 3,
+      "type": "backend",
+      "label": "Align Beams",
+      "sublabel": "mark intersection"
+    },
+    {
+      "id": "elite",
+      "lane": "elite",
+      "col": 4,
+      "type": "security",
+      "label": "Lure Elite",
+      "sublabel": "keep it alive"
+    },
+    {
+      "id": "trigger",
+      "lane": "trigger",
+      "col": 5,
+      "type": "backend",
+      "label": "Fire Lens",
+      "sublabel": "Elite in focus"
+    },
+    {
+      "id": "output",
+      "lane": "reward",
+      "col": 5,
+      "type": "cloud",
+      "label": "Take Crystal",
+      "sublabel": "rare output",
+      "tag": "crowd bonus"
+    }
+  ],
+  "edges": [
+    {
+      "from": "lens",
+      "to": "pylon_a",
+      "label": "either order",
+      "variant": "emphasis",
+      "role": "branch",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "lens",
+      "to": "pylon_b",
+      "variant": "emphasis",
+      "role": "branch",
+      "fromSide": "right",
+      "toSide": "right",
+      "route": "outside-right"
+    },
+    {
+      "from": "pylon_a",
+      "to": "align",
+      "fromSide": "left",
+      "toSide": "left",
+      "route": "return-left"
+    },
+    {
+      "from": "pylon_b",
+      "to": "align",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "align",
+      "to": "elite",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "elite",
+      "to": "trigger",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "from": "trigger",
+      "to": "output",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Clue Language",
+      "items": [
+        "Elite signature matches the lens response",
+        "Aligned beams visibly mark their intersection"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Recovery",
+      "items": [
+        "Pylon charge persists",
+        "Missed Elite causes cooldown; later Elite can retry"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "World Change + Reward",
+      "items": [
+        "Lens crystallizes a rare weapon or modifier",
+        "Extra enemies in focus increase reward tier"
+      ]
+    }
+  ]
+}

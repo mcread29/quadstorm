@@ -18,6 +18,7 @@ struct RoomGenerationOptions {
     RoomGenerationMethod method = RoomGenerationMethod::ShooterLayout;
     std::size_t candidateCount = 6;
     std::optional<SmallMapRecipe> smallMapRecipe;
+    std::optional<LargeMapArchetype> largeMapArchetype;
 };
 
 class RoomGenerator {
@@ -38,6 +39,7 @@ private:
         std::uint32_t variantSeed,
         RoomGenerationMethod method,
         SmallMapRecipe smallMapRecipe,
+        LargeMapArchetype largeMapArchetype,
         const std::vector<CellIndex>& entranceOrder,
         std::size_t entranceTargetCount) const;
 };

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Ten curated multi-stage quest graphs for the Stålberg Grid horde shooter.">
+  <title>Stålberg Grid — Quest Recipe Graphs</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #091019;
+      --panel: #111c29;
+      --panel-hover: #172638;
+      --line: #26384d;
+      --text: #ecf6ff;
+      --muted: #91a6ba;
+      --cyan: #52d6e8;
+      --amber: #ffbf69;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 15% 0%, rgba(82, 214, 232, .13), transparent 34rem),
+        radial-gradient(circle at 100% 30%, rgba(255, 191, 105, .09), transparent 32rem),
+        var(--bg);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 64px 0 80px; }
+    header { max-width: 820px; margin-bottom: 38px; }
+    .eyebrow { color: var(--cyan); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; }
+    h1 { margin: 12px 0 16px; font-size: clamp(32px, 6vw, 62px); line-height: 1.02; letter-spacing: -.045em; }
+    header p { color: var(--muted); font-size: 16px; line-height: 1.7; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(275px, 1fr)); gap: 16px; }
+    .card {
+      display: flex;
+      min-height: 190px;
+      flex-direction: column;
+      padding: 22px;
+      color: inherit;
+      text-decoration: none;
+      background: linear-gradient(145deg, rgba(255,255,255,.025), transparent), var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    }
+    .card:hover { transform: translateY(-3px); border-color: var(--cyan); background-color: var(--panel-hover); }
+    .number { color: var(--amber); font-size: 12px; letter-spacing: .15em; }
+    h2 { margin: 18px 0 10px; font-size: 20px; }
+    .card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .open { margin-top: auto; padding-top: 22px; color: var(--cyan); font-size: 12px; }
+    footer { margin-top: 36px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    footer strong { color: var(--text); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">Stålberg Grid / Quest Design</div>
+      <h1>Ten ways to wake a fortress.</h1>
+      <p>Curated multi-stage puzzle recipes for a procedural top-down horde map. Open any graph to inspect its dependency flow, clue language, recovery rules, world transformation, and reward. Each graph includes theme and image-export controls.</p>
+    </header>
+    <section class="grid" aria-label="Quest recipe diagrams">
+      <a class="card" href="01-awaken-the-fortress.html"><span class="number">RECIPE 01</span><h2>Awaken the Fortress</h2><p>Infer a device order, complete parallel combat trials, restore a shortcut, and transform the Hub.</p><span class="open">OPEN GRAPH →</span></a>
+      <a class="card" href="02-broken-circuit.html"><span class="number">RECIPE 02</span><h2>Broken Circuit</h2><p>Diagnose a faulty power branch, repair both endpoints, and decide where energy flows first.</p><span class="open">OPEN GRAPH →</span></a>
+      <a class="card" href="03-resonant-sequence.html"><span class="number">RECIPE 03</span><h2>Resonant Sequence</h2><p>Reconstruct overlapping audiovisual clues and perform their sequence while the horde advances.</p><span class="open">OPEN GRAPH →</span></a>
+      <a class="card" href="04-perimeter-wake.html"><span class="number">RECIPE 04</span><h2>Perimeter Wake</h2><p>Wake stations around the outer route until a missing threshold completes a useful circulation loop.</p><span class="open">OPEN GRAPH →</span></a>
+      <a class="card" href="05-the-hollow-signal.html"><span class="number">RECIPE 05</span><h2>The Hollow Signal</h2><p>Triangulate an unknown transmission, expose its hidden passage, and trace the returning signal.</p><span class="open">OPEN GRAPH →</span></a>
+      <a class="card" href="06-predators-lens.html"><span class="number">RECIPE 06</span><h2>Predator’s Lens</h2><p>Charge focusing pylons and deliberately lure an Elite into the machine’s beam intersection.</p><span class="open">OPEN GRAPH →</span></a>
+      <a class="card" href="07-borrowed-charge.html"><span class="number">RECIPE 07</span><h2>Borrowed Charge</h2><p>Carry unstable energy across a chosen route and keep it alive with passageway stabilizers.</p><span class="open">OPEN GRAPH →</span></a>
+      <a class="card" href="08-arsenal-covenant.html"><span class="number">RECIPE 08</span><h2>Arsenal Covenant</h2><p>Read weapon-property clues, pass two distinct trials, and choose a lasting arsenal affinity.</p><span class="open">OPEN GRAPH →</span></a>
+      <a class="card" href="09-blackout-protocol.html"><span class="number">RECIPE 09</span><h2>Blackout Protocol</h2><p>Navigate by physical pulses, restore two dark districts, and reveal hidden fortress structure.</p><span class="open">OPEN GRAPH →</span></a>
+      <a class="card" href="10-the-living-lock.html"><span class="number">RECIPE 10</span><h2>The Living Lock</h2><p>Shape horde movement through occupancy sensors before defeating the crowd in its final chamber.</p><span class="open">OPEN GRAPH →</span></a>
+    </section>
+    <footer><strong>Reading the diagrams:</strong> arrows show dependencies, separate lanes show parallel or spatially distinct work, dashed paths are optional, and the cards below each graph summarize clues, recovery, and persistent rewards.</footer>
+  </main>
+</body>
+</html>
