@@ -1,8 +1,11 @@
 #pragma once
 
 #include "generated_level.hpp"
+#include "horde_match.hpp"
 
 #include <cstddef>
+#include <cstdint>
+#include <vector>
 
 struct MatchMapMetrics {
     float minimumDoorwayWidth = 0.0F;
@@ -25,4 +28,48 @@ struct MatchMapMetrics {
     float maximumUsableIngressSeparationInPlayerDiameters() const;
 };
 
+enum class GateStage : std::uint8_t {
+    Initial,
+    ExpansionOpen,
+    AnchorOpen,
+    ExitOpen,
+    RewardOpen
+};
+
+enum class GateStageFailureCode : std::uint8_t {
+    GateNotApproachable,
+    ObjectiveUnreachable,
+    GateAddsNoValue
+};
+
+struct GateStageMetrics {
+    GateStage stage = GateStage::Initial;
+    GatePurpose openedGate = GatePurpose::Expansion;
+    std::size_t reachableCellCount = 0;
+    std::size_t reachableRoomCount = 0;
+    std::size_t newlyReachableCellCount = 0;
+    std::size_t routeSavingsTransitions = 0;
+    bool gateWasApproachable = false;
+    bool objectiveIsReachable = false;
+};
+
+struct GateStageFailure {
+    GateStageFailureCode code = GateStageFailureCode::ObjectiveUnreachable;
+    GateStage stage = GateStage::Initial;
+    GatePurpose gate = GatePurpose::Expansion;
+    std::size_t doorway = 0;
+};
+
+struct GateStageValidationReport {
+    std::vector<GateStageMetrics> stages;
+    std::vector<GateStageFailure> failures;
+
+    bool passed() const { return failures.empty(); }
+};
+
 MatchMapMetrics measureMatchMap(const GeneratedLevel& level);
+GateStageValidationReport validateMatchStages(const GeneratedLevel& level,
+    const SmallMapPlan& plan,
+    std::size_t minimumRouteSavingsTransitions = 2);
+const char* gateStageName(GateStage stage);
+const char* gateStageFailureName(GateStageFailureCode code);

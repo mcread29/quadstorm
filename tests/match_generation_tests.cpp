@@ -214,6 +214,44 @@ bool fortressProfileRequiresActorRelativeScaleAndCapacity()
     return valid;
 }
 
+bool progressionStageValidationRejectsKnownSoftlocks()
+{
+    const std::array badConfigs {
+        GeneratedLevelConfig {
+            8, 3210202046U, 2976849186U, 0.22F
+        },
+        GeneratedLevelConfig {
+            8, 3850944343U, 3641696161U, 0.22F
+        }
+    };
+    bool valid = true;
+    for (const GeneratedLevelConfig& config : badConfigs) {
+        const GeneratedLevel level(config);
+        const GateStageValidationReport stages = validateMatchStages(
+            level, buildSmallMapPlan(level), 2);
+        valid &= check(!stages.passed()
+                && std::ranges::any_of(stages.failures,
+                    [](const GateStageFailure& failure) {
+                        return failure.stage == GateStage::AnchorOpen
+                            && (failure.code
+                                    == GateStageFailureCode::GateNotApproachable
+                                || failure.code
+                                    == GateStageFailureCode::ObjectiveUnreachable);
+                    }),
+            "known Anchor softlocks fail at the Anchor progression stage");
+    }
+
+    for (const std::uint64_t seed : { 71ULL, 89ULL }) {
+        const auto accepted = generateMatchLevel(MatchGenerationRequest { seed });
+        const MatchValidationReport report = validateMatchMap(
+            *accepted, matchMapProfile(PhysicalMapProfile::FortressV1));
+        valid &= check(!accepted->matchGeneration()->usedFallback
+                && report.stages.passed(),
+            "known bad public seeds retry until progression is safe");
+    }
+    return valid;
+}
+
 bool fixedBriefSurvivesGeometryRetries()
 {
     const MatchGenerationRequest request { 3 };
@@ -324,6 +362,7 @@ int main()
     valid &= restartPreservesAcceptedMap();
     valid &= exhaustedBudgetUsesVisibleDeterministicFallback();
     valid &= fortressProfileRequiresActorRelativeScaleAndCapacity();
+    valid &= progressionStageValidationRejectsKnownSoftlocks();
     valid &= fixedBriefSurvivesGeometryRetries();
     valid &= structuredValidationReportsExplainAdmission();
     valid &= derivationIncludesAttemptAndScaleProfile();

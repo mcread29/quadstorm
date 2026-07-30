@@ -88,3 +88,34 @@ The earlier audit had three fallbacks and a mean of 2.03 attempts. Its accepted 
 Evaluation: **Positive**.
 
 Retries no longer change level identity or quest identity. The fallback count decreased from three to two in the same 100-seed range. Mean generation work stayed effectively unchanged.
+
+### 3. Progression-stage admission
+
+Changes:
+
+- Added lock-aware simulation for Expansion, Anchor, Exit, and Reward states.
+- Added checks for gate approach, objective reachability, newly reachable floor, and route savings.
+- Added named stage failures to the structured match report.
+- Made the Fortress profile require at least two saved cell transitions when a progression gate adds no floor.
+- Added the known seed 71 and seed 89 candidate configurations as regressions.
+
+Tests:
+
+- Both known bad candidates fail at the Anchor stage.
+- Public seeds 71 and 89 retry to non-fallback candidates with valid stage reports.
+- Build passed without warnings.
+- Tests: 7 of 7 passed in 23.37 seconds.
+
+Seed 1–100 audit:
+
+```text
+fallback=11
+mean attempts=2.84
+accepted archetypes=16,7,26,18,22
+```
+
+The previous result had two fallbacks and 2.02 mean attempts. Most new failures were Ring and Branches maps. The stage checks exposed an existing gate-binding problem. The checks did not create that problem.
+
+Evaluation: **Neutral**.
+
+The safety result is positive because accepted Fortress maps now pass the complete gate sequence. The production yield result is negative because fallback use increased to 11 percent. The safety gate remains enabled. The next change must improve gate binding instead of weakening the safety check.

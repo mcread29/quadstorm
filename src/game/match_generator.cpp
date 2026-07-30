@@ -38,7 +38,8 @@ constexpr MatchMapProfile FORTRESS_V1_PROFILE {
     .minimumUsableIngressSeparationInPlayerDiameters = 130.0F,
     .minimumUsableEnemySpawnCandidates = 220,
     .minimumUsableEnemySpawnRooms = 12,
-    .minimumHubDoorwayDegree = 3
+    .minimumHubDoorwayDegree = 3,
+    .minimumProgressionGateRouteSavingsTransitions = 2
 };
 
 std::uint64_t mixSeed(std::uint64_t value)
@@ -147,6 +148,12 @@ const char* matchValidationFailureName(MatchValidationFailureCode code)
         return "enemy_spawn_rooms";
     case MatchValidationFailureCode::HubDoorwayDegree:
         return "hub_doorway_degree";
+    case MatchValidationFailureCode::StageGateApproach:
+        return "stage_gate_approach";
+    case MatchValidationFailureCode::StageObjectiveReachability:
+        return "stage_objective_reachability";
+    case MatchValidationFailureCode::StageGateValue:
+        return "stage_gate_value";
     }
     return "unknown";
 }
@@ -192,6 +199,30 @@ MatchValidationReport validateMatchMap(const GeneratedLevel& level,
         hasGate(plan, GatePurpose::Reward));
     addRequiredFailure(report, MatchValidationFailureCode::ExitGate,
         hasGate(plan, GatePurpose::Exit));
+
+    report.stages = validateMatchStages(level, plan,
+        profile.minimumProgressionGateRouteSavingsTransitions);
+    for (const GateStageFailure& stageFailure : report.stages.failures) {
+        MatchValidationFailureCode code
+            = MatchValidationFailureCode::StageObjectiveReachability;
+        switch (stageFailure.code) {
+        case GateStageFailureCode::GateNotApproachable:
+            code = MatchValidationFailureCode::StageGateApproach;
+            break;
+        case GateStageFailureCode::ObjectiveUnreachable:
+            break;
+        case GateStageFailureCode::GateAddsNoValue:
+            code = MatchValidationFailureCode::StageGateValue;
+            break;
+        }
+        report.failures.push_back(MatchValidationFailure {
+            .code = code,
+            .expectedMinimum = 1.0,
+            .actual = 0.0,
+            .doorway = stageFailure.doorway,
+            .stage = stageFailure.stage
+        });
+    }
 
     const MatchMapMetrics& metrics = report.metrics;
     addMinimumFailure(report, MatchValidationFailureCode::DoorwayWidth,

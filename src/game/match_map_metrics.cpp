@@ -140,6 +140,168 @@ std::vector<bool> reachableFloor(const GeneratedLevel& level)
     return reached;
 }
 
+bool connectionIsLocked(const GeneratedLevel& level,
+    CellIndex first, CellIndex second, const std::vector<bool>& lockedDoorways)
+{
+    return std::ranges::any_of(level.doorwayThresholds(),
+        [&](const DoorwayThreshold& threshold) {
+            const bool matches = (threshold.firstCell == first
+                                     && threshold.secondCell == second)
+                || (threshold.firstCell == second
+                    && threshold.secondCell == first);
+            return matches && threshold.doorway < lockedDoorways.size()
+                && lockedDoorways[threshold.doorway];
+        });
+}
+
+std::vector<bool> reachableFloor(const GeneratedLevel& level,
+    const std::vector<bool>& lockedDoorways)
+{
+    std::vector<bool> reached(level.roomGrid().getCellCount(), false);
+    if (level.playerSpawnCell() >= reached.size()) {
+        return reached;
+    }
+    std::queue<CellIndex> frontier;
+    reached[level.playerSpawnCell()] = true;
+    frontier.push(level.playerSpawnCell());
+    while (!frontier.empty()) {
+        const CellIndex cell = frontier.front();
+        frontier.pop();
+        for (const CellIndex neighbor : level.traversableNeighbors(cell)) {
+            if (!reached[neighbor]
+                && !connectionIsLocked(
+                    level, cell, neighbor, lockedDoorways)) {
+                reached[neighbor] = true;
+                frontier.push(neighbor);
+            }
+        }
+    }
+    return reached;
+}
+
+std::optional<std::size_t> routeTransitions(const GeneratedLevel& level,
+    CellIndex destination, const std::vector<bool>& lockedDoorways)
+{
+    const std::size_t cellCount = level.roomGrid().getCellCount();
+    if (level.playerSpawnCell() >= cellCount || destination >= cellCount) {
+        return std::nullopt;
+    }
+    std::vector<std::size_t> distances(cellCount, cellCount);
+    std::queue<CellIndex> frontier;
+    distances[level.playerSpawnCell()] = 0;
+    frontier.push(level.playerSpawnCell());
+    while (!frontier.empty()) {
+        const CellIndex cell = frontier.front();
+        frontier.pop();
+        if (cell == destination) {
+            return distances[cell];
+        }
+        for (const CellIndex neighbor : level.traversableNeighbors(cell)) {
+            if (distances[neighbor] == cellCount
+                && !connectionIsLocked(
+                    level, cell, neighbor, lockedDoorways)) {
+                distances[neighbor] = distances[cell] + 1;
+                frontier.push(neighbor);
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+std::size_t reachableRoomCount(const GeneratedLevel& level,
+    const std::vector<bool>& reached)
+{
+    std::vector<bool> rooms(level.roomLayout().getRoomCount(), false);
+    const auto assignments = level.roomLayout().getCellAssignments();
+    for (CellIndex cell = 0; cell < reached.size(); ++cell) {
+        const int room = assignments[cell];
+        if (reached[cell] && room >= 0
+            && static_cast<std::size_t>(room) < rooms.size()) {
+            rooms[static_cast<std::size_t>(room)] = true;
+        }
+    }
+    return std::ranges::count(rooms, true);
+}
+
+const MapGate* findGate(const SmallMapPlan& plan, GatePurpose purpose)
+{
+    const auto gate = std::ranges::find(plan.gates, purpose, &MapGate::purpose);
+    return gate == plan.gates.end() ? nullptr : &*gate;
+}
+
+bool gateIsApproachable(const GeneratedLevel& level,
+    const MapGate& gate, const std::vector<bool>& reached)
+{
+    if (gate.doorway >= level.doorwayThresholds().size()) {
+        return false;
+    }
+    const DoorwayThreshold& threshold
+        = level.doorwayThresholds()[gate.doorway];
+    return (threshold.firstCell < reached.size() && reached[threshold.firstCell])
+        || (threshold.secondCell < reached.size()
+            && reached[threshold.secondCell]);
+}
+
+void addStageFailure(GateStageValidationReport& report,
+    GateStageFailureCode code, GateStage stage, const MapGate& gate)
+{
+    report.failures.push_back(GateStageFailure {
+        code, stage, gate.purpose, gate.doorway
+    });
+}
+
+std::vector<bool> openGateAndMeasure(const GeneratedLevel& level,
+    const MapGate& gate, GateStage stage, CellIndex objective,
+    bool requireRouteValue, std::size_t minimumRouteSavingsTransitions,
+    std::vector<bool> lockedDoorways, GateStageValidationReport& report)
+{
+    const std::vector<bool> before = reachableFloor(level, lockedDoorways);
+    const bool approachable = gateIsApproachable(level, gate, before);
+    const std::optional<std::size_t> routeBefore
+        = routeTransitions(level, objective, lockedDoorways);
+    if (gate.doorway < lockedDoorways.size()) {
+        lockedDoorways[gate.doorway] = false;
+    }
+    const std::vector<bool> after = reachableFloor(level, lockedDoorways);
+    const std::optional<std::size_t> routeAfter
+        = routeTransitions(level, objective, lockedDoorways);
+    std::size_t newlyReachable = 0;
+    for (std::size_t cell = 0; cell < after.size(); ++cell) {
+        newlyReachable += after[cell] && !before[cell] ? 1U : 0U;
+    }
+    const std::size_t routeSavings
+        = routeBefore.has_value() && routeAfter.has_value()
+            && *routeBefore > *routeAfter
+        ? *routeBefore - *routeAfter
+        : 0;
+    const bool objectiveReachable
+        = objective < after.size() && after[objective];
+    report.stages.push_back(GateStageMetrics {
+        stage,
+        gate.purpose,
+        static_cast<std::size_t>(std::ranges::count(after, true)),
+        reachableRoomCount(level, after),
+        newlyReachable,
+        routeSavings,
+        approachable,
+        objectiveReachable
+    });
+    if (!approachable) {
+        addStageFailure(report,
+            GateStageFailureCode::GateNotApproachable, stage, gate);
+    }
+    if (!objectiveReachable) {
+        addStageFailure(report,
+            GateStageFailureCode::ObjectiveUnreachable, stage, gate);
+    }
+    if (requireRouteValue && newlyReachable == 0
+        && routeSavings < minimumRouteSavingsTransitions) {
+        addStageFailure(report,
+            GateStageFailureCode::GateAddsNoValue, stage, gate);
+    }
+    return lockedDoorways;
+}
+
 bool isStaticSpawnCandidateUsable(
     const GeneratedLevel& level, CellIndex cell)
 {
@@ -282,4 +444,96 @@ MatchMapMetrics measureMatchMap(const GeneratedLevel& level)
         }
     }
     return result;
+}
+
+GateStageValidationReport validateMatchStages(const GeneratedLevel& level,
+    const SmallMapPlan& plan, std::size_t minimumRouteSavingsTransitions)
+{
+    GateStageValidationReport report;
+    std::vector<bool> initialLocks(
+        level.doorwayThresholds().size(), false);
+    for (const MapGate& gate : plan.gates) {
+        if (gate.doorway < initialLocks.size()) {
+            initialLocks[gate.doorway] = true;
+        }
+    }
+
+    std::vector<bool> afterExpansion = initialLocks;
+    const MapGate* expansion = findGate(plan, GatePurpose::Expansion);
+    if (expansion != nullptr) {
+        afterExpansion = openGateAndMeasure(level, *expansion,
+            GateStage::ExpansionOpen, plan.hubCell, true,
+            minimumRouteSavingsTransitions, initialLocks, report);
+    }
+
+    std::vector<bool> afterAnchor = afterExpansion;
+    const MapGate* anchor = findGate(plan, GatePurpose::Anchor);
+    if (anchor != nullptr) {
+        afterAnchor = openGateAndMeasure(level, *anchor,
+            GateStage::AnchorOpen, plan.anchorCell, true,
+            minimumRouteSavingsTransitions, afterExpansion, report);
+        const std::vector<bool> reached = reachableFloor(level, afterAnchor);
+        if (plan.hubCell >= reached.size() || !reached[plan.hubCell]) {
+            addStageFailure(report,
+                GateStageFailureCode::ObjectiveUnreachable,
+                GateStage::AnchorOpen, *anchor);
+        }
+    }
+
+    const MapGate* exit = findGate(plan, GatePurpose::Exit);
+    if (exit != nullptr) {
+        static_cast<void>(openGateAndMeasure(level, *exit,
+            GateStage::ExitOpen, plan.exitCell, true,
+            minimumRouteSavingsTransitions, afterAnchor, report));
+    }
+
+    const MapGate* reward = findGate(plan, GatePurpose::Reward);
+    if (reward != nullptr) {
+        const CellIndex rewardObjective = plan.relayTargets.empty()
+            ? level.roomGrid().getCellCount()
+            : plan.relayTargets.front().cell;
+        const std::vector<bool> afterReward = openGateAndMeasure(level,
+            *reward, GateStage::RewardOpen, rewardObjective, false,
+            minimumRouteSavingsTransitions, afterExpansion, report);
+        const std::vector<bool> reached = reachableFloor(level, afterReward);
+        if (std::ranges::any_of(plan.relayTargets,
+                [&](const RelayTarget& relay) {
+                    return relay.cell >= reached.size() || !reached[relay.cell];
+                })) {
+            addStageFailure(report,
+                GateStageFailureCode::ObjectiveUnreachable,
+                GateStage::RewardOpen, *reward);
+        }
+    }
+    return report;
+}
+
+const char* gateStageName(GateStage stage)
+{
+    switch (stage) {
+    case GateStage::Initial:
+        return "initial";
+    case GateStage::ExpansionOpen:
+        return "expansion_open";
+    case GateStage::AnchorOpen:
+        return "anchor_open";
+    case GateStage::ExitOpen:
+        return "exit_open";
+    case GateStage::RewardOpen:
+        return "reward_open";
+    }
+    return "unknown";
+}
+
+const char* gateStageFailureName(GateStageFailureCode code)
+{
+    switch (code) {
+    case GateStageFailureCode::GateNotApproachable:
+        return "gate_not_approachable";
+    case GateStageFailureCode::ObjectiveUnreachable:
+        return "objective_unreachable";
+    case GateStageFailureCode::GateAddsNoValue:
+        return "gate_adds_no_value";
+    }
+    return "unknown";
 }

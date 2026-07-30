@@ -25,6 +25,7 @@ struct MatchMapProfile {
     std::size_t minimumUsableEnemySpawnCandidates = 0;
     std::size_t minimumUsableEnemySpawnRooms = 0;
     std::size_t minimumHubDoorwayDegree = 0;
+    std::size_t minimumProgressionGateRouteSavingsTransitions = 0;
 };
 
 struct MatchGenerationRequest {
@@ -53,7 +54,10 @@ enum class MatchValidationFailureCode : std::uint8_t {
     IngressSeparation,
     EnemySpawnCandidates,
     EnemySpawnRooms,
-    HubDoorwayDegree
+    HubDoorwayDegree,
+    StageGateApproach,
+    StageObjectiveReachability,
+    StageGateValue
 };
 
 struct MatchValidationFailure {
@@ -62,6 +66,7 @@ struct MatchValidationFailure {
     double actual = 0.0;
     int room = stalberg::rooms::EMPTY_CELL;
     std::size_t doorway = 0;
+    GateStage stage = GateStage::Initial;
 
     bool operator==(const MatchValidationFailure&) const = default;
 };
@@ -69,6 +74,7 @@ struct MatchValidationFailure {
 struct MatchValidationReport {
     std::uint32_t constraintVersion = 0;
     MatchMapMetrics metrics;
+    GateStageValidationReport stages;
     std::vector<MatchValidationFailure> failures;
 
     bool passed() const { return failures.empty(); }
