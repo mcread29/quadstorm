@@ -416,6 +416,7 @@ bool largeMapArchetypesPublishDistinctSignatures()
                 && layout.hasLargeMapArchetype()
                 && layout.getLargeMapArchetype() == archetype,
             "large-map archetypes are selected before candidate generation");
+        const auto missionEdges = layout.getMissionEdges();
         valid &= check(signature.substantialRoomCount >= 6
                 && signature.contractedEdgeCount
                     >= signature.substantialRoomCount - 1
@@ -426,6 +427,18 @@ bool largeMapArchetypesPublishDistinctSignatures()
                 && signature.directArenaEdgeRatio >= 0.0F
                 && signature.directArenaEdgeRatio <= 1.0F,
             "large maps publish a measurable valid graph signature");
+        valid &= check(missionEdges.size() == signature.contractedEdgeCount
+                && std::ranges::all_of(missionEdges,
+                    [](const stalberg::rooms::MissionEdgeBrief& edge) {
+                        return edge.required;
+                    })
+                && std::ranges::count(missionEdges,
+                       stalberg::rooms::MissionEdgePurpose::Shortcut,
+                       &stalberg::rooms::MissionEdgeBrief::purpose) == 1
+                && std::ranges::count(missionEdges,
+                       stalberg::rooms::MissionEdgePurpose::Cycle,
+                       &stalberg::rooms::MissionEdgeBrief::purpose) == 1,
+            "large maps publish typed required primary, shortcut, and cycle edges");
         signatures.insert({ signature.cycleRank,
             signature.maximumDegree,
             signature.meaningfulJunctionCount,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rooms/room_grid.hpp"
+#include "rooms/room_mission_brief.hpp"
 
 #include <array>
 #include <cstddef>
@@ -100,6 +101,10 @@ public:
     {
         return topologySignature;
     }
+    std::span<const MissionEdgeBrief> getMissionEdges() const
+    {
+        return missionEdges;
+    }
     std::size_t getRoomCount() const { return rooms.size(); }
     float getQualityScore() const { return qualityScore; }
     std::size_t getSelectedCandidate() const { return selectedCandidate; }
@@ -123,6 +128,7 @@ private:
     LargeMapArchetype largeMapArchetype = LargeMapArchetype::HubAndSpokes;
     bool largeMapArchetypeSelected = false;
     TopologySignature topologySignature;
+    std::vector<MissionEdgeBrief> missionEdges;
     std::vector<int> cellAssignments;
     std::vector<GeneratedRoom> rooms;
     std::vector<Doorway> doorways;

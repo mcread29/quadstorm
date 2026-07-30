@@ -6,6 +6,7 @@ struct ShooterGenerationResult {
     bool largeMapArchetypeSelected = false;
     std::vector<int> connectorRooms;
     std::vector<std::pair<int, int>> requiredDoorways;
+    std::vector<MissionEdgeBrief> missionEdges;
     bool complete = true;
 };
 
@@ -993,5 +994,69 @@ std::vector<std::pair<int, int>> planArenaConnections(
             return left != right ? left < right : lhs < rhs;
         });
     return edges;
+}
+
+MissionGraphBrief makeMissionGraphBrief(
+    std::vector<std::pair<int, int>> edges, std::size_t arenaCount,
+    bool requireCycles)
+{
+    for (auto& edge : edges) {
+        const int first = std::min(edge.first, edge.second);
+        const int second = std::max(edge.first, edge.second);
+        edge = { first, second };
+    }
+    std::vector<std::pair<int, int>> sortedEdges = edges;
+    std::ranges::sort(sortedEdges);
+    sortedEdges.erase(std::unique(sortedEdges.begin(), sortedEdges.end()),
+        sortedEdges.end());
+
+    std::vector<int> parent(arenaCount);
+    std::iota(parent.begin(), parent.end(), 0);
+    const auto root = [&](int node) {
+        while (parent[static_cast<std::size_t>(node)] != node) {
+            node = parent[static_cast<std::size_t>(node)];
+        }
+        return node;
+    };
+    std::set<std::pair<int, int>> primaryEdges;
+    for (const auto& edge : sortedEdges) {
+        const int firstRoot = root(edge.first);
+        const int secondRoot = root(edge.second);
+        if (firstRoot == secondRoot) {
+            continue;
+        }
+        parent[static_cast<std::size_t>(secondRoot)] = firstRoot;
+        primaryEdges.insert(edge);
+    }
+
+    MissionGraphBrief brief;
+    brief.nodes.reserve(arenaCount);
+    for (std::size_t arena = 0; arena < arenaCount; ++arena) {
+        brief.nodes.push_back(MissionNodeBrief {
+            static_cast<int>(arena), 1
+        });
+    }
+    brief.edges.reserve(edges.size());
+    bool shortcutAssigned = false;
+    for (std::size_t index = 0; index < edges.size(); ++index) {
+        const bool primary = requireCycles
+            ? primaryEdges.contains(edges[index])
+            : index + 1 < arenaCount;
+        const MissionEdgePurpose purpose = primary
+            ? MissionEdgePurpose::Primary
+            : shortcutAssigned ? MissionEdgePurpose::Cycle
+                               : MissionEdgePurpose::Shortcut;
+        brief.edges.push_back(MissionEdgeBrief {
+            .id = index,
+            .firstArena = edges[index].first,
+            .secondArena = edges[index].second,
+            .purpose = purpose,
+            .required = primary || requireCycles,
+            .unlockStage = static_cast<std::uint8_t>(
+                purpose == MissionEdgePurpose::Shortcut ? 1 : 0)
+        });
+        shortcutAssigned |= !primary;
+    }
+    return brief;
 }
 

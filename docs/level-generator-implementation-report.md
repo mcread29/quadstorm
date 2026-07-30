@@ -245,3 +245,38 @@ Accepted production maps now meet the two-cycle circulation requirement. Mean mu
 The experiment added a third cycle when needed and rejected layouts below 70 percent multi-entry coverage. Ring and Branches and Twin Districts could not realize the rule reliably. Several room-generation regressions returned empty layouts. The experiment was **Negative** and was reverted.
 
 The retained two-cycle design reaches 65.4 percent multi-entry coverage on average. A future bounded-leaf archetype redesign is necessary before the 70 percent rule can become a hard gate.
+
+### 8. Typed mission graph edges
+
+Changes:
+
+- Added typed mission nodes and edges.
+- Added explicit Primary, Cycle, Shortcut, Quest, and Exterior purposes.
+- Added explicit required status and unlock stage.
+- Classified the large-map spanning tree independently from planner insertion order.
+- Published mission-edge metadata on `RoomLayout`.
+- Used explicit required status when route realization decides whether failure rejects the candidate.
+- Marked one cycle as the planned unlockable Shortcut.
+
+Tests:
+
+- Every production archetype publishes required typed edges.
+- Every production graph publishes one Shortcut edge and one Cycle edge.
+- Published mission-edge count matches the contracted graph edge count.
+- Build passed without warnings.
+- Tests: 8 of 8 passed in 30.76 seconds.
+
+Seed 1–100 audit:
+
+```text
+fallback=6  mean attempts=2.99  mean score=58.159
+mean cycles=2.00  mean multi-entry=65.4%
+```
+
+Evaluation: **Positive**.
+
+The accepted set and measured quality stayed unchanged. Requiredness and purpose are no longer implicit data outside the graph model.
+
+#### Reverted experiment: route all edges in semantic-purpose order
+
+Routing Shortcut and Cycle edges by their new semantic order changed physical construction. Fallback use increased from six to seven maps. The result was **Negative**. The implementation keeps the proven physical routing order, but required failure behavior now uses the typed edge status.

@@ -13,10 +13,12 @@
 #include <limits>
 #include <map>
 #include <numbers>
+#include <numeric>
 #include <optional>
 #include <queue>
 #include <random>
 #include <ranges>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -143,6 +145,7 @@ RoomLayout RoomGenerator::generateCandidate(
             connectedEntrances);
         result.smallMapRecipeSelected = shooter.smallMapRecipeSelected;
         result.largeMapArchetypeSelected = shooter.largeMapArchetypeSelected;
+        result.missionEdges = shooter.missionEdges;
         if (!shooter.complete || rooms.size() < 2
             || !generatePlannedDoorways(grid,
                 adjacency,

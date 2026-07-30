@@ -203,12 +203,16 @@ ShooterGenerationResult generateShooterLayout(
     const bool usesLargeMapArchetype = requestedSeeds.size() > 5;
     result.smallMapRecipeSelected = usesSmallMapRecipe;
     result.largeMapArchetypeSelected = usesLargeMapArchetype;
-    const auto plannedConnections = usesSmallMapRecipe
+    const auto plannedArenaEdges = usesSmallMapRecipe
         ? planRecipeArenaConnections(requestedSeeds.size(), smallMapRecipe)
         : (usesLargeMapArchetype
                 ? planArenaConnections(grid, requestedSeeds, largeMapArchetype)
                 : planSpatialTreeConnections(
                     grid, requestedSeeds, generationSeed));
+    const MissionGraphBrief missionGraph = makeMissionGraphBrief(
+        plannedArenaEdges, requestedSeeds.size(), usesLargeMapArchetype);
+    result.missionEdges = missionGraph.edges;
+    const auto& plannedConnections = missionGraph.edges;
     // A passage shorter than an arena's approximate diameter is a doorway
     // transition, not another room. Keep one explicit connector for shooter
     // structure, then reserve additional connector identities for long routes.
@@ -278,34 +282,32 @@ ShooterGenerationResult generateShooterLayout(
     result.exitCell = arenaSeeds[1];
     bool smallMapLoopAdded = false;
     std::vector<std::size_t> connectionOrder;
-    const std::size_t requiredConnectionCount = arenaSeeds.size() - 1;
-    if (usesLargeMapArchetype
-        && plannedConnections.size() > requiredConnectionCount) {
-        for (std::size_t index = requiredConnectionCount;
+    const std::size_t treeEdgeCount = arenaSeeds.size() - 1;
+    if (usesLargeMapArchetype && plannedConnections.size() > treeEdgeCount) {
+        for (std::size_t index = treeEdgeCount;
              index < plannedConnections.size(); ++index) {
             connectionOrder.push_back(index);
         }
     }
     for (std::size_t index = 0;
-         index < std::min(requiredConnectionCount, plannedConnections.size());
-         ++index) {
+         index < std::min(treeEdgeCount, plannedConnections.size()); ++index) {
         connectionOrder.push_back(index);
     }
     if (connectionOrder.size() < plannedConnections.size()) {
-        for (std::size_t index = requiredConnectionCount;
+        for (std::size_t index = treeEdgeCount;
              index < plannedConnections.size(); ++index) {
             connectionOrder.push_back(index);
         }
     }
     for (const std::size_t connectionIndex : connectionOrder) {
-        const bool requiredTreeEdge
-            = connectionIndex < requiredConnectionCount;
-        const bool requiredMissionEdge
-            = requiredTreeEdge || usesLargeMapArchetype;
+        const MissionEdgeBrief& missionEdge
+            = plannedConnections[connectionIndex];
+        const bool requiredMissionEdge = missionEdge.required;
         if (!requiredMissionEdge && smallMapLoopAdded) {
             continue;
         }
-        const auto [first, second] = plannedConnections[connectionIndex];
+        const int first = missionEdge.firstArena;
+        const int second = missionEdge.secondArena;
         const bool connected = addCorridorRoom(grid,
             adjacency,
             buildable,
