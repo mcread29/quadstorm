@@ -94,6 +94,55 @@ inline TopologySignature measureTopology(const RoomLayout& layout)
         arenaGraph[static_cast<std::size_t>(second)].push_back(first);
     }
 
+    std::size_t minimumShortcutSavings
+        = std::numeric_limits<std::size_t>::max();
+    for (const MissionEdgeBrief& edge : layout.getMissionEdges()) {
+        if (edge.purpose == MissionEdgePurpose::Primary
+            || edge.firstArena < 0 || edge.secondArena < 0
+            || static_cast<std::size_t>(edge.firstArena) >= arenaGraph.size()
+            || static_cast<std::size_t>(edge.secondArena) >= arenaGraph.size()) {
+            continue;
+        }
+        std::vector<int> distances(arenaGraph.size(), -1);
+        std::queue<int> frontier;
+        distances[static_cast<std::size_t>(edge.firstArena)] = 0;
+        frontier.push(edge.firstArena);
+        while (!frontier.empty()
+            && distances[static_cast<std::size_t>(edge.secondArena)] < 0) {
+            const int arena = frontier.front();
+            frontier.pop();
+            for (const int neighbor
+                : arenaGraph[static_cast<std::size_t>(arena)]) {
+                const bool isMeasuredEdge
+                    = (arena == edge.firstArena
+                          && neighbor == edge.secondArena)
+                    || (arena == edge.secondArena
+                        && neighbor == edge.firstArena);
+                if (isMeasuredEdge
+                    || distances[static_cast<std::size_t>(neighbor)] >= 0) {
+                    continue;
+                }
+                distances[static_cast<std::size_t>(neighbor)]
+                    = distances[static_cast<std::size_t>(arena)] + 1;
+                frontier.push(neighbor);
+            }
+        }
+        const int alternateDistance
+            = distances[static_cast<std::size_t>(edge.secondArena)];
+        if (alternateDistance < 3) {
+            continue;
+        }
+        ++result.usefulCycleCount;
+        if (edge.purpose == MissionEdgePurpose::Shortcut) {
+            minimumShortcutSavings = std::min(minimumShortcutSavings,
+                static_cast<std::size_t>(alternateDistance - 1));
+        }
+    }
+    if (minimumShortcutSavings
+        != std::numeric_limits<std::size_t>::max()) {
+        result.minimumShortcutSavingsTransitions = minimumShortcutSavings;
+    }
+
     std::vector<int> junctions;
     int startArena = EMPTY_CELL;
     int exitArena = EMPTY_CELL;
@@ -104,6 +153,10 @@ inline TopologySignature measureTopology(const RoomLayout& layout)
             degree, TopologySignature::DEGREE_BUCKETS - 1)];
         if (degree >= 2) {
             ++result.multiDoorSubstantialRoomCount;
+        } else if (degree == 1
+            && rooms[static_cast<std::size_t>(arenaRooms[arena])].role
+                == RoomRole::Combat) {
+            ++result.ordinaryCombatLeafCount;
         }
         if (degree >= 3) {
             ++result.meaningfulJunctionCount;

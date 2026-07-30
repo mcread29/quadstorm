@@ -78,7 +78,8 @@ int main(int argc, char** argv)
     std::cout
         << "seed,fallback,attempts,selected_attempt,valid_candidates,archetype,"
            "quest,score,circulation,physical_margin,progression,generator_quality,"
-           "cycles,multi_entry_ratio,rejections\n";
+           "cycles,useful_cycles,shortcut_savings,combat_leaves,"
+           "multi_entry_ratio,rejections\n";
     std::cout << std::fixed << std::setprecision(4);
     for (std::uint64_t offset = 0; offset < seedCount; ++offset) {
         const std::uint64_t seed = firstSeed + offset;
@@ -98,7 +99,10 @@ int main(int argc, char** argv)
                   << ',' << info.score.circulation << ','
                   << info.score.physicalMargin << ',' << info.score.progression
                   << ',' << info.score.generatorQuality << ','
-                  << topology.cycleRank << ',' << multiEntryRatio << ',';
+                  << topology.cycleRank << ',' << topology.usefulCycleCount
+                  << ',' << topology.minimumShortcutSavingsTransitions << ','
+                  << topology.ordinaryCombatLeafCount << ','
+                  << multiEntryRatio << ',';
         printRejections(info);
         std::cout << '\n';
     }

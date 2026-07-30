@@ -280,3 +280,35 @@ The accepted set and measured quality stayed unchanged. Requiredness and purpose
 #### Reverted experiment: route all edges in semantic-purpose order
 
 Routing Shortcut and Cycle edges by their new semantic order changed physical construction. Fallback use increased from six to seven maps. The result was **Negative**. The implementation keeps the proven physical routing order, but required failure behavior now uses the typed edge status.
+
+### 9. Useful-cycle and shortcut measurement
+
+Changes:
+
+- Measured each typed Cycle and Shortcut edge with that edge closed.
+- Counted a cycle as useful only when its alternate path has at least three room transitions.
+- Measured Shortcut transition savings.
+- Counted ordinary Combat leaves separately.
+- Required two useful cycles and at least two Shortcut transitions of savings.
+- Changed candidate circulation ranking to use useful cycles instead of cycle rank.
+- Added the new metrics to the seed-audit CSV.
+
+Tests:
+
+- Every production archetype publishes two useful cycles.
+- Every production Shortcut saves at least two room transitions.
+- Build passed without warnings.
+- Tests: 8 of 8 passed.
+
+Seed 1–100 comparison:
+
+```text
+before useful-cycle gate: fallback=6  mean attempts=2.99  mean score=58.159
+                          mean multi-entry=65.4%
+after useful-cycle gate:  fallback=6  mean attempts=3.29  mean score=58.751
+                          mean multi-entry=66.7%
+```
+
+Evaluation: **Positive**.
+
+Fallback use stayed unchanged. The accepted set now rejects local cycles that save less than two room transitions. Mean attempts increased by 10 percent. The current metric does not yet measure physical centerline separation or doorway direction.

@@ -297,7 +297,7 @@ CandidateScoreBreakdown scoreMatchCandidate(const GeneratedLevel& level,
         const float leafRatio
             = static_cast<float>(signature.degreeHistogram[1]) / roomCount;
         score.circulation = multiEntryRatio * 20.0F
-            + std::min(static_cast<float>(signature.cycleRank), 3.0F)
+            + std::min(static_cast<float>(signature.usefulCycleCount), 3.0F)
                 / 3.0F * 10.0F
             + (1.0F - std::clamp(leafRatio, 0.0F, 1.0F)) * 10.0F;
     }

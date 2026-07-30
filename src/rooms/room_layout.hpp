@@ -55,6 +55,9 @@ struct TopologySignature {
     std::size_t meaningfulJunctionCount = 0;
     std::size_t maximumDegree = 0;
     std::size_t cycleRank = 0;
+    std::size_t usefulCycleCount = 0;
+    std::size_t ordinaryCombatLeafCount = 0;
+    std::size_t minimumShortcutSavingsTransitions = 0;
     std::size_t maximumBranchDepth = 0;
     std::size_t startExitDistance = 0;
     std::array<std::size_t, DEGREE_BUCKETS> degreeHistogram {};

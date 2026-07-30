@@ -469,6 +469,10 @@ inline bool shooterCandidateIsValid(
                 = breadthFirstDistances(roomGraph, startRoom);
             return distances[static_cast<std::size_t>(exitRoom)] >= 3;
         }
+        if (signature.usefulCycleCount != 2
+            || signature.minimumShortcutSavingsTransitions < 2) {
+            return false;
+        }
         switch (layout.getLargeMapArchetype()) {
         case LargeMapArchetype::HubAndSpokes:
             if (signature.maximumDegree < 4 || signature.cycleRank != 2) {
