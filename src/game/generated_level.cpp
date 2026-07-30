@@ -202,6 +202,18 @@ std::vector<DoorwayThreshold> buildDoorwayThresholds(
     return result;
 }
 
+stalberg::rooms::RoomGenerationOptions roomGenerationOptions(
+    const std::optional<MatchGenerationInfo>& generation)
+{
+    stalberg::rooms::RoomGenerationOptions options;
+    if (generation.has_value() && !generation->usedFallback
+        && generation->brief.has_value()) {
+        options.smallMapRecipe = generation->brief->questRecipe;
+        options.largeMapArchetype = generation->brief->largeMapArchetype;
+    }
+    return options;
+}
+
 SpawnSelection selectPlayerSpawn(const stalberg::DualGrid& dual,
     const stalberg::rooms::RoomLayout& layout, float scale)
 {
@@ -247,8 +259,7 @@ GeneratedLevel::GeneratedLevel(GeneratedLevelConfig config,
     , dualData(stalberg::buildDualGrid(gridData))
     , roomGridData(stalberg::makeRoomGrid(gridData, dualData))
     , roomLayoutData(stalberg::rooms::RoomGenerator {}.generate(
-          roomGridData, config.roomSeed,
-          stalberg::rooms::RoomGenerationMethod::ShooterLayout))
+          roomGridData, config.roomSeed, roomGenerationOptions(generation)))
     , scale(config.worldScale)
 {
     validateGeneratedArtifacts(dualData, roomLayoutData);

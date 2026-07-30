@@ -14,6 +14,9 @@ namespace {
 
 constexpr std::uint64_t GRID_SEED_DOMAIN = 0x243f6a8885a308d3ULL;
 constexpr std::uint64_t ROOM_SEED_DOMAIN = 0x13198a2e03707344ULL;
+constexpr std::uint64_t ARCHETYPE_DOMAIN = 0xa4093822299f31d0ULL;
+constexpr std::uint64_t QUEST_DOMAIN = 0x082efa98ec4e6c89ULL;
+constexpr std::uint64_t BRIEF_HASH_DOMAIN = 0x452821e638d01377ULL;
 constexpr std::uint64_t ATTEMPT_STEP = 0x9e3779b97f4a7c15ULL;
 
 constexpr MatchMapProfile SYSTEMS_FIXTURE_PROFILE {
@@ -232,6 +235,33 @@ bool matchMapMeetsProfile(const GeneratedLevel& level,
     return validateMatchMap(level, profile).passed();
 }
 
+GenerationBrief deriveGenerationBrief(const MatchGenerationRequest& request)
+{
+    constexpr std::uint64_t archetypeCount = 5;
+    constexpr std::uint64_t questCount = 3;
+    const auto archetype = static_cast<stalberg::rooms::LargeMapArchetype>(
+        mixSeed(request.matchSeed ^ ARCHETYPE_DOMAIN) % archetypeCount);
+    const auto quest = static_cast<stalberg::rooms::SmallMapRecipe>(
+        mixSeed(request.matchSeed ^ QUEST_DOMAIN) % questCount);
+    return GenerationBrief {
+        .generationVersion = 1,
+        .constraintProfileVersion
+            = matchMapProfile(request.physicalProfile).constraintVersion,
+        .largeMapArchetype = archetype,
+        .questRecipe = quest
+    };
+}
+
+std::uint64_t generationBriefHash(const GenerationBrief& brief)
+{
+    std::uint64_t value = BRIEF_HASH_DOMAIN;
+    value = mixSeed(value ^ brief.generationVersion);
+    value = mixSeed(value ^ brief.constraintProfileVersion);
+    value = mixSeed(value
+        ^ static_cast<std::uint64_t>(brief.largeMapArchetype));
+    return mixSeed(value ^ static_cast<std::uint64_t>(brief.questRecipe));
+}
+
 GeneratedLevelConfig deriveMatchLevelConfig(
     const MatchGenerationRequest& request, std::size_t attempt)
 {
@@ -254,6 +284,8 @@ std::unique_ptr<GeneratedLevel> generateMatchLevel(
     const bool requestIsValid = profile.gridRadius >= 2
         && std::isfinite(profile.worldScale) && profile.worldScale > 0.0F;
     std::size_t attemptsPerformed = 0;
+    const GenerationBrief brief = deriveGenerationBrief(request);
+    const std::uint64_t briefHash = generationBriefHash(brief);
     if (requestIsValid) {
         for (std::size_t attempt = 0; attempt < request.attemptBudget;
              ++attempt) {
@@ -262,8 +294,12 @@ std::unique_ptr<GeneratedLevel> generateMatchLevel(
                 auto level = std::make_unique<GeneratedLevel>(
                     deriveMatchLevelConfig(request, attempt),
                     MatchGenerationInfo {
-                        request.matchSeed, attempt + 1,
-                        profile.id, false
+                        .matchSeed = request.matchSeed,
+                        .attempts = attempt + 1,
+                        .physicalProfile = profile.id,
+                        .usedFallback = false,
+                        .brief = brief,
+                        .briefHash = briefHash
                     });
                 if (matchMapMeetsProfile(*level, profile)) {
                     return level;
@@ -277,7 +313,11 @@ std::unique_ptr<GeneratedLevel> generateMatchLevel(
     return std::make_unique<GeneratedLevel>(
         REPRESENTATIVE_LEVEL_CONFIGS.front(),
         MatchGenerationInfo {
-            request.matchSeed, attemptsPerformed,
-            PhysicalMapProfile::SystemsFixture, true
+            .matchSeed = request.matchSeed,
+            .attempts = attemptsPerformed,
+            .physicalProfile = PhysicalMapProfile::SystemsFixture,
+            .usedFallback = true,
+            .brief = brief,
+            .briefHash = briefHash
         });
 }

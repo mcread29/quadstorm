@@ -61,6 +61,12 @@ bool sameSeedReproducesAcceptedMatch()
     valid &= check(firstInfo->matchSeed == seed
             && repeatedInfo->matchSeed == seed,
         "the requested public match seed is retained");
+    valid &= check(firstInfo->brief.has_value()
+            && repeatedInfo->brief == firstInfo->brief
+            && repeatedInfo->briefHash == firstInfo->briefHash
+            && firstInfo->briefHash
+                == generationBriefHash(*firstInfo->brief),
+        "the same match seed reproduces its fixed generation brief");
     valid &= check(firstInfo->attempts == repeatedInfo->attempts
             && firstInfo->usedFallback == repeatedInfo->usedFallback,
         "the same match seed reproduces retry and fallback metadata");
@@ -74,7 +80,7 @@ bool sameSeedReproducesAcceptedMatch()
 bool differentSeedsVaryNormalMatches()
 {
     const auto first = generateMatchLevel(MatchGenerationRequest { 101 });
-    const auto second = generateMatchLevel(MatchGenerationRequest { 202 });
+    const auto second = generateMatchLevel(MatchGenerationRequest { 102 });
     bool valid = check(!first->matchGeneration()->usedFallback
             && !second->matchGeneration()->usedFallback,
         "normal distinct match seeds do not use the fixture fallback");
@@ -208,6 +214,46 @@ bool fortressProfileRequiresActorRelativeScaleAndCapacity()
     return valid;
 }
 
+bool fixedBriefSurvivesGeometryRetries()
+{
+    const MatchGenerationRequest request { 3 };
+    const GenerationBrief brief = deriveGenerationBrief(request);
+    const std::uint64_t briefHash = generationBriefHash(brief);
+    const GeneratedLevelConfig firstConfig = deriveMatchLevelConfig(request, 0);
+    const GeneratedLevelConfig secondConfig = deriveMatchLevelConfig(request, 1);
+    const auto makeInfo = [&](std::size_t attempt) {
+        return MatchGenerationInfo {
+            .matchSeed = request.matchSeed,
+            .attempts = attempt + 1,
+            .physicalProfile = request.physicalProfile,
+            .usedFallback = false,
+            .brief = brief,
+            .briefHash = briefHash
+        };
+    };
+    const GeneratedLevel first(firstConfig, makeInfo(0));
+    const GeneratedLevel second(secondConfig, makeInfo(1));
+
+    bool valid = check(!sameConfig(firstConfig, secondConfig),
+        "whole-map retries vary deterministic geometry inputs");
+    valid &= check(first.roomLayout().hasLargeMapArchetype()
+            && second.roomLayout().hasLargeMapArchetype()
+            && first.roomLayout().getLargeMapArchetype()
+                == brief.largeMapArchetype
+            && second.roomLayout().getLargeMapArchetype()
+                == brief.largeMapArchetype,
+        "whole-map retries retain the selected large-map archetype");
+    valid &= check(first.roomLayout().getSmallMapRecipe()
+                == brief.questRecipe
+            && second.roomLayout().getSmallMapRecipe()
+                == brief.questRecipe,
+        "whole-map retries retain the selected quest recipe");
+    valid &= check(first.matchGeneration()->briefHash == briefHash
+            && second.matchGeneration()->briefHash == briefHash,
+        "whole-map retry metadata retains the generation binding hash");
+    return valid;
+}
+
 bool structuredValidationReportsExplainAdmission()
 {
     const MatchMapProfile& profile = matchMapProfile(
@@ -278,6 +324,7 @@ int main()
     valid &= restartPreservesAcceptedMap();
     valid &= exhaustedBudgetUsesVisibleDeterministicFallback();
     valid &= fortressProfileRequiresActorRelativeScaleAndCapacity();
+    valid &= fixedBriefSurvivesGeometryRetries();
     valid &= structuredValidationReportsExplainAdmission();
     valid &= derivationIncludesAttemptAndScaleProfile();
     if (!valid) {

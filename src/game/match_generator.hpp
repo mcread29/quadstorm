@@ -81,6 +81,8 @@ MatchValidationReport validateMatchMap(const GeneratedLevel& level,
     const MatchMapProfile& profile);
 bool matchMapMeetsProfile(const GeneratedLevel& level,
     const MatchMapProfile& profile);
+GenerationBrief deriveGenerationBrief(const MatchGenerationRequest& request);
+std::uint64_t generationBriefHash(const GenerationBrief& brief);
 GeneratedLevelConfig deriveMatchLevelConfig(
     const MatchGenerationRequest& request, std::size_t attempt);
 std::unique_ptr<GeneratedLevel> generateMatchLevel(

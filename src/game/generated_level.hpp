@@ -27,11 +27,24 @@ enum class PhysicalMapProfile : std::uint8_t {
     FortressV1
 };
 
+struct GenerationBrief {
+    std::uint32_t generationVersion = 1;
+    std::uint32_t constraintProfileVersion = 1;
+    stalberg::rooms::LargeMapArchetype largeMapArchetype
+        = stalberg::rooms::LargeMapArchetype::HubAndSpokes;
+    stalberg::rooms::SmallMapRecipe questRecipe
+        = stalberg::rooms::SmallMapRecipe::HubCircuit;
+
+    bool operator==(const GenerationBrief&) const = default;
+};
+
 struct MatchGenerationInfo {
     std::uint64_t matchSeed = 0;
     std::size_t attempts = 0;
     PhysicalMapProfile physicalProfile = PhysicalMapProfile::SystemsFixture;
     bool usedFallback = false;
+    std::optional<GenerationBrief> brief;
+    std::uint64_t briefHash = 0;
 };
 
 // Fixed read-only browser and deterministic fallback matrix.

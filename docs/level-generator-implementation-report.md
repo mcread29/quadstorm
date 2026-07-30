@@ -55,3 +55,36 @@ Tests:
 Evaluation: **Positive**.
 
 The accepted map set did not change. Rejections are now machine-readable and explain which limits failed. This is required for safe tuning and seed audits. The measured test-time change was small and within normal run variation.
+
+### 2. Fixed generation briefs across retries
+
+Changes:
+
+- Added a versioned `GenerationBrief`.
+- Selected the large-map archetype and quest recipe once from the public match seed.
+- Passed the fixed brief to every geometry retry.
+- Added a stable brief hash to match metadata.
+- Kept the known systems fallback independent from the requested production brief.
+
+Tests:
+
+- Added same-seed brief and hash checks.
+- Added a direct two-attempt test that changes geometry seeds and keeps map and quest selections fixed.
+- Build passed.
+- Tests: 7 of 7 passed in 23.12 seconds.
+
+Seed 1–100 audit:
+
+```text
+fallback=2
+mean attempts=2.02
+requested archetypes=16,16,27,19,22
+accepted archetypes=16,16,26,18,22
+brief mismatches=0
+```
+
+The earlier audit had three fallbacks and a mean of 2.03 attempts. Its accepted archetype counts were 25, 15, 25, 16, and 16 because retries could change the selection.
+
+Evaluation: **Positive**.
+
+Retries no longer change level identity or quest identity. The fallback count decreased from three to two in the same 100-seed range. Mean generation work stayed effectively unchanged.
