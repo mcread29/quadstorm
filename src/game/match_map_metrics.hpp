@@ -39,7 +39,8 @@ enum class GateStage : std::uint8_t {
 enum class GateStageFailureCode : std::uint8_t {
     GateNotApproachable,
     ObjectiveUnreachable,
-    GateAddsNoValue
+    GateAddsNoValue,
+    SpawnCapacity
 };
 
 struct GateStageMetrics {
@@ -49,6 +50,8 @@ struct GateStageMetrics {
     std::size_t reachableRoomCount = 0;
     std::size_t newlyReachableCellCount = 0;
     std::size_t routeSavingsTransitions = 0;
+    std::size_t packedEnemySpawnSlots = 0;
+    std::size_t enemySpawnRooms = 0;
     bool gateWasApproachable = false;
     bool objectiveIsReachable = false;
 };
@@ -70,6 +73,8 @@ struct GateStageValidationReport {
 MatchMapMetrics measureMatchMap(const GeneratedLevel& level);
 GateStageValidationReport validateMatchStages(const GeneratedLevel& level,
     const SmallMapPlan& plan,
-    std::size_t minimumRouteSavingsTransitions = 2);
+    std::size_t minimumRouteSavingsTransitions = 2,
+    std::size_t minimumPackedEnemySpawnSlots = 0,
+    std::size_t minimumEnemySpawnRooms = 0);
 const char* gateStageName(GateStage stage);
 const char* gateStageFailureName(GateStageFailureCode code);

@@ -11,6 +11,7 @@
 #include <limits>
 #include <queue>
 #include <ranges>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -242,6 +243,52 @@ bool gateIsApproachable(const GeneratedLevel& level,
             && reached[threshold.secondCell]);
 }
 
+bool isStaticSpawnCandidateUsable(
+    const GeneratedLevel& level, CellIndex cell);
+
+struct SpawnPacking {
+    std::size_t slots = 0;
+    std::size_t rooms = 0;
+};
+
+SpawnPacking measureSpawnPacking(const GeneratedLevel& level,
+    const std::vector<bool>& reached)
+{
+    struct Candidate {
+        CellIndex cell = 0;
+        int room = stalberg::rooms::EMPTY_CELL;
+    };
+    std::vector<Candidate> candidates;
+    for (const auto& room : level.roomLayout().getRooms()) {
+        for (const CellIndex cell : room.enemySpawnCandidates) {
+            if (cell < reached.size() && reached[cell]
+                && isStaticSpawnCandidateUsable(level, cell)) {
+                candidates.push_back(Candidate { cell, room.id });
+            }
+        }
+    }
+    std::ranges::sort(candidates, {}, &Candidate::cell);
+    candidates.erase(std::unique(candidates.begin(), candidates.end(),
+        [](const Candidate& first, const Candidate& second) {
+            return first.cell == second.cell;
+        }), candidates.end());
+
+    std::vector<Candidate> packed;
+    std::set<int> rooms;
+    constexpr float minimumSeparation = ENEMY_RADIUS * 2.0F + 0.08F;
+    for (const Candidate candidate : candidates) {
+        if (std::ranges::all_of(packed, [&](const Candidate& selected) {
+                return distanceBetween(
+                           level, candidate.cell, selected.cell)
+                    >= minimumSeparation;
+            })) {
+            packed.push_back(candidate);
+            rooms.insert(candidate.room);
+        }
+    }
+    return SpawnPacking { packed.size(), rooms.size() };
+}
+
 void addStageFailure(GateStageValidationReport& report,
     GateStageFailureCode code, GateStage stage, const MapGate& gate)
 {
@@ -253,7 +300,9 @@ void addStageFailure(GateStageValidationReport& report,
 std::vector<bool> openGateAndMeasure(const GeneratedLevel& level,
     const MapGate& gate, GateStage stage, CellIndex objective,
     bool requireRouteValue, std::size_t minimumRouteSavingsTransitions,
-    std::vector<bool> lockedDoorways, GateStageValidationReport& report)
+    std::size_t minimumPackedEnemySpawnSlots,
+    std::size_t minimumEnemySpawnRooms, std::vector<bool> lockedDoorways,
+    GateStageValidationReport& report)
 {
     const std::vector<bool> before = reachableFloor(level, lockedDoorways);
     const bool approachable = gateIsApproachable(level, gate, before);
@@ -276,6 +325,10 @@ std::vector<bool> openGateAndMeasure(const GeneratedLevel& level,
         : 0;
     const bool objectiveReachable
         = objective < after.size() && after[objective];
+    const SpawnPacking spawnPacking
+        = minimumPackedEnemySpawnSlots > 0 || minimumEnemySpawnRooms > 0
+        ? measureSpawnPacking(level, after)
+        : SpawnPacking {};
     report.stages.push_back(GateStageMetrics {
         stage,
         gate.purpose,
@@ -283,6 +336,8 @@ std::vector<bool> openGateAndMeasure(const GeneratedLevel& level,
         reachableRoomCount(level, after),
         newlyReachable,
         routeSavings,
+        spawnPacking.slots,
+        spawnPacking.rooms,
         approachable,
         objectiveReachable
     });
@@ -298,6 +353,11 @@ std::vector<bool> openGateAndMeasure(const GeneratedLevel& level,
         && routeSavings < minimumRouteSavingsTransitions) {
         addStageFailure(report,
             GateStageFailureCode::GateAddsNoValue, stage, gate);
+    }
+    if (spawnPacking.slots < minimumPackedEnemySpawnSlots
+        || spawnPacking.rooms < minimumEnemySpawnRooms) {
+        addStageFailure(report,
+            GateStageFailureCode::SpawnCapacity, stage, gate);
     }
     return lockedDoorways;
 }
@@ -447,7 +507,9 @@ MatchMapMetrics measureMatchMap(const GeneratedLevel& level)
 }
 
 GateStageValidationReport validateMatchStages(const GeneratedLevel& level,
-    const SmallMapPlan& plan, std::size_t minimumRouteSavingsTransitions)
+    const SmallMapPlan& plan, std::size_t minimumRouteSavingsTransitions,
+    std::size_t minimumPackedEnemySpawnSlots,
+    std::size_t minimumEnemySpawnRooms)
 {
     GateStageValidationReport report;
     std::vector<bool> initialLocks(
@@ -463,7 +525,8 @@ GateStageValidationReport validateMatchStages(const GeneratedLevel& level,
     if (expansion != nullptr) {
         afterExpansion = openGateAndMeasure(level, *expansion,
             GateStage::ExpansionOpen, plan.hubCell, true,
-            minimumRouteSavingsTransitions, initialLocks, report);
+            minimumRouteSavingsTransitions, minimumPackedEnemySpawnSlots,
+            minimumEnemySpawnRooms, initialLocks, report);
     }
 
     std::vector<bool> afterAnchor = afterExpansion;
@@ -471,7 +534,8 @@ GateStageValidationReport validateMatchStages(const GeneratedLevel& level,
     if (anchor != nullptr) {
         afterAnchor = openGateAndMeasure(level, *anchor,
             GateStage::AnchorOpen, plan.anchorCell, true,
-            minimumRouteSavingsTransitions, afterExpansion, report);
+            minimumRouteSavingsTransitions, minimumPackedEnemySpawnSlots,
+            minimumEnemySpawnRooms, afterExpansion, report);
         const std::vector<bool> reached = reachableFloor(level, afterAnchor);
         if (plan.hubCell >= reached.size() || !reached[plan.hubCell]) {
             addStageFailure(report,
@@ -484,7 +548,8 @@ GateStageValidationReport validateMatchStages(const GeneratedLevel& level,
     if (exit != nullptr) {
         static_cast<void>(openGateAndMeasure(level, *exit,
             GateStage::ExitOpen, plan.exitCell, true,
-            minimumRouteSavingsTransitions, afterAnchor, report));
+            minimumRouteSavingsTransitions, minimumPackedEnemySpawnSlots,
+            minimumEnemySpawnRooms, afterAnchor, report));
     }
 
     const MapGate* reward = findGate(plan, GatePurpose::Reward);
@@ -494,7 +559,8 @@ GateStageValidationReport validateMatchStages(const GeneratedLevel& level,
             : plan.relayTargets.front().cell;
         const std::vector<bool> afterReward = openGateAndMeasure(level,
             *reward, GateStage::RewardOpen, rewardObjective, false,
-            minimumRouteSavingsTransitions, afterExpansion, report);
+            minimumRouteSavingsTransitions, minimumPackedEnemySpawnSlots,
+            minimumEnemySpawnRooms, afterExpansion, report);
         const std::vector<bool> reached = reachableFloor(level, afterReward);
         if (std::ranges::any_of(plan.relayTargets,
                 [&](const RelayTarget& relay) {
@@ -534,6 +600,8 @@ const char* gateStageFailureName(GateStageFailureCode code)
         return "objective_unreachable";
     case GateStageFailureCode::GateAddsNoValue:
         return "gate_adds_no_value";
+    case GateStageFailureCode::SpawnCapacity:
+        return "spawn_capacity";
     }
     return "unknown";
 }

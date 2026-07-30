@@ -312,3 +312,32 @@ after useful-cycle gate:  fallback=6  mean attempts=3.29  mean score=58.751
 Evaluation: **Positive**.
 
 Fallback use stayed unchanged. The accepted set now rejects local cycles that save less than two room transitions. Mean attempts increased by 10 percent. The current metric does not yet measure physical centerline separation or doorway direction.
+
+### 10. Spawn packing at progression stages
+
+Changes:
+
+- Measured statically usable spawn cells in each simulated gate state.
+- Applied deterministic distance packing so adjacent cells do not count as separate simultaneous slots.
+- Counted the rooms that contain packed slots.
+- Required 18 packed slots in at least two rooms for each post-gate Fortress state.
+- Added a structured stage-spawn failure code.
+- Skipped packing work during gate-binding searches that do not request spawn limits.
+
+Tests:
+
+- Accepted Fortress maps meet packed-slot and room-count limits at every simulated stage.
+- An impossible spawn profile returns `stage_spawn_capacity` failures.
+- Build passed without warnings.
+- Tests: 8 of 8 passed in 33.83 seconds.
+
+Seed 1–100 comparison:
+
+```text
+before: fallback=6  mean attempts=3.29  mean score=58.751
+after:  fallback=6  mean attempts=3.29  mean score=58.751
+```
+
+Evaluation: **Positive**.
+
+The new hard contract did not reduce production yield. It proves that each checked stage can place the scheduled maximum living population across more than one room. Initial-lock spawn capacity, visibility bands, and runtime occupancy recovery still need separate work.

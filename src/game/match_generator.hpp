@@ -26,6 +26,8 @@ struct MatchMapProfile {
     std::size_t minimumUsableEnemySpawnRooms = 0;
     std::size_t minimumHubDoorwayDegree = 0;
     std::size_t minimumProgressionGateRouteSavingsTransitions = 0;
+    std::size_t minimumStagePackedEnemySpawnSlots = 0;
+    std::size_t minimumStageEnemySpawnRooms = 0;
 };
 
 struct MatchGenerationRequest {
@@ -61,6 +63,7 @@ enum class MatchValidationFailureCode : std::uint8_t {
     StageGateApproach,
     StageObjectiveReachability,
     StageGateValue,
+    StageSpawnCapacity,
     Count
 };
 

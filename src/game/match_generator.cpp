@@ -39,7 +39,9 @@ constexpr MatchMapProfile FORTRESS_V1_PROFILE {
     .minimumUsableEnemySpawnCandidates = 220,
     .minimumUsableEnemySpawnRooms = 12,
     .minimumHubDoorwayDegree = 3,
-    .minimumProgressionGateRouteSavingsTransitions = 2
+    .minimumProgressionGateRouteSavingsTransitions = 2,
+    .minimumStagePackedEnemySpawnSlots = 18,
+    .minimumStageEnemySpawnRooms = 2
 };
 
 std::uint64_t mixSeed(std::uint64_t value)
@@ -169,6 +171,8 @@ const char* matchValidationFailureName(MatchValidationFailureCode code)
         return "stage_objective_reachability";
     case MatchValidationFailureCode::StageGateValue:
         return "stage_gate_value";
+    case MatchValidationFailureCode::StageSpawnCapacity:
+        return "stage_spawn_capacity";
     case MatchValidationFailureCode::Count:
         break;
     }
@@ -218,7 +222,9 @@ MatchValidationReport validateMatchMap(const GeneratedLevel& level,
         hasGate(plan, GatePurpose::Exit));
 
     report.stages = validateMatchStages(level, plan,
-        profile.minimumProgressionGateRouteSavingsTransitions);
+        profile.minimumProgressionGateRouteSavingsTransitions,
+        profile.minimumStagePackedEnemySpawnSlots,
+        profile.minimumStageEnemySpawnRooms);
     for (const GateStageFailure& stageFailure : report.stages.failures) {
         MatchValidationFailureCode code
             = MatchValidationFailureCode::StageObjectiveReachability;
@@ -230,6 +236,9 @@ MatchValidationReport validateMatchMap(const GeneratedLevel& level,
             break;
         case GateStageFailureCode::GateAddsNoValue:
             code = MatchValidationFailureCode::StageGateValue;
+            break;
+        case GateStageFailureCode::SpawnCapacity:
+            code = MatchValidationFailureCode::StageSpawnCapacity;
             break;
         }
         report.failures.push_back(MatchValidationFailure {

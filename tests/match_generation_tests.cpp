@@ -179,8 +179,17 @@ bool fortressProfileRequiresActorRelativeScaleAndCapacity()
     valid &= check(level->config().gridRadius == profile.gridRadius
             && level->worldScale() == profile.worldScale,
         "Fortress V1 increases both grid extent and generated-to-world scale");
-    valid &= check(matchMapMeetsProfile(*level, profile),
-        "accepted fortress geometry satisfies every physical profile gate");
+    const MatchValidationReport validation
+        = validateMatchMap(*level, profile);
+    valid &= check(validation.passed()
+            && std::ranges::all_of(validation.stages.stages,
+                [&](const GateStageMetrics& stage) {
+                    return stage.packedEnemySpawnSlots
+                            >= profile.minimumStagePackedEnemySpawnSlots
+                        && stage.enemySpawnRooms
+                            >= profile.minimumStageEnemySpawnRooms;
+                }),
+        "accepted fortress geometry satisfies physical and stage spawn gates");
     valid &= check(metrics.minimumDoorwayWidthInPlayerDiameters()
                 >= profile.minimumDoorwayWidthInPlayerDiameters
             && metrics.minimumSubstantialRoomAreaInPlayerDiameterSquares()
@@ -395,6 +404,18 @@ bool structuredValidationReportsExplainAdmission()
     valid &= check(accepted.metrics.hubDoorwayDegree
             == measureMatchMap(*fortress).hubDoorwayDegree,
         "validation reports retain the metrics used for admission");
+
+    MatchMapProfile impossibleSpawnProfile = profile;
+    impossibleSpawnProfile.minimumStagePackedEnemySpawnSlots
+        = fortress->roomGrid().getCellCount() + 1;
+    const MatchValidationReport impossibleSpawn = validateMatchMap(
+        *fortress, impossibleSpawnProfile);
+    valid &= check(std::ranges::any_of(impossibleSpawn.failures,
+            [](const MatchValidationFailure& failure) {
+                return failure.code
+                    == MatchValidationFailureCode::StageSpawnCapacity;
+            }),
+        "stage validation reports insufficient packed spawn capacity");
     return valid;
 }
 
