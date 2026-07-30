@@ -4,6 +4,7 @@
 #include "match_map_metrics.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <exception>
 #include <limits>
@@ -58,53 +59,22 @@ bool hasGate(const SmallMapPlan& plan, GatePurpose purpose)
     });
 }
 
-bool isMatchValid(const GeneratedLevel& level,
-    const MatchMapProfile& profile)
+void addMinimumFailure(MatchValidationReport& report,
+    MatchValidationFailureCode code, double actual, double expectedMinimum,
+    int room = stalberg::rooms::EMPTY_CELL, std::size_t doorway = 0)
 {
-    if (level.config().gridRadius < profile.gridRadius
-        || level.worldScale() < profile.worldScale
-        || level.roomLayout().getRoomCount() == 0
-        || !std::isfinite(level.roomLayout().getQualityScore())
-        || level.roomLayout().getQualityScore() <= 0.0F) {
-        return false;
+    if (actual >= expectedMinimum) {
+        return;
     }
+    report.failures.push_back(MatchValidationFailure {
+        code, expectedMinimum, actual, room, doorway
+    });
+}
 
-    const SmallMapPlan plan = buildSmallMapPlan(level);
-    const auto validRoom = [&](int room) {
-        return room >= 0
-            && static_cast<std::size_t>(room)
-                < level.roomLayout().getRoomCount();
-    };
-    if (!validRoom(plan.startRoom) || !validRoom(plan.hubRoom)
-        || !validRoom(plan.anchorRoom) || !validRoom(plan.rewardRoom)
-        || !validRoom(plan.exitRoom) || plan.relayTargets.size() != 3
-        || !hasGate(plan, GatePurpose::Expansion)
-        || !hasGate(plan, GatePurpose::Anchor)
-        || !hasGate(plan, GatePurpose::Reward)
-        || !hasGate(plan, GatePurpose::Exit)) {
-        return false;
-    }
-
-    const MatchMapMetrics metrics = measureMatchMap(level);
-    return metrics.minimumDoorwayWidthInPlayerDiameters()
-            >= profile.minimumDoorwayWidthInPlayerDiameters
-        && metrics.minimumSubstantialRoomAreaInPlayerDiameterSquares()
-            >= profile.minimumSubstantialRoomAreaInPlayerDiameterSquares
-        && metrics.anchorRoomAreaInPlayerDiameterSquares()
-            >= profile.minimumAnchorRoomAreaInPlayerDiameterSquares
-        && metrics.minimumObjectiveClearanceInPlayerDiameters()
-            >= profile.minimumObjectiveClearanceInPlayerDiameters
-        && metrics.anchorRoomSpanInPlayerDiameters()
-            >= profile.minimumAnchorRoomSpanInPlayerDiameters
-        && metrics.startToExitRouteDistanceInPlayerDiameters()
-            >= profile.minimumRouteDistanceInPlayerDiameters
-        && metrics.maximumUsableIngressSeparationInPlayerDiameters()
-            >= profile.minimumUsableIngressSeparationInPlayerDiameters
-        && metrics.usableEnemySpawnCandidateCount
-            >= profile.minimumUsableEnemySpawnCandidates
-        && metrics.usableEnemySpawnRoomCount
-            >= profile.minimumUsableEnemySpawnRooms
-        && metrics.hubDoorwayDegree >= profile.minimumHubDoorwayDegree;
+void addRequiredFailure(MatchValidationReport& report,
+    MatchValidationFailureCode code, bool present)
+{
+    addMinimumFailure(report, code, present ? 1.0 : 0.0, 1.0);
 }
 
 } // namespace
@@ -131,10 +101,135 @@ const char* physicalMapProfileName(PhysicalMapProfile profile)
     return "UNKNOWN";
 }
 
+const char* matchValidationFailureName(MatchValidationFailureCode code)
+{
+    switch (code) {
+    case MatchValidationFailureCode::GridRadius:
+        return "grid_radius";
+    case MatchValidationFailureCode::WorldScale:
+        return "world_scale";
+    case MatchValidationFailureCode::RoomLayout:
+        return "room_layout";
+    case MatchValidationFailureCode::QualityScore:
+        return "quality_score";
+    case MatchValidationFailureCode::PlanRooms:
+        return "plan_rooms";
+    case MatchValidationFailureCode::RelayTargets:
+        return "relay_targets";
+    case MatchValidationFailureCode::ExpansionGate:
+        return "expansion_gate";
+    case MatchValidationFailureCode::AnchorGate:
+        return "anchor_gate";
+    case MatchValidationFailureCode::RewardGate:
+        return "reward_gate";
+    case MatchValidationFailureCode::ExitGate:
+        return "exit_gate";
+    case MatchValidationFailureCode::DoorwayWidth:
+        return "doorway_width";
+    case MatchValidationFailureCode::SubstantialRoomArea:
+        return "substantial_room_area";
+    case MatchValidationFailureCode::AnchorRoomArea:
+        return "anchor_room_area";
+    case MatchValidationFailureCode::ObjectiveClearance:
+        return "objective_clearance";
+    case MatchValidationFailureCode::AnchorRoomSpan:
+        return "anchor_room_span";
+    case MatchValidationFailureCode::RouteDistance:
+        return "route_distance";
+    case MatchValidationFailureCode::IngressSeparation:
+        return "ingress_separation";
+    case MatchValidationFailureCode::EnemySpawnCandidates:
+        return "enemy_spawn_candidates";
+    case MatchValidationFailureCode::EnemySpawnRooms:
+        return "enemy_spawn_rooms";
+    case MatchValidationFailureCode::HubDoorwayDegree:
+        return "hub_doorway_degree";
+    }
+    return "unknown";
+}
+
+MatchValidationReport validateMatchMap(const GeneratedLevel& level,
+    const MatchMapProfile& profile)
+{
+    MatchValidationReport report;
+    report.constraintVersion = profile.constraintVersion;
+    report.metrics = measureMatchMap(level);
+
+    addMinimumFailure(report, MatchValidationFailureCode::GridRadius,
+        level.config().gridRadius, profile.gridRadius);
+    addMinimumFailure(report, MatchValidationFailureCode::WorldScale,
+        level.worldScale(), profile.worldScale);
+    addRequiredFailure(report, MatchValidationFailureCode::RoomLayout,
+        level.roomLayout().getRoomCount() > 0);
+    const float qualityScore = level.roomLayout().getQualityScore();
+    addMinimumFailure(report, MatchValidationFailureCode::QualityScore,
+        std::isfinite(qualityScore) ? qualityScore : 0.0, 0.000001);
+
+    const SmallMapPlan plan = buildSmallMapPlan(level);
+    const auto validRoom = [&](int room) {
+        return room >= 0
+            && static_cast<std::size_t>(room)
+                < level.roomLayout().getRoomCount();
+    };
+    const std::array planRooms {
+        plan.startRoom, plan.hubRoom, plan.anchorRoom,
+        plan.rewardRoom, plan.exitRoom
+    };
+    const std::size_t validPlanRoomCount = std::ranges::count_if(
+        planRooms, validRoom);
+    addMinimumFailure(report, MatchValidationFailureCode::PlanRooms,
+        validPlanRoomCount, planRooms.size());
+    addMinimumFailure(report, MatchValidationFailureCode::RelayTargets,
+        plan.relayTargets.size(), 3.0);
+    addRequiredFailure(report, MatchValidationFailureCode::ExpansionGate,
+        hasGate(plan, GatePurpose::Expansion));
+    addRequiredFailure(report, MatchValidationFailureCode::AnchorGate,
+        hasGate(plan, GatePurpose::Anchor));
+    addRequiredFailure(report, MatchValidationFailureCode::RewardGate,
+        hasGate(plan, GatePurpose::Reward));
+    addRequiredFailure(report, MatchValidationFailureCode::ExitGate,
+        hasGate(plan, GatePurpose::Exit));
+
+    const MatchMapMetrics& metrics = report.metrics;
+    addMinimumFailure(report, MatchValidationFailureCode::DoorwayWidth,
+        metrics.minimumDoorwayWidthInPlayerDiameters(),
+        profile.minimumDoorwayWidthInPlayerDiameters);
+    addMinimumFailure(report,
+        MatchValidationFailureCode::SubstantialRoomArea,
+        metrics.minimumSubstantialRoomAreaInPlayerDiameterSquares(),
+        profile.minimumSubstantialRoomAreaInPlayerDiameterSquares);
+    addMinimumFailure(report, MatchValidationFailureCode::AnchorRoomArea,
+        metrics.anchorRoomAreaInPlayerDiameterSquares(),
+        profile.minimumAnchorRoomAreaInPlayerDiameterSquares,
+        plan.anchorRoom);
+    addMinimumFailure(report, MatchValidationFailureCode::ObjectiveClearance,
+        metrics.minimumObjectiveClearanceInPlayerDiameters(),
+        profile.minimumObjectiveClearanceInPlayerDiameters);
+    addMinimumFailure(report, MatchValidationFailureCode::AnchorRoomSpan,
+        metrics.anchorRoomSpanInPlayerDiameters(),
+        profile.minimumAnchorRoomSpanInPlayerDiameters, plan.anchorRoom);
+    addMinimumFailure(report, MatchValidationFailureCode::RouteDistance,
+        metrics.startToExitRouteDistanceInPlayerDiameters(),
+        profile.minimumRouteDistanceInPlayerDiameters);
+    addMinimumFailure(report, MatchValidationFailureCode::IngressSeparation,
+        metrics.maximumUsableIngressSeparationInPlayerDiameters(),
+        profile.minimumUsableIngressSeparationInPlayerDiameters);
+    addMinimumFailure(report, MatchValidationFailureCode::EnemySpawnCandidates,
+        metrics.usableEnemySpawnCandidateCount,
+        profile.minimumUsableEnemySpawnCandidates);
+    addMinimumFailure(report, MatchValidationFailureCode::EnemySpawnRooms,
+        metrics.usableEnemySpawnRoomCount,
+        profile.minimumUsableEnemySpawnRooms);
+    addMinimumFailure(report, MatchValidationFailureCode::HubDoorwayDegree,
+        metrics.hubDoorwayDegree, profile.minimumHubDoorwayDegree,
+        plan.hubRoom);
+    return report;
+}
+
 bool matchMapMeetsProfile(const GeneratedLevel& level,
     const MatchMapProfile& profile)
 {
-    return isMatchValid(level, profile);
+    return validateMatchMap(level, profile).passed();
 }
 
 GeneratedLevelConfig deriveMatchLevelConfig(

@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <iostream>
 #include <ranges>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -207,6 +208,48 @@ bool fortressProfileRequiresActorRelativeScaleAndCapacity()
     return valid;
 }
 
+bool structuredValidationReportsExplainAdmission()
+{
+    const MatchMapProfile& profile = matchMapProfile(
+        PhysicalMapProfile::FortressV1);
+    const GeneratedLevel systems(REPRESENTATIVE_LEVEL_CONFIGS.front());
+    const MatchValidationReport rejected = validateMatchMap(systems, profile);
+    const auto hasFailure = [&](MatchValidationFailureCode code) {
+        return std::ranges::any_of(rejected.failures,
+            [code](const MatchValidationFailure& failure) {
+                return failure.code == code;
+            });
+    };
+
+    bool valid = check(!rejected.passed()
+            && rejected.constraintVersion == profile.constraintVersion,
+        "validation reports retain the active constraint version");
+    valid &= check(hasFailure(MatchValidationFailureCode::GridRadius)
+            && hasFailure(MatchValidationFailureCode::WorldScale)
+            && hasFailure(MatchValidationFailureCode::DoorwayWidth),
+        "validation reports identify each failed physical constraint");
+    valid &= check(std::ranges::all_of(rejected.failures,
+            [](const MatchValidationFailure& failure) {
+                return failure.actual < failure.expectedMinimum
+                    && std::string_view(
+                           matchValidationFailureName(failure.code))
+                        != "unknown";
+            }),
+        "every validation failure publishes a name and measured range");
+
+    const auto fortress = generateMatchLevel(MatchGenerationRequest { 101 });
+    const MatchValidationReport accepted = validateMatchMap(
+        *fortress, profile);
+    valid &= check(accepted.passed()
+            && accepted.failures.empty()
+            && matchMapMeetsProfile(*fortress, profile),
+        "accepted candidates have an empty structured failure list");
+    valid &= check(accepted.metrics.hubDoorwayDegree
+            == measureMatchMap(*fortress).hubDoorwayDegree,
+        "validation reports retain the metrics used for admission");
+    return valid;
+}
+
 bool derivationIncludesAttemptAndScaleProfile()
 {
     const MatchGenerationRequest request {
@@ -235,6 +278,7 @@ int main()
     valid &= restartPreservesAcceptedMap();
     valid &= exhaustedBudgetUsesVisibleDeterministicFallback();
     valid &= fortressProfileRequiresActorRelativeScaleAndCapacity();
+    valid &= structuredValidationReportsExplainAdmission();
     valid &= derivationIncludesAttemptAndScaleProfile();
     if (!valid) {
         return 1;

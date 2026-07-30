@@ -36,4 +36,22 @@ Baseline results:
 
 ## Change record
 
-This section is updated after each committed change.
+### 1. Structured match-admission reports
+
+Changes:
+
+- Added a version number to each physical constraint profile.
+- Added stable failure codes and names.
+- Added expected and actual values to each failure.
+- Added the full metric set to the validation report.
+- Kept the old Boolean admission function as a report wrapper.
+
+Tests:
+
+- Added checks for named failures, measured ranges, profile versions, and empty reports for accepted maps.
+- Build passed.
+- Tests: 7 of 7 passed in 22.63 seconds.
+
+Evaluation: **Positive**.
+
+The accepted map set did not change. Rejections are now machine-readable and explain which limits failed. This is required for safe tuning and seed audits. The measured test-time change was small and within normal run variation.

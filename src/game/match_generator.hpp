@@ -1,15 +1,18 @@
 #pragma once
 
 #include "generated_level.hpp"
+#include "match_map_metrics.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 inline constexpr std::size_t DEFAULT_MATCH_GENERATION_ATTEMPTS = 8;
 
 struct MatchMapProfile {
     PhysicalMapProfile id = PhysicalMapProfile::SystemsFixture;
+    std::uint32_t constraintVersion = 1;
     int gridRadius = 5;
     float worldScale = 0.16F;
     float minimumDoorwayWidthInPlayerDiameters = 0.0F;
@@ -30,8 +33,52 @@ struct MatchGenerationRequest {
     PhysicalMapProfile physicalProfile = PhysicalMapProfile::FortressV1;
 };
 
+enum class MatchValidationFailureCode : std::uint8_t {
+    GridRadius,
+    WorldScale,
+    RoomLayout,
+    QualityScore,
+    PlanRooms,
+    RelayTargets,
+    ExpansionGate,
+    AnchorGate,
+    RewardGate,
+    ExitGate,
+    DoorwayWidth,
+    SubstantialRoomArea,
+    AnchorRoomArea,
+    ObjectiveClearance,
+    AnchorRoomSpan,
+    RouteDistance,
+    IngressSeparation,
+    EnemySpawnCandidates,
+    EnemySpawnRooms,
+    HubDoorwayDegree
+};
+
+struct MatchValidationFailure {
+    MatchValidationFailureCode code = MatchValidationFailureCode::RoomLayout;
+    double expectedMinimum = 0.0;
+    double actual = 0.0;
+    int room = stalberg::rooms::EMPTY_CELL;
+    std::size_t doorway = 0;
+
+    bool operator==(const MatchValidationFailure&) const = default;
+};
+
+struct MatchValidationReport {
+    std::uint32_t constraintVersion = 0;
+    MatchMapMetrics metrics;
+    std::vector<MatchValidationFailure> failures;
+
+    bool passed() const { return failures.empty(); }
+};
+
 const MatchMapProfile& matchMapProfile(PhysicalMapProfile profile);
 const char* physicalMapProfileName(PhysicalMapProfile profile);
+const char* matchValidationFailureName(MatchValidationFailureCode code);
+MatchValidationReport validateMatchMap(const GeneratedLevel& level,
+    const MatchMapProfile& profile);
 bool matchMapMeetsProfile(const GeneratedLevel& level,
     const MatchMapProfile& profile);
 GeneratedLevelConfig deriveMatchLevelConfig(
