@@ -341,3 +341,85 @@ after:  fallback=6  mean attempts=3.29  mean score=58.751
 Evaluation: **Positive**.
 
 The new hard contract did not reduce production yield. It proves that each checked stage can place the scheduled maximum living population across more than one room. Initial-lock spawn capacity, visibility bands, and runtime occupancy recovery still need separate work.
+
+## Final result
+
+Final verification:
+
+```text
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j2
+ctest --test-dir build --output-on-failure
+timeout 8s xvfb-run -a ./build/stalberg_game
+```
+
+Results:
+
+- Build: passed without warnings.
+- Tests: 8 of 8 passed in 33.83 seconds.
+- Virtual display: raylib, OpenGL, shaders, fonts, framebuffers, and the game loop initialized correctly.
+- The virtual-display run stayed active until the expected eight-second timeout.
+
+Final 100-seed production audit:
+
+```text
+fallback=6
+mean attempts=3.29
+mean score=58.751
+mean contracted cycles=2.00
+mean useful cycles=2.00
+mean multi-entry substantial rooms=66.7%
+progression-safe accepted maps=100%
+stage-spawn-safe accepted maps=100%
+```
+
+Comparison with the evaluation baseline:
+
+| Measure | Evaluation baseline | Final result | Judgment |
+|---|---:|---:|---|
+| Contracted cycles | 0.32 | 2.00 | Positive |
+| Useful cycles | Not measured | 2.00 required | Positive |
+| Multi-entry substantial rooms | 49.14% | 66.7% | Positive |
+| Known Anchor softlocks | Present | Repaired or rejected | Positive |
+| Decorative progression gates | Present | Rejected below value limit | Positive |
+| Stage spawn packing | Not measured | 18 slots in 2 rooms | Positive |
+| Fallback use | 3% | 6% | Negative |
+| Mean attempts | 2.03 | 3.29 | Negative |
+| Rejection explanations | Boolean or silent | Named metrics and counts | Positive |
+
+Overall judgment: **Positive**.
+
+Circulation, progression safety, replay identity, selection quality, and observability improved. The cost is more generation work and three additional fallbacks in 100 seeds.
+
+## Commit record
+
+| Commit | Change |
+|---|---|
+| `557d4c2` | Structured match-admission reports |
+| `c501bb1` | Fixed generation briefs across retries |
+| `adeec0d` | Progression-stage admission |
+| `892d45d` | Stage-safe gate and Anchor binding |
+| `076dcfc` | Best-valid candidate ranking |
+| `1fd1e60` | Seed-audit executable and rejection records |
+| `0eeca59` | Two required production cycles |
+| `96cfdfb` | Typed mission graph edges |
+| `6e00da9` | Useful-cycle and Shortcut measurement |
+| `327043d` | Stage-specific spawn packing |
+
+## Recommendations that remain incomplete
+
+The following work needs larger construction or runtime changes. It was not hidden behind weaker limits.
+
+1. **70 percent multi-entry hard gate:** The retained result is 66.7 percent. The direct hard-gate experiment was negative and was reverted.
+2. **Maximum two Combat leaves:** Twin Districts can still exceed this limit. The archetype needs bounded branch construction.
+3. **Physical route separation:** Useful-cycle checks measure graph savings. They do not yet measure centerline or doorway-angle separation.
+4. **Joint room and route construction:** Arena growth and route construction are still separate. There is no full rip-up and reroute system.
+5. **Room shape and combat briefs:** Rooms still use one main growth grammar. Dedicated lane, perimeter, defended-center, and broken-sightline builders remain necessary.
+6. **Typed tactical anchors:** Cover orientation, firing lanes, holdout footprints, and presentation attachments are not yet published.
+7. **Full curated quest binding:** Gate and Anchor binding is constraint-based, but the complete recipe set is not compiled to immutable semantic anchors.
+8. **Initial-lock and visibility spawn checks:** Post-gate packing is hard-gated. The initial lock state, visibility bands, and role compatibility remain.
+9. **Runtime spawn recovery:** A temporary impossible spawn can still need a bounded recovery rule.
+10. **Endurance and navigation work:** Reverse-field caching, equal-cost route distribution, and automated rounds 1, 5, 25, and maximum-pressure runs remain.
+11. **Project-owned random generator:** Generation versions and brief hashes exist, but portable long-term replay still depends on standard-library random behavior.
+
+These items should be the next implementation pass. Room grammar and bounded-leaf construction should come before a 70 percent hard gate.
