@@ -1,36 +1,56 @@
 # Graph-First Shooter Level Generation
 
-This document describes the default `RoomGenerationMethod::ShooterLayout` pipeline implemented in `src/rooms/room_generator.cpp`. It covers mission-graph construction, arena placement and growth, physical routing, corridor materialization, entrance handling, planned doorways, role assignment, tactical annotations, and fallback behavior.
+This document uses ASD-STE100 Simplified Technical English where practical. Code, formulas, identifiers, and required technical terms keep their exact forms.
 
-For the input/output types and physical geometry contract, see [`room-generation-model.md`](room-generation-model.md). For candidate validation, scoring, deterministic retries, and tests, see [`layout-quality-and-testing.md`](layout-quality-and-testing.md). For the next topology-archetype, room-grammar, runtime-overview, and landmark pass, see [`level-identity-pass.md`](level-identity-pass.md).
+This document describes the default `RoomGenerationMethod::ShooterLayout` pipeline. The implementation is in `src/rooms/room_generator.cpp`. The document covers the mission graph, arena growth, physical routes, corridors, entrances, doorways, room roles, tactical data, validation, and fallback behavior.
 
-The `stalberg_game` runtime consumes shooter layouts through immutable `GeneratedLevel`, retaining source grid, dual geometry, neutral room graph, topology/recipe metadata, exact floor, and doorway thresholds. Normal play derives radius-8, `worldScale = 0.22` Fortress V1 inputs and a bounded candidate stream from one replayable match seed; fixed radius-5 presets remain systems fixtures and deterministic fallback. Larger layouts select one of five graph archetypes and publish a measured topology signature. Application gates validate actor-relative physical scale and map-wide spawn capacity. The target still requires room-shape metadata, semantic anchors, and quest binding. `LevelSession` owns the authoritative player and synchronized collision/navigation locks; `HordeMatch` owns persistent match state.
+See [`room-generation-model.md`](room-generation-model.md) for the input and output types. That document also gives the physical geometry contract. See [`layout-quality-and-testing.md`](layout-quality-and-testing.md) for validation, scores, retries, determinism, and tests. See [`level-identity-pass.md`](level-identity-pass.md) for the planned room grammar, topology identity, runtime overview, and landmarks.
+
+The `stalberg_game` runtime reads an immutable `GeneratedLevel`. This object keeps the source grid and dual geometry. It also keeps the neutral room graph, topology and recipe metadata, exact floor, and doorway thresholds.
+
+Normal play uses radius 8 and the Fortress V1 profile. Fortress V1 uses `worldScale = 0.22`. `MatchGenerationRequest` supplies the physical profile. The match seed does not select the physical profile. One match seed produces a bounded candidate stream. The seed supports replay only in the same build and toolchain. Fixed radius-5 presets remain systems fixtures and the deterministic fallback.
+
+Large layouts select one of five graph archetypes. These layouts publish a measured topology signature. Application gates validate actor-relative physical scale, stage progression, and static stage-spawn capacity.
+
+The remaining work includes room grammar and bounded leaves. It also includes physical route separation, semantic anchors, and a quest compiler. Initial-lock spawn checks, visibility checks, role-based spawn checks, runtime recovery, and endurance tests also remain.
+
+`LevelSession` owns the authoritative player. It also owns the synchronized collision and navigation locks. `HordeMatch` owns persistent match state.
 
 ## Goals
 
-The shooter method is designed for a 3D twin-stick game whose simulation remains planar. It aims to produce:
+The shooter method supports a 3D twin-stick game. The simulation stays planar. The method has these goals:
 
-- Several distinct combat arenas rather than one continuous organic blob.
-- Explicit connector regions that can become visible 3D corridors.
-- A start and exit separated by a meaningful circulation route.
-- Side branches and hub rooms.
-- At most one deliberate alternate-route loop.
-- Negative space between rooms for walls, void, scenery, or inaccessible terrain.
-- Routes that prefer physical clearance and wide portals.
-- An authoritative logical doorway graph without accidental shortcuts.
-- Stable gameplay metadata for navigation, spawning, cover, and encounter systems.
+- Create several separate combat arenas.
+- Create explicit connector regions for visible 3D corridors.
+- Separate the start and exit with a useful route.
+- Create side branches and hub rooms.
+- Create exactly two useful cycles in production radius-8 layouts.
+- Keep compact systems fixtures on their zero-or-one-cycle rules.
+- Keep negative space for walls, void, scenery, or inaccessible terrain.
+- Prefer routes with physical clearance and wide portals.
+- Publish one authoritative logical doorway graph.
+- Prevent accidental shortcuts.
+- Publish stable data for navigation, spawning, cover, and encounters.
 
-The generator works over the irregular dual-cell graph produced by the Stålberg grid. It does not require square tiles or a regular Cartesian grid.
+The generator uses the irregular dual-cell graph from the Stålberg grid. It does not require square tiles. It does not require a Cartesian grid.
 
 ### Current identity limitation and next pass
 
-Larger shooter layouts now select Hub and Spokes, Ring and Branches, Main Spine, Twin Districts, or Dense Core/Sparse Branch before routing, but all substantial rooms still share the same compact growth process. Normal Fortress V1 runtime generation combines radius 8 with a `0.22` generated-to-world scale and actor-relative acceptance; the radius-5 fixtures retain `0.16`. Local shape identity and physical anti-repetition scoring are now the larger limitations.
+Large shooter layouts select Hub and Spokes, Ring and Branches, Main Spine, Twin Districts, or Dense Core/Sparse Branch before routing. All substantial rooms still use the same compact growth process. Normal Fortress V1 generation uses radius 8 and a `0.22` generated-to-world scale. Actor-relative gates accept or reject each map. Radius-5 fixtures use `0.16`.
 
-The random new-match, first larger-world boundary, topology archetypes, and measured graph signatures are implemented. The remaining work in [`level-identity-pass.md`](level-identity-pass.md) is explicit room-shape grammar, score use of the graph signatures, districts, semantic quest anchors, opening-component validation, pacing, and cross-seed structural validation. The six fixed F2 configurations remain inspection fixtures rather than the normal gameplay pool.
+The random new-match flow is implemented. The first large-world boundary is implemented. Topology archetypes and measured graph signatures are implemented.
+
+Production-size layouts require exactly two useful cycles. Each production Shortcut must save at least two arena transitions. Stage progression validation is implemented. Static post-gate spawn packing is also implemented.
+
+Graph-signature scoring is partly implemented. Application candidate ranking scores the multi-entry substantial-room ratio, useful-cycle count, and ordinary Combat leaf ratio. District scoring remains incomplete. Other graph-signature score terms also remain incomplete.
+
+The remaining work in [`level-identity-pass.md`](level-identity-pass.md) includes explicit room-shape grammar and bounded leaves. It includes district construction and district scoring. It also includes semantic quest anchors, a quest compiler, and physical route separation. Initial-lock and visibility checks remain. Role-based spawn checks, runtime recovery, pacing, endurance tests, and cross-seed structure checks also remain.
+
+The six fixed F2 configurations remain inspection fixtures. They are not the normal gameplay pool.
 
 ### Horde-map interpretation
 
-The generated mission graph is spatial structure, not a mandate for one-time room clearing. In the intended game:
+The generated mission graph defines spatial structure. It does not require one-time room clearing.
 
 | Generated role | Persistent horde-map responsibility |
 |---|---|
@@ -41,19 +61,19 @@ The generated mission graph is spatial structure, not a mandate for one-time roo
 | `Reward` | Perk, weapon service, quest component, or hidden chamber |
 | `Exit` | Warden arena, extraction, or alternate finale |
 
-Only published doorways may become gates. Opening a gate changes the legal route network for the player and every navigating enemy; incidental physical contacts remain walls. Wide arenas, loops, and multiple approaches support crowd routing, while connectors create controlled pressure and meaningful spending choices.
+This table gives possible horde-map uses for each role. It does not describe current recipe assignments.
 
-Normal play should generate a fresh validated map from a random replayable match seed. That seed deterministically selects the grid, layout stream, compatible topology/quest recipe, and physical-scale profile; bounded candidate retries reject invalid combinations. Curated seeds are tests and emergency fallback only. A recipe assigns devices, clue families, enemy access, services, and finale behavior to generated semantic rooms and anchors rather than fixed room IDs or world coordinates, allowing coherent quests across random geometry.
+Only published doorways can become gates. An open gate changes the legal route network. The change applies to the player and all navigating enemies. Incidental physical contacts stay closed as walls. Wide arenas and multiple approaches support crowd movement. Useful cycles support alternate routes. Connectors create controlled pressure and spending choices.
+
+Normal play generates a new validated map from a random match seed. The seed selects the grid and room streams. It also selects the topology archetype and the current recipe identity. `MatchGenerationRequest` supplies the physical profile. Bounded retries reject invalid combinations. Seed replay is valid only in the same build and toolchain.
+
+The current recipe identity does not assign clues or services. It does not publish typed semantic anchors. It is not a full quest plan. The application derives gates from doorway paths and room roles. It selects Hub, Anchor, and Exit objective sites by clearance heuristics. It selects relay cells from the Reward room. Curated seeds are tests and emergency fallback data only.
 
 ## Seed compatibility
 
-Grid topology inputs are canonicalized before seeded triangle pairing: triangles,
-pairing candidates, published edges, and neighbor lists are sorted. This removes
-standard-library hash iteration order from seeded generation. It intentionally
-changes historical grid output for existing seeds (for example, radius 6 / seed
-1 now has 458 quads rather than 460), but establishes a portable canonical
-baseline protected by a topology-fingerprint regression test. Room generation
-remains deterministic relative to this new canonical grid topology.
+The grid code canonicalizes topology inputs before seeded triangle pairing. It sorts triangles, pairing candidates, published edges, and neighbor lists. This removes standard-library hash iteration order from seeded generation. This change alters historical grid output for old seeds. For example, radius 6 with seed 1 now has 458 quads instead of 460. The change creates a canonical topology baseline. A topology-fingerprint regression test protects this baseline.
+
+The canonical topology baseline does not make complete seeded replay portable. C++ standard random distributions can map values differently in different standard-library implementations. Seeded room and match replay is therefore supported only in the same build and toolchain.
 
 ## Complete pipeline
 
@@ -70,13 +90,13 @@ select one fixed three-to-six entrance brief
         ↓
 select one fixed small-map gameplay recipe when applicable
         ↓
-choose start, exit, Hub, and additional arena seeds
+choose start, exit, and additional arena seeds
         ↓
-materialize small-recipe edges, or plan the selected large-map archetype
+use spatial-tree, fixed-recipe, or selected-archetype edges
         ↓
 grow connected combat arenas around every seed
         ↓
-route required tree edges through unoccupied cells
+choose route order; put required cycle edges before required tree edges
         ↓
 materialize and opportunistically widen connector regions
         ↓
@@ -91,9 +111,13 @@ validate and score the candidate
 keep the best deterministic candidate
 ```
 
-The demo completes all grid relaxation before calling `makeRoomGrid()`. Production callers should do the same because room sizes, routing costs, portal widths, and the input fingerprint all depend on final geometry.
+The demo finishes all grid relaxation before it calls `makeRoomGrid()`. Production callers must do the same. Final geometry controls room sizes, route costs, portal widths, and the input fingerprint.
 
-The production game wraps this room pipeline with an additional acceptance phase: publish room-shape and semantic-anchor capabilities, bind the match seed's selected quest recipe, validate anchor counts/separation/clearance, gated reachability, objective and spawn safety, dependency solvability, extraction availability, and actor-relative physical scale, then reject and retry the whole derived candidate when any requirement fails. This application phase must not be folded into hard-coded coordinates inside the neutral room generator.
+The production game adds an application acceptance phase. This phase derives an application plan from room roles, doorway paths, and clearance heuristics. It derives gates, objective sites, and relays. It does not bind a full quest plan.
+
+The phase validates role availability and gate stages. It validates objective reachability, gate value, static stage-spawn capacity, and actor-relative physical scale. It rejects the complete derived candidate when a requirement fails.
+
+Future work must add room-shape capabilities and immutable semantic anchors. It must also add a full quest compiler. The quest compiler must validate dependency solvability and extraction availability. Opening-component circulation and economy checks remain. Initial-lock spawn capacity, visibility, role compatibility, runtime recovery, and endurance checks also remain. Do not put these application rules in fixed coordinates inside the neutral room generator.
 
 ```cpp
 stalberg::StalbergGrid grid;
@@ -109,17 +133,17 @@ const auto layout = stalberg::rooms::RoomGenerator {}.generate(
 
 ## Stage 1: validate and normalize the input
 
-`RoomGenerator::generate()` first validates the neutral `RoomGrid`. Invalid topology produces an empty, assignment-aligned layout rather than attempting partial generation.
+`RoomGenerator::generate()` first validates the neutral `RoomGrid`. Invalid topology makes each candidate fail. The generator does not try partial generation. It returns an empty assignment-aligned layout only after it exhausts all permitted variants.
 
-The generator creates a sorted adjacency snapshot from physical connections. This makes traversal independent of caller-supplied neighbor order. Entrance candidates are also sorted before the entrance brief is selected.
+`RoomGrid` stores cells and physical connection lists. It does not store an independent neighbor vector. The generator derives adjacency from each connection destination. It sorts the derived adjacency snapshot. The generator also sorts entrance candidates before it selects the entrance brief.
 
-The generation center used as a fallback is the buildable cell nearest world origin. It is not the average of all cell positions.
+The fallback generation center is the buildable cell nearest the world origin. It is not the average position of all cells.
 
-Detailed neutral-grid invariants are documented in [`room-generation-model.md`](room-generation-model.md#neutral-input-validation).
+See [`room-generation-model.md`](room-generation-model.md#neutral-input-validation) for the neutral-grid invariants.
 
 ## Stage 2: choose the fixed entrance brief
 
-The normal hex adapter supplies six boundary-side-center candidates. Generation selects between three and six of them.
+The normal hex adapter supplies six candidates. Each candidate is at the center of one boundary side. Generation selects from three to six candidates.
 
 For `n` candidates, count `k` is weighted by the number of concrete subsets:
 
@@ -127,7 +151,7 @@ For `n` candidates, count `k` is weighted by the number of concrete subsets:
 weight(k) = C(n, k)
 ```
 
-The candidates are then shuffled and the first `k` become the selected entrance set. With six candidates:
+The generator then shuffles the candidates. The first `k` candidates become the selected entrance set. Six candidates give these weights:
 
 | Selected sides | Concrete subsets | Relative weight |
 |---:|---:|---:|
@@ -136,21 +160,21 @@ The candidates are then shuffled and the first `k` become the selected entrance 
 | 5 | 6 | 6 |
 | 6 | 1 | 1 |
 
-This makes every concrete subset containing three to six sides equally likely before layout generation.
+Before layout generation, each concrete subset with three to six sides has the same probability.
 
-The entrance brief is generated once per top-level `generate()` call. Every best-of-N candidate must connect exactly that same set. Candidate scoring therefore cannot silently replace a difficult entrance or bias entrance-count distribution.
+The generator creates the entrance brief once for each top-level `generate()` call. Each best-of-N candidate must connect the same set. The score cannot replace a difficult entrance. The score cannot change the entrance-count distribution.
 
 ## Stage 3: choose start and exit anchors
 
-`interiorCellForEntrance()` performs a breadth-first search from a selected boundary entrance until it reaches a buildable interior cell.
+`interiorCellForEntrance()` uses breadth-first search. The search starts at a selected boundary entrance. It stops at the first buildable interior cell.
 
-The shooter method uses:
+The shooter method uses these rules:
 
-1. The first selected entrance's interior cell as the start arena seed.
-2. The interior cell associated with the selected entrance farthest in Euclidean distance from the start as the exit arena seed.
-3. The buildable cell farthest from the start as a fallback when no distinct entrance-derived exit exists.
+1. Use the interior cell for the first selected entrance as the start arena seed.
+2. Use the selected entrance interior with the greatest Euclidean distance from the start as the exit arena seed.
+3. Use the buildable cell farthest from the start when no separate entrance-derived exit exists.
 
-Start and exit are always the first two arena seeds. Later mission-graph planning forbids a direct start-to-exit tree edge when more than two arenas exist.
+Start and exit are the first two arena seeds. The spatial-tree fallback does not allow a direct Start-to-Exit edge when it has more than two arenas. Fixed recipe edges and archetype edges use their own contracts.
 
 ## Stage 4: choose additional arena seeds
 
@@ -158,74 +182,78 @@ Let `B` be the number of buildable cells.
 
 ```text
 maximumArenaCount = max(2, B / 8)
-desiredArenaCount = min(maximumArenaCount, clamp(B / 55, 4, 20))
+minimumArenaCount = B >= 160 ? 5 : 4
+desiredArenaCount = min(maximumArenaCount, clamp(B / 55, minimumArenaCount, 20))
 ```
 
-Integer division is used. The second cap leaves room for corridor regions and entrance spurs while staying below the global 64-room limit.
+The formulas use integer division. `maximumArenaCount` can limit the request to two or three arenas on sufficiently small inputs. The lower clamp value of four does not override this maximum. A map with at least 160 buildable cells requests at least five arenas. The limits reserve cells for corridors and entrance spurs. They also help keep the map below the global limit of 64 rooms.
 
-Most additional seeds are selected by noise-weighted farthest-point sampling. For each buildable candidate:
+Most additional seeds use noise-weighted farthest-point sampling. The generator calculates this data for each buildable candidate:
 
 ```text
 nearestDistance = distance to the nearest already selected seed
 score = nearestDistance × (0.9 + 0.2 × deterministicNoise)
 ```
 
-The highest score wins. The distance term distributes arenas across the available patch; the small noise term varies composition without overpowering spatial separation.
+The candidate with the highest score wins. The distance term spreads arenas across the patch. The small noise term changes the composition. It does not override spatial separation.
 
-Maps with at least 160 buildable cells and five arenas can instead receive one deterministic density feature. The requested room seed fixes the feature type across all best-of-N candidates:
+A map can get one deterministic density feature when it has at least 160 buildable cells and five arenas. The requested room seed fixes the feature type for all best-of-N candidates:
 
-- **Dispersed** (45%): retain normal farthest-point placement and sizing.
-- **Landmark** (27.5%): make one non-start/exit arena roughly twice the normal target size.
-- **Cluster** (27.5%): place two substantial arenas together, or three when at least seven arenas fit, in an annulus around a normally distributed anchor.
+- **Dispersed** (45%): Use normal farthest-point placement and sizing.
+- **Landmark** (27.5%): Make one arena about twice the normal target size. Do not select the start or exit arena.
+- **Cluster** (27.5%): Put two substantial arenas near one anchor. Use three arenas when at least seven arenas fit.
 
-Cluster satellites prefer a center spacing based on the estimated physical cell scale and normal arena radius. They still keep enough separation for distinct connected footprints and walls. If the map has no usable candidate in that annulus, seed placement falls back to farthest-point sampling rather than failing a required arena.
+Cluster satellites use an annulus around a normal anchor. Their preferred center spacing uses the estimated physical cell scale and the normal arena radius. The spacing must leave separate connected footprints and walls. If the annulus has no valid candidate, placement uses farthest-point sampling. A missing cluster location does not fail a required arena.
 
-Every requested seed is reserved before room growth. Growth also protects the one-cell ring around every other reserved seed, preventing an earlier large or clustered arena from enclosing a later seed.
+The generator reserves all requested seeds before room growth. Growth also protects the one-cell ring around every other reserved seed. This stops an earlier arena from enclosing a later seed.
 
 ## Stage 5: plan the abstract arena graph
 
-For radius-5-sized layouts, the requested room seed fixes one `SmallMapRecipe` across every candidate: Hub Circuit, Broken Ring, or Twin Wings. `planRecipeArenaConnections()` publishes exact required semantic edges before physical routing; Hub is arena `2`, Anchor is `3`, Reward is the leaf arena `4`, and Exit is `1`. Hub Circuit is an exact four-edge spoke graph and deliberately has no Start → Anchor shortcut: playtesting showed that shortcut could place the first and Anchor progression gates beside each other around the same destination. Broken Ring and Twin Wings may attempt one recipe-specific shortcut, but their required graph never depends on it. Candidate validation requires the Start and Anchor approaches to leave Hub at least approximately 65 degrees apart. Broken Ring also places intermediate seeds along a bent Start-to-Exit brief so its intentional chain routes physically. For larger layouts, `planArenaConnections()` materializes the selected `LargeMapArchetype`: a bounded-degree central hub, a circulation ring with branches, a Start-to-Exit spine with side leaves, two locally connected districts with one bridge, or a denser core feeding a sparse branch. Required edges are routed shortest-first; Ring and Branches attempts its shortest loop closure before the required tree so the one-cycle identity remains physically realizable. Compact four-arena layouts retain a Prim-like spatial-tree fallback.
+Arena count selects the graph planner:
 
-### Required tree
+- Fewer than five arenas use `planSpatialTreeConnections()`.
+- Exactly five arenas use `planRecipeArenaConnections()`.
+- More than five arenas use `planArenaConnections()` for the selected `LargeMapArchetype`.
 
-A Prim-like process starts from arena `0` and repeatedly attaches one unconnected arena. Candidate tree edges use:
+### Fewer than five arenas
+
+The spatial-tree fallback starts with arena `0`. It repeatedly connects one unconnected arena to the connected set. Candidate edges use:
 
 ```text
 cost = physicalDistance × (0.92 + 0.16 × deterministicNoise)
 ```
 
-The direct `(start, exit)` edge is forbidden when there are more than two arenas. This encourages the main route to pass through intermediate combat spaces.
+The fallback does not use a direct Start-to-Exit edge when it has more than two arenas. It creates only the required tree. It does not add scored loop alternatives.
 
-The resulting tree provides:
+### Exactly five arenas
 
-- Global connectivity.
-- The main start-to-exit route.
-- Side branches.
-- Natural hub arenas where tree degree is at least three.
+The requested room seed fixes one `SmallMapRecipe` for all candidates. The recipe is Hub Circuit, Broken Ring, or Twin Wings. `planRecipeArenaConnections()` publishes the fixed recipe edges before physical routing. Hub is arena `2`. Anchor is arena `3`. Reward is leaf arena `4`. Exit is arena `1`.
 
-Every tree edge is required. If any required tree route cannot be embedded, the candidate is rejected.
+Hub Circuit has four required spoke edges. It has no Start → Anchor edge. Broken Ring has a fixed optional Start → Anchor edge. Twin Wings has a fixed optional Anchor → Exit edge. Thus, recipe edges can include Start or Exit. The required recipe graph does not depend on an optional edge.
 
-### Optional loop
+Tests found a failure in which the first progression gate and the Anchor gate were beside the same destination. Candidate validation now requires a normalized Hub branch-direction dot product of `0.42` or less. This is the exact code threshold. Broken Ring also puts intermediate seeds on a bent Start-to-Exit brief. This helps its chain use separate physical space.
 
-Maps with at least five arenas may receive one deliberate loop. Loop endpoints:
+### More than five arenas
 
-- Cannot be the start or exit arena.
-- Cannot already share a tree edge.
-- Must be at least three tree edges apart.
+`planArenaConnections()` creates the selected `LargeMapArchetype`. The options are a bounded-degree central hub, a ring with branches, a Start-to-Exit spine with side leaves, two local districts with one bridge, or a dense core with a sparse branch.
 
-Candidate score:
+Production-size neutral grids have at least 600 cells. Normal radius-8 layouts meet this threshold. The planner adds required cycle edges until the graph has `arenaCount + 1` edges. This gives cycle rank two.
+
+For each required cycle edge, the planner closes an existing connector-contracted path of at least three arena transitions. It selects the edge with the highest value:
 
 ```text
-loopScore = 1000 × treeGraphDistance - physicalDistance
+score = graphDistance / physicalDistance
 ```
 
-This strongly prefers edges that close a long graph cycle while using a relatively short physical route. Up to six loop candidates are retained as routing alternatives. They are attempted in score order after the tree; only the first successfully embedded loop is kept.
+Selection of a required cycle edge can use Start or Exit. It has no Start or Exit exclusion. It does not keep six loop alternatives.
 
-A failed loop does not invalidate an otherwise valid tree. Shooter layouts therefore contain zero or one deliberate loop.
+Required cycle edges route before the required tree edges. This order preserves unassigned route space for both required cycle edges. Failure of either required cycle edge rejects the candidate. One non-primary edge has `MissionEdgePurpose::Shortcut`. The other has `MissionEdgePurpose::Cycle`.
+
+A useful cycle is a required cycle edge whose connector-contracted alternate path has at least three arena transitions when that edge is closed. Each accepted production graph has exactly two useful cycles. Its Shortcut saves at least two arena transitions.
 
 ## Stage 6: grow combat arenas
 
-The arena budget targets 36% of buildable cells before corridors and entrance spurs are added.
+The arena budget targets 36% of buildable cells before the generator adds corridors and entrance spurs.
 
 ```text
 averageTarget = 0.36 × B / requestedArenaCount
@@ -233,9 +261,13 @@ variation = uniform random value in [0.82, 1.18]
 targetSize = clamp(integer(averageTarget × featureWeight × variation), 4, limit)
 ```
 
-Normal arenas use weight `1`. A landmark uses weight `2` and may target up to 96 cells. Cluster members use weight `1.2`. Non-featured arena weights are reduced so the sum of all feature weights still equals the requested arena count; density features redistribute the same aggregate arena budget instead of simply removing negative space everywhere.
+Normal arenas use weight `1`. A Landmark arena uses weight `2.1`. A Cluster member uses weight `1.2`.
 
-`growArenaRoom()` begins with the seed and repeatedly chooses one connected frontier cell. Candidate score:
+Feature scales act as normalized budget shares. The generator reduces the shares of non-featured arenas. This redistributes the arena budget before random size variation. The Landmark scale, integer conversion, and clamping do not preserve an exact integer target sum.
+
+A normal arena has a target cap of 60 cells. A Landmark arena has a target cap of 96 cells. A density feature does not remove all negative space.
+
+`growArenaRoom()` starts with the seed. It repeatedly selects one connected frontier cell. Candidate score:
 
 ```text
 scale = max(2 × seedCellClearance, 1)
@@ -246,27 +278,29 @@ score = 1.15 × sameRoomNeighborCount
       + 0.35 × deterministicNoise
 ```
 
-This balances:
+The score uses these effects:
 
-- Compactness through same-room neighbor count.
-- Physically usable local geometry through clearance.
-- A weak radial penalty that discourages long tendrils.
-- Controlled shape variation.
+- Same-room neighbors keep the arena compact.
+- Clearance improves local physical use.
+- The radial penalty limits long tendrils.
+- Deterministic noise changes the shape.
 
-Growth constraints:
+Growth uses these constraints:
 
-- The arena remains connected because only frontier cells are added.
-- Reserved seeds cannot be consumed by another arena.
-- Frontier additions touching an already assigned room are rejected, usually preserving a buffer for walls and corridors. The initial reserved seed is inserted unconditionally, so exact separation is not guaranteed when two seeds are already adjacent.
-- Every arena must contain at least four cells.
+- Add only frontier cells so the arena stays connected.
+- Do not consume a seed that belongs to another arena.
+- Reject a frontier cell that touches an assigned room.
+- Keep at least four cells in each arena.
 
-If any requested arena cannot reach four cells, the whole candidate is rejected rather than silently changing start, exit, or mission topology.
+The contact rule usually leaves a buffer for walls and corridors. The first reserved seed is always inserted. Exact separation is not possible when two seeds are already adjacent.
+
+The generator rejects the complete candidate when a requested arena cannot reach four cells. It does not change the start, exit, or mission topology.
 
 ## Stage 7: physically route arena connections
 
-Required graph edges are embedded sequentially with `routeBetweenRooms()`. The search is multi-source Dijkstra initialized with every source-room cell.
+`routeBetweenRooms()` embeds required graph edges in sequence. It uses multi-source Dijkstra search. Every source-room cell starts in the search frontier.
 
-Only unassigned buildable cells may become route centerline cells. The transition into the target room is included in route cost.
+Only unassigned buildable cells can become route centerline cells. The route cost includes the final transition into the target room.
 
 ### Base connection cost
 
@@ -291,44 +325,44 @@ connectionCost = edgeDistance
        + 1.8 × widthPenalty²)
 ```
 
-`connectionCost()` contains a center-distance fallback for defensive internal use, but every valid `RoomGrid` must provide positive physical metadata for every neighbor, so accepted inputs use their `CellConnection` values.
+`connectionCost()` has a center-distance fallback for defensive internal use. A valid `RoomGrid` must provide positive physical data for each neighbor. Accepted inputs therefore use their `CellConnection` values.
 
 ### Avoiding unrelated rooms
 
-A route cell close to unrelated assigned regions receives an additional multiplier:
+A route cell gets an extra cost when it is near an unrelated assigned region:
 
 ```text
 stepCost = connectionCost
     × (1 + 2.5 × foreignAssignedNeighborCount)
 ```
 
-This discourages corridors from scraping along other rooms or creating incidental contacts.
+This cost keeps corridors away from unrelated rooms. It also reduces incidental contacts.
 
-The returned path contains only the cells between source and target; arena cells themselves remain in their arenas.
+The returned path contains only cells between the source and target. Arena cells stay in their arenas.
 
 ## Stage 8: materialize explicit corridors
 
-`addCorridorRoom()` translates a routed centerline into room assignments and required doorway pairs.
+`addCorridorRoom()` converts a routed centerline into room assignments and required doorway pairs.
 
 ### Rooms already touch
 
-If routing returns no intermediate cells, generation checks whether the source and target physically touch. If they do, it records a direct required doorway. If they do not, the required tree edge failed.
+The generator checks physical contact when routing returns no intermediate cells. It records a direct planned doorway when the rooms touch. If the rooms do not touch, that mission edge fails. Failure of any required mission edge rejects the current candidate. Failure of an optional mission edge omits only that optional edge.
 
 ### Short routes
 
-The generator estimates an arena's diameter from the average target arena size:
+The generator estimates arena diameter from the average target arena size:
 
 ```text
 maximumDirectConnectionLength = clamp(sqrt(averageTarget), 2, 8)
 ```
 
-After retaining one explicit connector for shooter structure, a route no longer than this limit is absorbed into the source arena and recorded as a direct source-to-target doorway. Separate connector identities are therefore reserved for passages that are long relative to their arenas instead of being inserted on nearly every mission-graph edge.
+The generator first keeps one explicit connector for shooter structure. After that, it absorbs a route when its length is not greater than this limit. It records a direct source-to-target doorway. Thus, passages get connector identities only when they are long relative to their arenas.
 
-When the first routed connection contains only one cell, it is too small to publish directly because every room must contain at least two cells. The generator attempts to pair the bridge with a safe donor cell from an endpoint arena. It protects the start and exit seeds and verifies that the donor arena remains connected with at least two cells. If no safe donor exists, the bridge is absorbed into the source arena and the source/target doorway is recorded directly.
+A one-cell first route is too small for a published room. Each room must have at least two cells. The generator tries to add one safe donor cell from an endpoint arena. It protects the start and exit seeds. It also verifies that the donor arena stays connected and has at least two cells. If no donor is safe, the generator absorbs the bridge into the source arena. It then records a direct doorway between source and target.
 
 ### Longer routes
 
-The first suitable routed connection and every route longer than the direct-link limit become new `GeneratedRoom` instances. Each receives two required doorway relationships:
+The first suitable route becomes a new `GeneratedRoom`. Each route longer than the direct-link limit also becomes a new `GeneratedRoom`. Each connector gets two required doorway relations:
 
 ```text
 source arena ↔ connector
@@ -337,38 +371,39 @@ connector ↔ target arena
 
 ### Opportunistic widening
 
-`widenCorridor()` visits every interior centerline cell, excluding route endpoints. It may add at most one adjacent side cell per centerline step.
+`widenCorridor()` visits each interior centerline cell. It does not visit route endpoints. It can add at most one adjacent side cell for each centerline step.
 
-A widening candidate must:
+A widening candidate must meet these rules:
 
-- Be unassigned and buildable.
-- Not already be selected for this corridor.
-- Avoid contact with a room other than the two endpoint arenas.
+- It is unassigned and buildable.
+- It is not already in this corridor.
+- It does not touch a room other than the two endpoint arenas.
 
-Among valid candidates, the one with greatest clearance is selected. Widening is opportunistic; constrained routes may remain one logical cell across.
+The generator selects the valid candidate with the greatest clearance. Widening is optional. A constrained route can stay one logical cell wide.
 
 ## Stage 9: connect the selected exterior entrances
 
-After arena and mission-corridor construction, each selected exterior entrance is connected to the existing floor with minimum accumulated clearance- and width-aware connection cost through `pathToFloor()`. This need not be the floor cell with the smallest Euclidean distance.
+The generator connects each selected exterior entrance after it builds arenas and mission corridors. `pathToFloor()` minimizes the total clearance-aware and width-aware connection cost. The destination does not have to be the floor cell with the shortest Euclidean distance.
 
-The boundary entrance itself may be included as the first route cell even though fixed boundary cells are normally non-buildable.
+The route can include the boundary entrance as its first cell. Fixed boundary cells are normally not buildable.
 
-Entrance path handling:
+Entrance paths use these rules:
 
-- No path: mark the candidate incomplete.
-- Already on floor: record the entrance without adding cells.
-- A route no longer than the active direct-link limit: absorb it into the destination room.
-- A longer route: create and opportunistically widen a connector room, then require a connector-to-destination doorway.
+- If there is no path, mark the candidate incomplete.
+- If the entrance is already on floor, record it without new cells.
+- If the route is not longer than the active direct-link limit, absorb it into the destination room.
+- If the route is longer, create and widen a connector room when possible.
+- For a new connector, require a connector-to-destination doorway.
 
-The route-cell count includes the boundary entrance itself, so a one-cell route is commonly the entrance cell directly adjacent to destination floor.
+The route-cell count includes the boundary entrance. Thus, a one-cell route often contains the entrance cell directly next to destination floor.
 
-The top-level candidate is accepted only when its connected entrance set exactly equals the fixed entrance brief.
+The top-level candidate is valid only when its connected entrance set is exactly equal to the fixed entrance brief.
 
 ## Stage 10: open only planned doorways
 
-Physical contact does not automatically imply circulation.
+Physical contact does not automatically create a circulation edge.
 
-`generatePlannedDoorways()` receives canonical required region pairs from mission construction. For each required pair, it finds every adjacent cell pair crossing that boundary and selects the threshold maximizing:
+`generatePlannedDoorways()` receives canonical required region pairs from mission construction. For each required pair, it finds all adjacent cell pairs across the boundary. It selects the threshold with the highest score:
 
 ```text
 doorCandidateScore = sharedBoundaryWidth
@@ -376,9 +411,9 @@ doorCandidateScore = sharedBoundaryWidth
     + 0.05 × deterministicNoise
 ```
 
-If a required pair has no physical contact, the candidate is rejected.
+The generator rejects the candidate when a required pair has no physical contact.
 
-Published doorway quality is normalized against average physical portal width across the complete neutral grid:
+Doorway quality uses the average physical portal width in the complete neutral grid:
 
 ```text
 quality = clamp(
@@ -388,91 +423,112 @@ quality = clamp(
     1)
 ```
 
-Contacts not listed in the mission graph are ignored. A future 3D wall builder should therefore create openings only for `RoomLayout::getDoorways()`, even when two differently assigned regions touch elsewhere.
+The generator ignores contacts that are not in the mission graph. A 3D wall builder must create openings only for `RoomLayout::getDoorways()`. This rule also applies when two assigned regions touch at another location.
 
-`RoomLayout` stores cell IDs and physical doorway width, but not dual-segment endpoints. Geometry consumers must retain or rebuild the final `DualGrid` to recover the exact segment used for a wall opening. `getConnectedEntrances()` similarly contains boundary cell IDs rather than exterior doorway geometry.
+`RoomLayout` stores cell IDs and physical doorway width. It does not store dual-segment endpoints. Geometry code must keep or rebuild the final `DualGrid`. It needs this grid to find the exact wall-opening segment. `getConnectedEntrances()` also stores boundary cell IDs. It does not store exterior doorway geometry.
 
 ## Stage 11: assign roles
 
-Common annotation first computes room area and a preliminary role. Shooter post-processing then makes mission semantics authoritative.
+Common annotation first calculates room area and a preliminary role. Shooter post-processing then sets the mission roles.
 
 Shooter roles:
 
-- Arena containing the start seed: `Start`.
-- Arena containing the exit seed: `Exit`.
-- Other planned arenas with doorway degree at least three: `Hub`.
-- Other planned arenas: `Combat`.
-- Every explicit corridor or entrance-spur room: `Connector`.
+- The arena with the start seed is `Start`.
+- The arena with the exit seed is `Exit`.
+- One planned arena is `Hub`.
+- Another planned arena is `Combat`.
+- Each corridor or entrance-spur room is `Connector`.
 
-Small recipe maps reserve arena `2` as Hub and the final substantial arena as Reward. Larger shooter layouts continue to infer Hub from doorway degree and normalize other arenas to Combat.
+Small recipe maps reserve arena `2` as Hub. They reserve arena `4` as Reward.
 
-The output always uses dense room IDs equal to the room's position in `RoomLayout::getRooms()`.
+Large layouts select exactly one Hub. They prefer the non-Start and non-Exit arena with the highest doorway degree. Large layouts also select exactly one Reward. Reward selection prefers a Combat leaf. Other planned arenas stay Combat.
+
+The output uses dense room IDs. Each ID is equal to the room position in `RoomLayout::getRooms()`.
 
 ## Stage 12: produce tactical candidates
 
-Doorway endpoint cells seed a multi-source BFS that remains inside each room.
+Doorway endpoint cells start a multi-source BFS. The search stays inside one room.
 
-For a cell to be considered, it must be at least one graph step from every doorway threshold in its room.
+A candidate cell must be at least one graph step from each doorway threshold in its room.
 
 ### Cover candidates
 
-A cell becomes a cover candidate when:
+A cell is a cover candidate when it meets these rules:
 
 - Its doorway distance is at least one.
 - At least one graph neighbor has a different room assignment, including `EMPTY_CELL`.
 
-These are wall-adjacent placement suggestions. They are not instantiated cover objects and do not include orientation or dimensions.
+These cells are wall-adjacent placement suggestions. They are not cover objects. They do not include orientation or dimensions.
 
 ### Enemy spawn candidates
 
-A cell becomes an enemy-spawn candidate when:
+A cell is an enemy-spawn candidate when it meets these rules:
 
 - Its doorway distance is at least two.
 - Its physical clearance is positive.
 
-Cover and spawn candidate sets may overlap. The BFS is seeded only by published internal doorway endpoints; connected exterior entrance cells are not automatically excluded. A gameplay content pass should filter around `getConnectedEntrances()` when exterior thresholds need exclusion, then apply additional checks such as line of sight, distance from the player, occupancy, cover density, and enemy footprint size.
+Cover and spawn sets can contain the same cell. Only published internal doorway endpoints start the BFS. Connected exterior entrance cells are not automatically excluded. Gameplay code must filter around `getConnectedEntrances()` when exterior thresholds need exclusion. It must then apply runtime checks for line of sight, player distance, occupancy, cover density, and enemy footprint size.
 
 ## Shooter-specific acceptance rules
 
-In addition to general layout validation, an accepted shooter candidate must have:
+An accepted shooter candidate must pass general validation. It must also meet these rules:
 
-- At least three non-connector rooms.
-- At least one explicit connector room.
-- No connector-to-connector doorway.
-- Connector doorway degree of one or two.
-- One start and one exit.
-- A shortest start-to-exit doorway-graph distance of at least three edges.
+- It has at least three non-connector rooms.
+- It has at least one explicit connector room.
+- It has no connector-to-connector doorway.
+- Each connector has doorway degree one or two.
+- It has one start and one exit.
+- A large layout has exactly one Hub and one Reward.
+- Its shortest start-to-exit doorway-graph distance is at least three edges.
+- A production-size layout has exactly two useful cycles.
+- A production-size Shortcut saves at least two arena transitions.
+- It meets the constraints for its selected `LargeMapArchetype`.
 
-Tree connectivity and planned-doorway generation ensure every published room participates in one circulation graph.
+Tree connectivity and planned doorways put every published room in one circulation graph.
+
+The application acceptance phase checks more rules for Fortress V1. It simulates progression stages. It checks gate approach and objective reachability.
+
+Expansion, Anchor, and Exit gates must add reachable cells or save route transitions. A gate passes this value rule when either condition is true. If it adds no cells, it must save at least two transitions. Reward does not use the gate-value rule.
+
+Each checked post-gate stage must have 18 statically packed enemy spawn slots in at least two rooms. Deterministic packing prevents adjacent candidates from counting as separate slots. This static result does not prove that the runtime spawn scheduler can place all enemies.
+
+Initial-lock capacity, visibility bands, role compatibility, runtime occupancy recovery, and endurance validation remain.
 
 ## Scaling behavior
 
-The same topology formulas support the demo's radius range of 2–14, but radius controls available cell count—not gameplay scale. `GeneratedLevelConfig::worldScale` independently converts source geometry into world units. Normal Fortress V1 generation uses radius 8 and `0.22F`; systems fixtures remain radius 5 at `0.16F`.
+The topology formulas support the demo radius range of 2–14. Radius controls the available cell count. It does not set gameplay scale. `GeneratedLevelConfig::worldScale` converts source geometry to world units. Normal Fortress V1 generation uses radius 8 and `0.22F`. System fixtures use radius 5 and `0.16F`.
 
-Fortress V1 increases available extent and actor-relative physical dimensions without enlarging player/enemy radii. Application validation publishes/checks world-space and player-relative doorway, room, objective, room-span, route, statically usable ingress/spawn-capacity, and Hub-degree measurements; a radius-8 map at `0.16F` cannot pass. Room span is not yet a true line-of-sight measurement, and static spawn checks do not model current locks, player position, or occupancy. Camera framing was widened independently rather than applying the geometry multiplier globally. Locomotion, dash, projectile reach, spawn visibility, interactions, lighting, detail density, and navigation performance still require pacing passes.
+Fortress V1 increases map extent and actor-relative physical dimensions. It does not increase player or enemy radii.
+
+Application validation checks world-space and player-relative measurements. These measurements cover doorways, rooms, objectives, room span, routes, ingress, static spawn capacity, Hub degree, and progression stages. A radius-8 map with `0.16F` cannot pass.
+
+Room span is not a true line-of-sight measurement. Post-gate spawn packing does not cover the initial lock state. It does not model player position, visibility, role compatibility, current occupancy, or runtime placement decisions.
+
+Camera framing was widened separately. The game did not apply the geometry multiplier to all systems. Locomotion, dash, projectile reach, interactions, lighting, detail density, navigation performance, runtime recovery, and endurance still need tests and tuning.
 
 ### Compact grids
 
-Small grids are constrained by:
+Small grids use the arena-count formula in Stage 4. `maximumArenaCount` can reduce the request to two or three arenas. The lower clamp value applies only when that maximum permits it.
 
-- A minimum of four requested arena seeds when capacity permits.
-- A four-cell arena target minimum.
-- A two-cell published-room minimum.
-- Possible direct arena doorways when there is not enough space for a separate corridor.
+Small grids also use these limits:
 
-The normal candidate budget is six. If all normal shooter candidates fail, generation continues deterministically up to candidate index 31. This additional work is paid only for constrained seeds that did not produce any valid candidate in the requested budget.
+- Use a minimum arena target of four cells.
+- Use a minimum published-room size of two cells.
+- Use direct arena doorways when a separate corridor does not fit.
+
+The normal candidate budget is six. If all normal shooter candidates fail, generation continues in deterministic order through candidate index 31. Only constrained seeds pay this additional cost.
 
 ### Large grids
 
-Large grids can request up to 20 arenas and target up to 60 cells per arena. The arena budget remains proportional to buildable-cell count, while additional floor comes from corridors and entrance spurs.
+Large grids can request up to 20 arenas. A normal or Cluster arena has a target cap of 60 cells. A Landmark arena has a target cap of 96 cells. The arena budget stays proportional to the buildable-cell count. Corridors and entrance spurs add more floor.
 
-The room-count ceiling remains 64. Current shooter sizing is chosen so typical arena, tree-corridor, optional-loop, and entrance-spur counts remain below that limit.
+The room-count limit stays at 64. Current sizing keeps typical arena, tree-corridor, cycle, and entrance-spur counts below this limit.
 
 ### Very small or malformed inputs
 
-Fewer than eight buildable cells cannot produce the graph-first shooter layout. Invalid topology, missing buildable space, failed required routes, failed required doorways, or exhaustion of all candidate variants returns an empty layout with one `EMPTY_CELL` assignment per input cell.
+The graph-first shooter layout needs at least eight buildable cells. Invalid topology, insufficient buildable space, or a failed required route rejects the current candidate. A failed required doorway also rejects the current candidate. The top-level generator continues with the next permitted variant. It returns an empty layout only after it exhausts all variants. The empty layout has one `EMPTY_CELL` assignment for each input cell.
 
-The shooter method does not silently fall back to a legacy algorithm because that would change gameplay semantics for the same requested method.
+The shooter method does not use a legacy fallback algorithm. Such a fallback would change the gameplay meaning of the requested method.
 
 ## Compact pseudocode
 
@@ -486,22 +542,24 @@ function generateShooterCandidate(grid, entranceBrief, candidateSeed):
     while seeds.size < arenaCount:
         seeds += noiseWeightedFarthestBuildableCell(seeds)
 
-    missionEdges = spatialTree(seeds, forbidDirectStartExit=true)
-    loopAlternatives = usefulLongCycleEdges(missionEdges, excludingStartExit=true)
+    if seeds.size < 5:
+        missionEdges = spatialTree(seeds, forbidDirectStartExit=true)
+    else if seeds.size == 5:
+        missionEdges = fixedRecipeEdges(smallMapRecipe)
+    else:
+        missionEdges = selectedArchetypeEdges(largeMapArchetype)
+        if grid.cellCount >= 600:
+            missionEdges += requiredCycleEdges(missionEdges)
 
     reserve all seeds
     for each seed:
         arena = growCompactConnectedArena(seed)
         require arena.size >= 4
 
-    for each required tree edge:
-        route = physicalDijkstra(edge)
-        require route success
-        materializeDirectDoorOrConnector(route)
-
-    for loop in loopAlternatives:
-        if routeAndMaterialize(loop) succeeds:
-            break
+    routeOrder = requiredCyclesBeforeRequiredTree(missionEdges)
+    for edge in routeOrder:
+        if routeAndMaterialize(edge) fails:
+            require edge is optional
 
     for entrance in entranceBrief:
         require connectEntranceToNearestFloor(entrance)
@@ -512,19 +570,23 @@ function generateShooterCandidate(grid, entranceBrief, candidateSeed):
     return candidate
 ```
 
+For a production-size graph, both required cycle edges must route successfully. Validation requires exactly two useful cycles. It also requires Shortcut savings of at least two arena transitions.
+
 ## Source map
 
 | Function | Responsibility |
 |---|---|
 | `interiorCellForEntrance()` | Move a boundary entrance to a usable interior arena anchor |
 | `growArenaRoom()` | Grow one connected compact combat arena |
-| `planArenaConnections()` | Build the selected large-map archetype and optional loop |
+| `planSpatialTreeConnections()` | Build the spatial-tree fallback for fewer than five arenas |
+| `planRecipeArenaConnections()` | Build fixed recipe edges for exactly five arenas |
+| `planArenaConnections()` | Build selected archetype edges for more than five arenas |
 | `routeBetweenRooms()` | Find a physical-cost route between two assigned arenas |
 | `connectionCost()` | Penalize distance, low clearance, and narrow portals |
 | `widenCorridor()` | Opportunistically add high-clearance lateral corridor cells |
 | `roomRemainsConnectedWithout()` | Verify a one-cell donor can safely become corridor floor |
 | `addCorridorRoom()` | Materialize direct links, bridge corridors, and normal corridors |
-| `generateShooterLayout()` | Coordinate arena, graph, route, loop, and entrance stages |
+| `generateShooterLayout()` | Select the graph planner and coordinate arena, route, cycle, and entrance stages |
 | `generatePlannedDoorways()` | Open only mission-authorized room boundaries |
 | `annotateRooms()` | Compute areas, roles, cover candidates, and spawn candidates |
 | `shooterCandidateIsValid()` | Enforce shooter-specific structural invariants |

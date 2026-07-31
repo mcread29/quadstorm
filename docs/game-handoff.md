@@ -1,28 +1,111 @@
 # Game Handoff
 
-This is the continuation guide for the `stalberg_game` runtime. The previous future milestone sequence is superseded. Read [`level-generation-lock-in.md`](level-generation-lock-in.md) for the only active roadmap and acceptance gates; use the generator documents for current procedural-level contracts. [`level-identity-pass.md`](level-identity-pass.md) is retained as historical context for the first, insufficient anti-oatmeal pass.
+This file uses ASD-STE100 Simplified Technical English for its prose.
+
+This file is the continuation guide for the `stalberg_game` runtime.
+The previous milestone sequence is not active.
+Read [`level-generation-lock-in.md`](level-generation-lock-in.md) for the active roadmap and acceptance gates.
+Use the generator documents for current procedural-level contracts.
+[`level-identity-pass.md`](level-identity-pass.md) gives historical information about the first identity pass.
 
 ## Planning reset — generation and quests only
 
-The topology-label pass did not solve the oatmeal problem. A named graph archetype may still produce zero useful cycles, many single-entry arenas, repetitive dead-end traversal, and uniformly compact room mechanics. Those results are no longer acceptable normal-map output.
+The first topology-label pass did not meet the circulation targets.
+It did not implement room-shape and combat grammar.
+The later circulation pass improved the result.
+Each accepted production radius-8 map now has exactly two useful cycles.
+A useful cycle is a non-Primary mission edge whose alternate path has at least 3 arena transitions in the connector-contracted arena graph.
+Each production Shortcut now saves at least two arena transitions.
+Progression-stage checks are implemented.
+The static post-gate spawn-packing check is implemented.
 
-Until the lock-in exits, do not advance bosses, enemy roster, economy breadth, meta-progression, controller work, or unrelated polish. The active order is:
+The lock-in is not complete.
+Some maps still have too many ordinary Combat leaves.
+Routine dead-end depth does not have a hard limit.
+Useful-cycle checks do not measure physical route separation.
+The room-shape and combat grammar still uses one main growth rule.
 
-1. Require two or three useful cycles, multi-entry substantial rooms, limited intentional leaves, shallow routine dead ends, and progression-driven shortcuts.
-2. Generate and validate distinct room-shape/combat briefs with safe entrances, multiple firing lanes, objective footprints, and separated ingress.
-3. Publish semantic anchors and bind one authored main quest plus an optional discovery path without fixed coordinates or room IDs.
-4. Validate every gate stage for circulation, population, economy, quest solvability, and backtracking saved by shortcuts.
-5. Iterate through deterministic bad-seed regressions and manual feel reviews until fresh maps are consistently memorable in both F2 and play.
+Do not add bosses, more enemy roles, more economy systems, meta-progression, controller work, or unrelated polish before the lock-in ends.
+Use this work order:
 
-The current five large-map archetypes and `TopologySignature` remain useful construction inputs and diagnostics, not proof of quality. Candidate acceptance must enforce the stronger gates in [`level-generation-lock-in.md`](level-generation-lock-in.md).
+1. Bound ordinary Combat leaves and routine dead-end depth.
+2. Measure physical route separation.
+3. Generate distinct briefs for the room-shape and combat grammar.
+4. Publish semantic anchors and compile one main quest and one optional discovery path.
+5. Add initial-lock spawn, visibility-band, and spawn-role compatibility checks.
+6. Add bounded runtime spawn recovery.
+7. Complete endurance and navigation tests.
+8. Replace standard-library generation randomness with a portable project RNG.
+9. Review seeds that fail a named acceptance check and consecutive request seeds in F2 and normal play.
+
+The five large-map archetypes and `TopologySignature` are construction inputs and diagnostics.
+They do not prove the remaining circulation requirements.
+They do not prove the room-shape and combat grammar requirements.
+They do not prove the quest and endurance requirements.
+Candidate acceptance must use the gates in [`level-generation-lock-in.md`](level-generation-lock-in.md).
+
+The latest audit sent 100 production requests to the match generator.
+The fallback and attempt values cover all 100 requests.
+The other values cover the 94 accepted Fortress maps.
+
+| Measure | Result | Scope |
+|---|---:|---|
+| Fallback | 6 | 100 requests |
+| Mean generator attempts | 3.29 | 100 requests |
+| Mean score | 58.751 | 94 accepted Fortress maps |
+| Mean useful cycles | 2.00 | 94 accepted Fortress maps |
+| Multi-entry substantial rooms | 66.7% | 94 accepted Fortress maps |
+| Progression safe | 100% | 94 accepted Fortress maps |
+| Static post-gate spawn-packing check passed | 100% | 94 accepted Fortress maps |
 
 ## Product destination
 
-The first small-map horde **systems** vertical slice and its automatic endless-round rework are complete. Radius-5 shooter generation chooses Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing, then publishes Start, Hub, Anchor-capable Combat, Reward, and Exit structure. The runtime now starts Round 1 after a three-second countdown, advances every cleared round through a five-second intermission without input, and keeps the round index in overflow-safe 64-bit state. Point income, permanent exact-threshold gates, three tiers each of damage/fire-rate/dash upgrades, repeatable powered-Hub repair, map-wide Drifter/Runner/Caster/Elite pressure, the Anchor holdout, Hub activation, optional ordered relay puzzle, and voluntary Exit extraction remain persistent match systems. Hub Circuit has exactly one branch per semantic room, and small-map validation rejects Start and Anchor transitions that leave the Hub in nearly the same direction. The F2 overview and command-line recipe selection make every slice directly inspectable.
+The small-map horde **systems** vertical slice is complete.
+The automatic endless-round rework is also complete.
+Radius-5 shooter generation selects Hub Circuit, Broken Ring, or Twin Wings before candidate placement and routing.
+It then publishes Start, Hub, Anchor-capable Combat, Reward, and Exit structure.
 
-The product direction is an **automatically advancing, endless round-based horde shooter built around one fresh procedural map per new match**. The accepted map persists for the run and is reproducible from a displayed match seed; restarting keeps that seed, while starting a new match requests a different one. Difficulty remains deterministic for the accepted map and round index. Puzzle, gate, Anchor, and Hub state never pause or authorize the director, and extraction remains voluntary.
+Round 1 starts after a three-second countdown.
+Each cleared round starts a five-second intermission.
+The next round starts without player input.
+The round index uses overflow-safe 64-bit state.
 
-The procedural map is not a disposable floor in a multi-floor run, but fixed curated layouts are not the normal content model. A new match must derive grid seed, room seed, topology recipe, candidate sequence, physical-scale profile, and quest binding from one match seed, retry within a bounded budget, and accept only a fully validated result. Curated seeds remain regression fixtures and an emergency fallback. Authored recipes describe semantic relationships and requirements; generated geometry, routes, room shapes, and semantic-anchor placement vary between matches.
+The match has point income and permanent exact-threshold gates.
+It has three tiers for damage, fire-rate, and dash upgrades.
+It has repeatable repair at a powered Hub.
+It has map-wide Drifter, Runner, Caster, and Elite pressure.
+It has an Anchor holdout, Hub activation, an optional ordered relay puzzle, and voluntary Exit extraction.
+These systems keep their state during the match.
+
+Hub Circuit has one branch for each semantic room.
+Small-map validation requires a normalized direction dot product of `0.42F` or less between the Start and Anchor transitions from the Hub.
+The F2 overview and command-line recipe option show each fixed slice.
+
+The product is an **automatically advancing, endless round-based horde shooter**.
+Each new match uses one fresh procedural map.
+The accepted map stays active for the run.
+The displayed match seed reproduces the map in the same build and toolchain.
+`R` keeps the seed.
+`N` requests a different seed.
+Difficulty is deterministic for the accepted map and round index.
+Puzzle, gate, Anchor, and Hub state do not pause or authorize the director.
+Extraction is voluntary.
+Successful extraction sets victory.
+Victory stops later director updates.
+
+The procedural map is not a disposable floor in a multi-floor run.
+Fixed curated layouts are not the normal content model.
+Each new match creates a `MatchGenerationRequest`.
+The request selects the physical profile and generator attempt limits.
+The physical profile defaults to `FortressV1`.
+Each generator attempt derives only its grid and room seeds from `matchSeed`.
+The selected archetype and quest-recipe identity stay fixed across geometry retries.
+`MatchGenerationRequest::attemptBudget` sets the generator-attempt limit.
+Its default value is eight.
+The match generator returns only a validated generated result or the validated Systems fallback.
+Curated seeds remain regression fixtures and an emergency fallback.
+Authored recipes must describe semantic relationships and requirements.
+They must not use fixed world coordinates or room IDs.
 
 ## Current behavior
 
@@ -46,27 +129,115 @@ Controls:
 | Hold left mouse button | Fire anywhere on the generated map or in the regression arena |
 | E | Buy a gate, activate Anchor/Hub/Exit, or repair one missing health at the powered Hub; at Anchor, fund-and-start atomically when affordable |
 | 1/2/3 at Hub | Buy the next damage, fire-rate, or dash tier |
-| R | Restart mutable match state on the same immutable generated map, or restart regression combat |
+| R | Restart mutable match state on the same finalized generated map, or restart regression combat |
 | N | Generate and enter a fresh match with a new seed |
 | F1 | Toggle generated horde match / combat regression arena |
 | F2 | Toggle the generated full-level developer overview |
+| F3 | Toggle rendering/gameplay diagnostics |
 | Left/Right in overview | Browse the fixed representative configurations read-only |
 | Home in overview | Return to the active generated layout |
 | Escape/window close | Exit |
 
-The runtime starts by creating a fresh public match seed and deterministically deriving radius-8 Fortress V1 grid/room inputs. The application-level generator has an eight-attempt budget, accepts only candidates that satisfy the current systems plan plus Fortress V1 physical/capacity gates, and visibly publishes the known radius-5 Hub Circuit fixture if that budget is exhausted. `--seed=<unsigned decimal>` reproduces the accepted inputs, profile, retry count, and geometry with the same game build/toolchain; `N` requests another seed, while `R` only resets mutable state. `--recipe=hub|ring|wings` still launches fixed diagnostic fixtures and cannot be combined with `--seed`.
+The runtime creates a `MatchGenerationRequest` at startup.
+It puts a fresh public match seed in the request.
+The request uses its default `FortressV1` physical profile.
+Each generator attempt derives radius-8 grid and room seeds from `matchSeed`.
+One versioned `GenerationBrief` and stable brief hash apply to the request.
+The brief keeps the archetype and quest-recipe identity constant across retries.
 
-`GeneratedLevel` retains the accepted match/profile metadata, relaxed grid, exact dual geometry, neutral room graph, shooter layout, exact floor, walls, doorway thresholds, and immutable navigation. Larger layouts select and publish Hub and Spokes, Ring and Branches, Main Spine, Twin Districts, or Dense Core/Sparse Branch before candidate routing; they publish one high-degree Hub and prefer a leaf arena for Reward semantics. `LevelSession` owns the authoritative player, current room, dynamic doorway collision, and matching traversal state. `HordeMatch` owns points, permanent gate purchases, upgrades, persistent player attack state, the deterministic round schedule, map-wide enemies and hostile projectiles, Anchor/Hub/relay/Exit state, and whole-match reset. Room-shape grammar, semantic anchors, dynamic quest binding, opening-component validation, and full larger-map pacing are not implemented yet.
+The application-level generator evaluates up to `MatchGenerationRequest::attemptBudget` attempts.
+The default `attemptBudget` is eight.
+It rejects candidates that fail the systems plan, Fortress V1 physical gates, or progression stages.
+It also applies the static post-gate spawn-packing check.
+It ranks valid candidates by circulation, physical margin, progression, and generator quality.
+After the first valid candidate, the default `rankingAttemptBudget` permits one more generator attempt.
+The quality margin and valid-candidate limit can stop generation earlier.
+The generator keeps the valid candidate with the highest score from the attempts that it evaluates.
+It shows the known radius-5 Hub Circuit Systems fallback after attempt exhaustion.
 
-Round 1 guarantees enough points to buy the recipe-scaled first gate; Round 2 guarantees the Anchor route. Optional spending stays disabled until the required Anchor route is funded. Drifters and Runners pursue through the currently opened exact cell graph, while Casters and Elites use difficulty-scaled ranged fan patterns and local separation prevents complete crowd overlap. E resolves contextual gate/device interactions; the gate HUD prompt and authoritative purchase query share the same 2.2-world-unit threshold distance. At the Anchor, E can atomically fund a still-closed Anchor gate and begin the holdout when affordable. Rounds continue independently through active or incomplete Anchor/Hub state. The Hub sells three increasingly expensive tiers of each authoritative upgrade through 1/2/3, repairs one missing health per E interaction for a pressure-scaled price after activation, and the relay grants the next fire-rate tier. Locked gates render as one connected barred frame rather than disconnected posts. The F2 overview renders exact floor triangles, recipe graph, live lock state, semantic objective sites, relay order, seeds, candidate, and quality score. Browsing previews never mutates the active match.
+`--seed=<unsigned decimal>` sets `matchSeed`.
+The same request profile and generator settings reproduce the seeds, brief data, attempt data, and geometry in the same build and toolchain.
+`N` requests another seed.
+`R` resets only mutable state.
+`--recipe=hub|ring|wings` starts a fixed diagnostic fixture.
+Do not use `--recipe` with `--seed`.
 
-`F1` switches to the preserved hard-coded 20-by-20 combat regression arena. That path still contains the stationary target, deterministic hostile orb, separate projectile pools, swept wall and damage collision, defeat/victory freeze, restart, effects, HUD, and procedural tones described by the first-enemy milestone.
+`GeneratedLevel` first contains candidate geometry and candidate generation metadata.
+It keeps the relaxed grid and exact dual geometry.
+It keeps the neutral room graph and shooter layout.
+It keeps the exact floor, walls, and doorway thresholds.
+It also keeps immutable navigation.
+After candidate selection, `MatchGenerator` calls `finalizeMatchGeneration()`.
+This call replaces only the generation metadata with final selection metadata.
+This call occurs before `MatchGenerator` returns the level to gameplay.
+After finalization, gameplay treats the level data as immutable.
+Gameplay then uses `GeneratedLevel` as read-only data.
+Large layouts select Hub and Spokes, Ring and Branches, Main Spine, Twin Districts, or Dense Core/Sparse Branch.
+Each production graph publishes one typed Cycle edge and one typed Shortcut edge.
+The physical layout realizes exactly two useful cycles.
+The production Shortcut saves at least two arena transitions.
+Large layouts publish one high-degree Hub.
+They prefer a leaf arena for Reward semantics.
+
+`LevelSession` owns the authoritative player and current room.
+It owns dynamic doorway collision and matching traversal state.
+`HordeMatch` owns points, permanent gate purchases, upgrades, and persistent player attack state.
+It owns the deterministic round schedule, map-wide enemies, and hostile projectiles.
+It also owns Anchor/Hub/relay/Exit state and whole-match reset.
+
+Progression-stage simulation checks Expansion, Anchor, Exit, and Reward states.
+It checks gate approach, objective reachability, newly reachable floor, and route savings.
+Deterministic gate and Anchor binding tests alternate doorway and Combat-room choices.
+The binding search keeps the first binding that passes the complete stage simulation.
+The static post-gate spawn-packing check evaluates each simulated post-gate Fortress state.
+Each checked state must have 18 packed spawn slots in at least two rooms.
+This validation does not prove runtime spawn placement.
+Runtime placement also uses player distance and active walls.
+It also uses occupancy and a larger separation distance.
+
+Room-shape and combat grammar is not implemented.
+Typed semantic anchors and the quest compiler are not implemented.
+Initial-lock spawn checks are not implemented.
+Visibility-band and spawn-role compatibility checks are not implemented.
+Runtime spawn recovery and full large-map endurance tests are not implemented.
+
+Round 1 gives sufficient points for the recipe-scaled first gate.
+Round 2 gives sufficient points for the Anchor route.
+Optional spending stays disabled until the player can fund the required Anchor route.
+Drifters and Runners use the open exact cell graph.
+Casters and Elites use difficulty-scaled ranged fan patterns.
+Local separation prevents complete crowd overlap.
+
+E resolves gate and device interactions.
+The gate HUD prompt and purchase query use the same 2.2-world-unit range.
+At the Anchor, E can fund a closed Anchor gate and start the holdout in one operation.
+Rounds continue during incomplete Anchor and Hub work.
+
+The Hub sells three tiers for each authoritative upgrade.
+Use 1/2/3 to buy these upgrades.
+The Hub repairs one missing health for each E interaction after activation.
+Repair cost scales with pressure.
+The relay grants the next fire-rate tier.
+Locked gates use one connected barred frame.
+
+The F2 overview draws exact floor triangles and the recipe graph.
+It shows live lock state, objective sites, and relay order.
+It shows match, grid, and room seeds.
+It shows generator attempts, profile, candidate index, and quality score.
+It shows the published topology summary.
+It does not show rejection records or typed mission-edge data.
+Preview browsing does not change the active match.
+
+`F1` opens the hard-coded 20-by-20 combat regression arena.
+This path has the stationary target and deterministic hostile orb.
+It has separate projectile pools and swept wall and damage collision.
+It has defeat and victory freeze, restart, effects, HUD, and procedural tones.
 
 ## Runtime architecture
 
 ```text
 main.cpp
-    ├── requests immutable GeneratedLevel data through MatchGenerator
+    ├── requests finalized read-only GeneratedLevel data through MatchGenerator
     ├── reads PlayerInput through game_input
     ├── advances generated room progression or combat-regression fixed state
     ├── interpolates simulation state for rendering
@@ -85,7 +256,7 @@ LevelSession
     └── performs generated traversal fixed updates and reset
 
 HordeMatch
-    ├── binds semantic sites and economy gates from the selected recipe
+    ├── binds objective sites and economy gates from the selected recipe
     ├── owns points, upgrades, persistent attacks, and hostile projectiles
     ├── owns the automatic endless director and bounded difficulty profile
     ├── routes Drifter/Runner/Caster/Elite enemies through opened cells
@@ -115,37 +286,40 @@ CombatStepResult / EncounterStepResult ──→ CombatAudio
 | Path | Responsibility |
 |---|---|
 | `src/game/main.cpp` | Window lifetime, generated/combat view switching, 120 Hz accumulator, interpolation, audio-event forwarding, and composition |
-| `src/game/match_generator.hpp/.cpp` | Public match/profile derivation, bounded candidate construction, systems-plan and Fortress V1 acceptance, accepted-attempt metadata, and visible deterministic fallback |
-| `src/game/match_map_metrics.hpp/.cpp` | World-space/player-relative doorway, room, objective, room-span, route, statically usable ingress/spawn-capacity, and Hub-degree measurements |
-| `src/game/generated_level.hpp/.cpp` | Immutable generator artifact package, accepted match/profile metadata, exact floor triangles, closed walls, retained doorway thresholds, navigation, and Start spawn |
-| `src/game/level_session.hpp/.cpp` | Mutable generated traversal, authoritative generated player, room lifecycle/location, doorway locking, active walls, effect timers, and reset |
-| `src/game/horde_match.hpp/.cpp` | Small-map recipe binding, endless director/difficulty, points/gates/tiered upgrades/Hub repair, scaled horde combat, Anchor/Hub/relay/Exit progression, and reset |
-| `src/game/generated_encounter.hpp/.cpp` | Preserved generated-room regression coordinator and spawn-selection coverage; no longer the active generated runtime path |
-| `src/game/enemy_collection.hpp/.cpp` | Stable enemy identities/order, collection movement and firing, earliest swept-hit selection, and all-defeated queries |
-| `src/game/combat.hpp/.cpp` | Promoted player attack state plus reusable regression combat update order and injected wall geometry |
-| `src/game/encounter.hpp/.cpp` | Hard-coded regression wrapper, optional target integration, and deterministic whole-encounter reset |
-| `src/game/enemy.hpp/.cpp` | Deterministic orbit movement, fan cadence, health/damage, and hostile projectile profile |
+| `src/game/match_generator.hpp/.cpp` | Request-selected profile, match-seed inputs, brief selection, generator attempts, admission, ranking, metadata, and fallback |
+| `src/game/match_map_metrics.hpp/.cpp` | Physical, progression-stage, route-savings, and static post-gate spawn-packing check measurements |
+| `src/game/generated_level.hpp/.cpp` | Candidate artifacts, metadata finalization, exact floor triangles, walls, doorway thresholds, navigation, and Start spawn |
+| `src/game/level_session.hpp/.cpp` | Mutable traversal, authoritative player, room state, doorway locks, active walls, effects, and reset |
+| `src/game/horde_match.hpp/.cpp` | Recipe binding, endless director, difficulty, economy, horde combat, objectives, extraction, and reset |
+| `src/game/generated_encounter.hpp/.cpp` | Preserved generated-room regression coordinator and spawn-selection coverage; not the active generated runtime path |
+| `src/game/enemy_collection.hpp/.cpp` | Stable enemy identities and order, movement, fire, earliest swept-hit selection, and all-defeated queries |
+| `src/game/combat.hpp/.cpp` | Player attack state, regression update order, and injected wall geometry |
+| `src/game/encounter.hpp/.cpp` | Hard-coded regression wrapper, optional target integration, and deterministic reset |
+| `src/game/enemy.hpp/.cpp` | Deterministic orbit movement, fan cadence, health, damage, and hostile projectile profile |
 | `src/game/combat_audio.hpp/.cpp` | Audio-device ownership and generated combat tones |
-| `src/game/arena.hpp/.cpp` | Immutable arena segments, reusable circle collision/sliding, and projectile-wall resolution |
-| `src/game/collision_2d.hpp/.cpp` | Reusable closest-point, swept-circle, segment, earliest-hit, and closed-loop containment queries |
-| `src/game/player.hpp/.cpp` | Player/Input state, movement, cooldown-based dash, facing, health/damage/invulnerability, and interpolation |
+| `src/game/arena.hpp/.cpp` | Immutable segments, circle collision and sliding, and projectile-wall resolution |
+| `src/game/collision_2d.hpp/.cpp` | Closest-point, swept-circle, segment, earliest-hit, and closed-loop containment queries |
+| `src/game/player.hpp/.cpp` | Player/Input state, movement, dash, facing, health, damage, invulnerability, and interpolation |
 | `src/game/weapon.hpp/.cpp` | Fire cadence and muzzle spawning |
-| `src/game/projectile_pool.hpp/.cpp` | Profile-driven preallocated projectile slots, fixed-step movement/lifetime, reuse, and interpolation |
+| `src/game/projectile_pool.hpp/.cpp` | Profile-based projectile slots, movement, lifetime, reuse, and interpolation |
 | `src/game/target.hpp/.cpp` | Target health/reset state and swept projectile-versus-circle collision |
-| `src/game/game_camera.hpp/.cpp` | Camera creation/following, camera-relative movement, ground projection, and camera interpolation |
-| `src/game/game_input.hpp/.cpp` | All current polling of raylib keyboard and mouse input |
-| `src/game/game_renderer*` | Runtime scene, role-readable entities and telegraphs, scaled HUD, landmark, and fitted full-level overview drawing |
-| `src/game/render_resources.hpp/.cpp` | Procedural model/mesh ownership, sparse floor-detail mesh, projectile glow, and bundled UI-font loading |
-| `src/game/render_style.hpp/.cpp` | Shared world/HUD palette, 1280-by-800 virtual UI canvas, room-role colors, and HUD panels |
-| `src/game/directional_shader.hpp` | Embedded GLSL, floor/wall surface treatment, and shared directional-light vector |
-| `src/game/post_process_*` | Depth-aware ambient grounding, edge treatment, emissive bloom, tone mapping, FXAA, and gameplay screen effects |
-| `tests/generated_level_tests.cpp` | Artifact alignment, exact floor area, wall/door authorization, representative-browser validity, traversal firing/preservation, deterministic multi-spawn filtering/identity, partial/all-enemies clear transitions, hostile cleanup, defeat/reset/Exit, Start spawn, and reachability coverage |
-| `tests/game_tests.cpp` | Headless dash/collision, caller-owned combat, projectile ownership/profile/pool, blocked muzzles, weapon, single-enemy and collection determinism/damage/defeat, earliest-hit/identity tie-breaking, closed-wall containment, player damage/death, interpolation freeze, victory, and restart coverage |
-| `tests/horde_match_tests.cpp` | Automatic director transitions, puzzle independence, difficulty/schedule snapshots, recipe sites/costs, economy guards, Fortress gate prompt-range interaction, gate/navigation safety, scaled spawning, concurrent objectives, extraction, upgrades, and reset |
-| `tests/match_generation_tests.cpp` | Same-seed accepted-layout/profile/retry replay, cross-seed variation, same-map restart, real rejection/fallback, Fortress V1 actor-relative gates, and radius-only failure |
-| `CMakeLists.txt` | Runtime/test source lists, raylib linkage, warnings, and Debug runtime optimization |
+| `src/game/game_camera.hpp/.cpp` | Camera creation, follow, movement basis, ground projection, and interpolation |
+| `src/game/game_input.hpp/.cpp` | raylib keyboard and mouse polling |
+| `src/game/game_renderer*` | Runtime scene, role-distinct entities, telegraphs, HUD, landmarks, and full-level overview |
+| `src/game/render_resources.hpp/.cpp` | Model and mesh ownership, floor detail, projectile glow, and UI-font loading |
+| `src/game/render_style.hpp/.cpp` | World/HUD palette, 1280-by-800 UI canvas, role colors, and HUD panels |
+| `src/game/directional_shader.hpp` | Embedded GLSL, floor and wall treatment, and directional-light vector |
+| `src/game/post_process_*` | Ambient grounding, edge treatment, bloom, tone mapping, FXAA, and screen effects |
+| `tests/generated_level_tests.cpp` | Artifact, geometry, doorway, traversal, spawn, combat-transition, cleanup, reset, and reachability coverage |
+| `tests/game_tests.cpp` | Dash, collision, combat, target, projectile, enemy, damage, containment, interpolation, victory, and restart coverage |
+| `tests/horde_match_tests.cpp` | Director, difficulty, recipes, economy, gates, spawning, objectives, extraction, upgrades, and reset coverage |
+| `tests/match_generation_tests.cpp` | Replay, variation, rejection, fallback, physical gates, progression stages, static post-gate spawn-packing check, and radius-only failure |
+| `CMakeLists.txt` | Runtime/test sources, raylib linkage, warnings, and Debug runtime optimization |
 
-The renderer's destructor unloads models before unloading the shared lighting shader. `CombatAudio` unloads sounds before closing its audio device. Both presentation owners must be destroyed before `CloseWindow()`, which is why they live inside an inner scope in `main.cpp`.
+The renderer destructor unloads models before it unloads the shared lighting shader.
+`CombatAudio` unloads sounds before it closes the audio device.
+Both presentation owners must end before `CloseWindow()`.
+For this reason, `main.cpp` puts them in an inner scope.
 
 ## Technical decisions and invariants
 
@@ -156,23 +330,57 @@ world X/Z = authoritative gameplay plane
 world Y   = visual height
 ```
 
-The sphere center stays at `PLAYER_RADIUS` above `Y = 0`. Aim points are ray intersections with the infinite `Y = 0` plane.
+The sphere center stays at `PLAYER_RADIUS` above `Y = 0`.
+Aim points are ray intersections with the infinite `Y = 0` plane.
 
 ### Camera and controls
 
-The camera uses orthographic projection with both a 45-degree elevation and diagonal heading. Its first Fortress V1 framing pass uses a 25-world-unit base orthographic size, 19.5-unit height, 14-unit diagonal offset, and 2.5-unit facing look-ahead. Viewports wider than 1.9:1 reduce the vertical orthographic size so ultrawide windows reveal only a bounded amount of additional world. Movement is derived from the camera's planar forward/right vectors; do not restore a hardcoded isometric input matrix. This framing was tuned independently of the 1.375× geometry-scale increase; locomotion and combat-range pacing still need playtesting.
+The camera uses orthographic projection.
+It has a 45-degree elevation and a diagonal heading.
+The first Fortress V1 framing pass uses a 25-world-unit base orthographic size.
+It uses a 19.5-unit height, 14-unit diagonal offset, and 2.5-unit facing look-ahead.
+Viewports wider than 1.9:1 reduce the vertical orthographic size.
+This limits the additional world area on ultrawide windows.
+
+Movement uses the planar forward and right vectors of the camera.
+Do not restore a fixed isometric input matrix.
+The camera was tuned separately from the 1.375× geometry-scale increase.
+Locomotion and combat range still need playtests.
 
 ### Timing
 
-Simulation advances in fixed `1/120` second steps. Rendering interpolates between the previous and current player, enemy, camera, and projectile states. New gameplay behavior—especially dash state, weapon cooldowns, projectile movement, collision, and enemy logic—belongs in the fixed update loop, not the render path.
+Simulation uses fixed `1/120` second steps.
+Rendering interpolates player, enemy, camera, and projectile state.
+Put new gameplay behavior in the fixed update loop.
+Do not put dash, cooldown, projectile, collision, or enemy logic in the render path.
 
-The player dash moves at 18 world units/second for 0.18 seconds and has a 0.8-second activation cooldown. It uses the camera-relative movement direction, falling back to the current aim-facing direction while stationary. Dash does not grant invulnerability and continues to use the standard circle-versus-wall collision and sliding path. Space is an edge input latched until a fixed step consumes it.
+The player dash moves at 18 world units/second for 0.18 seconds.
+The activation cooldown is 0.8 seconds.
+Dash uses camera-relative movement direction.
+It uses aim-facing direction when the player is stationary.
+Dash does not give invulnerability.
+It uses standard circle-versus-wall collision and sliding.
+Space is an edge input.
+The game keeps it latched until a fixed step uses it.
 
-Frame time is clamped to 50 ms before entering the accumulator to avoid an unbounded catch-up spiral after pauses or debugger stops.
+The game limits frame time to 50 ms before accumulator input.
+This prevents an unbounded catch-up after a pause or debugger stop.
 
 ### Projectile contract
 
-Projectile state uses `Vector2` X/Z coordinates and converts to `Vector3` only in the renderer. Each `ProjectilePool` owns a read-only `ProjectileProfile`, so player and enemy pools can use different tuning without ownership flags or per-projectile configuration. Spawning requires finite positive speed/lifetime and a finite nonnegative radius. Every pool contains 192 stable slots and scans from the beginning for the first inactive slot. A full pool drops the attempted shot; the weapon still consumes its cooldown so exhaustion cannot create a burst when a slot becomes available.
+Projectile state uses `Vector2` X/Z coordinates.
+Only the renderer converts this state to `Vector3`.
+Each `ProjectilePool` owns one read-only `ProjectileProfile`.
+Player and enemy pools can use different profiles.
+They do not need ownership flags or per-projectile configuration.
+
+Spawning requires finite positive speed and lifetime.
+It requires a finite nonnegative radius.
+Each pool has 192 stable slots.
+The pool scans from the start for the first inactive slot.
+A full pool drops the shot.
+The weapon still uses its cooldown.
+This rule prevents a burst when a slot becomes available.
 
 The base projectile profiles are:
 
@@ -183,107 +391,316 @@ The base projectile profiles are:
 | Projectile lifetime | 1.8 seconds | 3.4 seconds |
 | Projectile radius | 0.16 world units | 0.22 world units |
 
-The player muzzle is 1.3 world units from the player center. The enemy emits three directions at 0 and ±14 degrees from its current player-facing direction. The F1 regression always uses the base enemy values. `HordeMatch` rebuilds its hostile pool at round start with projectile speed scaled from 6.5 up to 9.1 units/second and gives each ranged horde enemy a firing interval scaled from 1.15 down to 0.7475 seconds; lifetime and radius remain fixed.
+The player muzzle is 1.3 world units from the player center.
+The enemy fires in three directions.
+The directions are 0 and ±14 degrees from the current player-facing direction.
+The F1 regression uses the base enemy values.
+`HordeMatch` rebuilds its hostile pool at round start.
+It scales hostile projectile speed from 6.5 to 9.1 units/second.
+It scales ranged-enemy fire interval from 1.15 to 0.7475 seconds.
+Projectile lifetime and radius do not change.
 
-Every fixed projectile update copies `position` to `previousPosition` before advancing. `updateCombat()` preserves the regression update order. The active generated path uses `HordeMatch`: `LevelSession` moves the player, persistent player attacks advance against active walls, relay/enemy swept hits resolve, horde movement and ranged patterns advance, hostile shots resolve, and contact/projectile player damage share invulnerability. Player attacks persist across rounds; hostile shots clear at intermission and whole-match reset.
+Each fixed projectile update copies `position` to `previousPosition` before movement.
+`updateCombat()` keeps the regression update order.
+The generated runtime uses `HordeMatch`.
+`LevelSession` moves the player first.
+Persistent player attacks then move against active walls.
+Relay and enemy swept hits then resolve.
+Horde movement and ranged patterns then run.
+Hostile shots then resolve.
+Contact and projectile damage use the same invulnerability state.
+Player attacks continue across rounds.
+Hostile shots remain active during `Cleanup`.
+They clear when `Cleanup` changes to `Intermission`.
+Whole-match reset also clears them.
 
-Wall-aware weapon and enemy-pattern overloads reject a muzzle path blocked by injected geometry while still consuming cooldown. A newly spawned projectile therefore has a valid muzzle-to-first-step segment immediately. Preserve that segment and keep wall collision before enemy/target/player collision; do not replace swept collision with a current-position overlap test.
+Wall-aware weapon and enemy-pattern overloads reject blocked muzzle paths.
+They still use the cooldown.
+A new projectile has a valid muzzle-to-first-step segment.
+Keep this segment.
+Resolve wall collision before enemy, target, or player collision.
+Do not replace swept collision with a current-position overlap test.
 
 ### Target contract
 
-The target is fixed at X/Z `(-5, -5)` with radius `0.85`, five health, a `0.16` second hit flash, and a one-second reset delay. `updateTarget()` calls the shared swept circle-versus-circle query for each active projectile, using the projectile pool profile's radius plus the target radius. Zero-length sweeps and initial overlaps are handled without division.
+The target position is X/Z `(-5, -5)`.
+Its radius is `0.85`.
+It has five health, a `0.16` second hit flash, and a one-second reset delay.
+`updateTarget()` uses the shared swept circle-versus-circle query for each active projectile.
+The query uses the projectile radius and target radius.
+It supports zero-length sweeps and initial overlaps.
 
-A hit immediately deactivates the projectile and removes one health. Processing stops when a hit defeats the target, so later slots in that fixed step remain active. While defeated, the target does not collide; it resets at the same position with full health after the delay. Target collision has no dedicated headless coverage by explicit request, so preserve and manually verify direct hits, fast crossing hits, misses, and single-hit behavior when changing it.
+A hit deactivates the projectile immediately.
+It removes one target health.
+Processing stops when a hit defeats the target.
+Later slots stay active in that fixed step.
+A defeated target does not collide.
+It resets at the same position with full health after the delay.
+`tests/game_tests.cpp` has headless target-collision coverage.
+It verifies a target hit during the final valid projectile lifetime step.
+It also verifies target reset during encounter restart.
 
 ### Enemy and player-combat contract
 
-The regression enemy starts at X/Z `(5, 5)`, has 20 health, moves at 2.4 units/second, circles counter-clockwise relative to the player, and adds a clamped radial correction toward a five-unit preferred distance. Its state contains no random source, and identical fixed-step inputs must produce identical movement and shots. Player hits use projectile motion relative to the enemy's previous/current positions, include both radii, consume the projectile, and remove one health. At zero health the regression encounter freezes in a victory state.
+The regression enemy starts at X/Z `(5, 5)`.
+It has 20 health and moves at 2.4 units/second.
+It circles counter-clockwise relative to the player.
+It applies a limited radial correction toward a five-unit preferred distance.
+Its state has no random source.
+Identical fixed-step inputs must give identical movement and shots.
 
-The preserved generated-encounter regression retains source-cell IDs and earliest-hit tie breaking. Active horde enemies instead receive monotonically increasing match spawn IDs, role-specific health/speed/reward values, exact door-aware pursuit, and deterministic local separation. A player projectile damages at most one enemy; hit and death transitions award points exactly once.
+Player-hit tests use projectile movement relative to previous and current enemy positions.
+They include both radii.
+A hit uses the projectile and removes one health.
+The regression encounter freezes at victory when enemy health reaches zero.
 
-The player has five health. Hostile collision uses projectile motion relative to the player's previous/current fixed-step positions, includes both radii, deactivates a shot on contact even during invulnerability, and applies the current bounded horde-damage value before starting 0.8 seconds of invulnerability. Horde damage is one through pressure tier 7 and two thereafter; the F1 regression remains fixed at one. At zero player health the encounter freezes in a defeat state. A post-victory or post-defeat `restartPressed` input restores the owning match or regression encounter and clears its projectile pools.
+The preserved generated-encounter regression keeps source-cell IDs and earliest-hit tie breaking.
+Active horde enemies get increasing match spawn IDs.
+They get role-specific health, speed, and reward values.
+They use exact door-aware pursuit and deterministic local separation.
+A player projectile damages a maximum of one enemy.
+Hit and death transitions award points one time.
+
+The player has five health.
+Hostile collision uses projectile movement relative to previous and current player positions.
+It includes both radii.
+Contact deactivates a hostile shot during invulnerability.
+A valid hit applies the current bounded horde-damage value.
+It then starts 0.8 seconds of invulnerability.
+Horde damage is one through pressure tier 7.
+It is two after pressure tier 7.
+The F1 regression damage stays at one.
+The encounter freezes at defeat when player health reaches zero.
+A post-victory or post-defeat `restartPressed` restores the owner.
+It also clears the projectile pools.
 
 ### Player ownership boundary
 
-There are two deliberate player owners in mutually exclusive runtime views: `LevelSession` owns the generated-match player, while the preserved regression `Encounter` owns its arena player. `HordeMatch` passes `LevelSession::player()` directly through movement, economy, puzzle, and horde combat while owning the independent persistent attack state. Regression `CombatState` remains the caller-owned single-enemy F1 path. Do not copy or synchronize parallel generated players.
+Two runtime views own separate players.
+`LevelSession` owns the generated-match player.
+The regression `Encounter` owns the arena player.
+These views cannot run at the same time.
+
+`HordeMatch` passes `LevelSession::player()` through movement, economy, puzzle, and horde combat.
+It owns the separate persistent attack state.
+Regression `CombatState` stays in the caller-owned single-enemy F1 path.
+Do not copy or synchronize parallel generated players.
 
 ### Arena contract
 
-`ARENA_WALLS` contains four ordered X/Z segments forming a square from `-10` to `10` on each axis. Reusable `updateCombat()` requires an injected wall span; `updateEncounter()` preserves its injected-wall overload, while its three-argument regression overload forwards `ARENA_WALLS`. Player collision treats the player as a `PLAYER_RADIUS` circle, resolves contacts with four fixed passes, and projects away only velocity into each contact normal so tangential movement survives. The pre-movement player position selects the stable side of wall-face contacts.
+`ARENA_WALLS` has four ordered X/Z segments.
+They make a square from `-10` to `10` on each axis.
+Reusable `updateCombat()` requires an injected wall span.
+`updateEncounter()` keeps its injected-wall overload.
+Its three-argument regression overload uses `ARENA_WALLS`.
 
-Projectile collision uses the shared `collision_2d` queries to treat each projectile as a moving circle and test its full previous-to-current path against segment faces and endpoint circles. The query accepts the pool profile's radius, selects the earliest hit across all walls, and lets the arena resolver clip the position to contact and deactivate the projectile. Because the muzzle can extend beyond a wall while the player remains inside, projectile centers already outside the closed convex wall loop are also deactivated before they can escape. Wall meshes extend outward from the ordered arena segments, leaving each mesh's inner face aligned with its simulation segment.
+Player collision treats the player as a `PLAYER_RADIUS` circle.
+It resolves contacts with four fixed passes.
+It removes only velocity into each contact normal.
+Tangential movement stays active.
+The position before movement selects the stable side of wall-face contacts.
+
+Projectile collision uses shared `collision_2d` queries.
+Each projectile is a moving circle.
+The query checks its full previous-to-current path against segment faces and endpoint circles.
+It uses the pool profile radius.
+It selects the earliest wall hit.
+The arena resolver clips the position to the contact and deactivates the projectile.
+It also deactivates projectile centers outside the closed convex wall loop.
+Wall meshes extend outward from the ordered segments.
+The inner mesh face aligns with the simulation segment.
 
 ### Input boundary
 
-`updatePlayer()`, `updateCombat()`, and `updateEncounter()` must not call `IsKeyDown()`, `GetMousePosition()`, or other input APIs. Extend `PlayerInput`, then populate it in `readPlayerInput()`. Restart and dash are edge inputs, and `main.cpp` latches each until one fixed step consumes it. This keeps simulation code testable and leaves room for controller or replay input.
+`updatePlayer()`, `updateCombat()`, and `updateEncounter()` must not call input APIs.
+These APIs include `IsKeyDown()` and `GetMousePosition()`.
+Extend `PlayerInput` for new input state.
+Then populate it in `readPlayerInput()`.
+Restart and dash are edge inputs.
+`main.cpp` keeps each input latched until a fixed step uses it.
+This design keeps simulation code testable.
+It also permits future controller or replay input.
 
 ### Rendering boundary
 
-Gameplay code does not own raylib `Model`, `Shader`, `Font`, or `Sound` handles. `GameRenderer` and its rendering subsystems own runtime graphics resources, while `CombatAudio` owns the audio device and generated sounds. Projectiles expose stable simulation state to presentation modules rather than issuing draw or audio calls from simulation code.
+Gameplay code does not own raylib `Model`, `Shader`, `Font`, or `Sound` handles.
+`GameRenderer` and its rendering modules own graphics resources.
+`CombatAudio` owns the audio device and generated sounds.
+Projectiles publish stable simulation state to presentation modules.
+They do not issue draw or audio calls.
 
-HUD and overview drawing use a centered 1280-by-800 virtual canvas scaled uniformly to the current framebuffer. Position HUD elements against `UI_CANVAS_WIDTH` and `UI_CANVAS_HEIGHT`, not the native window dimensions. Text uses the bundled ComicShannsMono Nerd Font Mono loaded by `RenderResources`; CMake copies the asset beside native builds and preloads it into the web virtual filesystem. The Boost bar communicates readiness through its full cyan fill without a redundant text label.
+HUD and overview drawing use a centered 1280-by-800 virtual canvas.
+The renderer scales it uniformly to the framebuffer.
+Position HUD items against `UI_CANVAS_WIDTH` and `UI_CANVAS_HEIGHT`.
+Do not use native window dimensions for HUD placement.
+Text uses ComicShannsMono Nerd Font Mono from `RenderResources`.
+CMake copies the font beside native builds.
+It preloads the font in the web virtual file system.
+The Boost bar uses a full cyan fill to show readiness.
+It does not use a second text label.
 
-The web build keeps raylib's framebuffer fixed at 1280 by 800 and lets `web/shell.html` scale that 16:10 canvas uniformly within the viewport. Do not enable `FLAG_WINDOW_RESIZABLE` on web: raylib otherwise sizes the framebuffer to the browser aspect ratio while CSS letterboxes the canvas, stretching the image and making GLFW mouse coordinates disagree with `GetScreenWidth()` and `GetScreenHeight()`.
+The web build fixes the raylib framebuffer at 1280 by 800.
+`web/shell.html` scales the 16:10 canvas uniformly in the viewport.
+Do not enable `FLAG_WINDOW_RESIZABLE` on the web build.
+That flag lets raylib use the browser aspect ratio for the framebuffer.
+CSS then letterboxes the canvas and stretches the image.
+It also makes GLFW mouse coordinates differ from `GetScreenWidth()` and `GetScreenHeight()`.
 
 ### Procedural generation boundary
 
-The game target links the generator libraries only through `GeneratedLevel`. The package retains `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` together because exact floor polygons and doorway segments are not all present in `RoomLayout` alone. It also recovers and retains one `DoorwayThreshold` segment per published doorway. Its public API is read-only after construction.
+The game target links generator libraries only through `GeneratedLevel`.
+The package keeps `StalbergGrid`, `DualGrid`, `RoomGrid`, and `RoomLayout` together.
+`RoomLayout` alone does not contain all exact floor polygons and doorway segments.
+The package also keeps one `DoorwayThreshold` segment for each published doorway.
+Geometry and navigation are read-only after construction.
+`finalizeMatchGeneration()` can replace generation metadata after candidate selection.
+`MatchGenerator` calls it before gameplay receives the selected level.
+Gameplay does not mutate `GeneratedLevel`.
 
-Within one room, neighboring assigned cells are traversable. Across rooms, immutable navigation uses only exact cell pairs published by `RoomLayout::getDoorways()`; physical contact between regions is never automatically traversable. `LevelSession` owns mutable lock state and adds locked threshold segments to both active collision walls and traversal checks. Connected exterior entrance cells remain enclosed. The current powered-Exit requirement is still hard-coded to Round 5, but the interaction is now explicit voluntary extraction and never gates automatic round advancement. Replace that requirement with recipe-authored quest metadata in the next slice.
+Neighboring assigned cells in one room are traversable.
+Cross-room navigation uses only cell pairs from `RoomLayout::getDoorways()`.
+Physical contact between regions does not create traversal.
+`LevelSession` owns mutable lock state.
+It adds locked threshold segments to collision walls and traversal checks.
+Connected exterior entrance cells stay enclosed.
 
-Normal runtime generation uses the `FortressV1` physical profile: radius 8 and `GeneratedLevelConfig::worldScale = 0.22F`, derived with grid/room seeds from a fresh 64-bit match seed. `MatchGenerator` attempts at most eight candidates, records the accepted profile/attempt, and visibly uses the radius-5, `0.16F` Hub Circuit fixture only after exhaustion. Systems-plan validation requires Start, Hub, Anchor-capable Combat, Reward, and Exit rooms; three relay targets; and Expansion, Anchor, Reward, and Exit gates. Physical validation additionally requires minimum player-relative doorway width, substantial/Anchor area, objective clearance, Anchor room span, route distance, statically usable cross-room ingress separation, usable spawn candidates, spawn-bearing rooms, and Hub doorway degree. A radius-8 layout left at `0.16F` fails. `--seed` supplies the public match seed explicitly. The launch presets use room seeds 7/2/3 for Hub Circuit/Broken Ring/Twin Wings; `--recipe=hub|ring|wings` and the six F2 previews remain deterministic regression tools.
+The powered-Exit requirement is hard-coded to Round 5.
+The extraction interaction is explicit and voluntary.
+Successful extraction sets `victory`.
+`updateHordeMatch()` then returns before it updates the round director.
+Later updates also return before director work while `victory` stays set.
+Replace this requirement with recipe-authored quest metadata.
 
-Current replay determinism is scoped to the same game build/toolchain. Lower-level grid and room generation still use standard-library shuffle and distribution implementations, so reproducing a seed across a different C++ standard library is not guaranteed. Production seed compatibility needs fixed project-owned random algorithms or an explicit generation-version contract before seeds can be promised portable across releases.
+`MatchGenerationRequest` selects the physical profile.
+The default profile is `FortressV1`.
+This profile uses radius 8 and `GeneratedLevelConfig::worldScale = 0.22F`.
+Each generator attempt derives its grid and room seeds from the 64-bit `matchSeed`.
+`MatchGenerator` evaluates up to the configured `attemptBudget`.
+The default `attemptBudget` is eight.
+It records the selected profile and generation brief.
+It records attempts performed and the selected attempt.
+It records the valid-candidate count and score.
+It also records rejection data.
+It uses the radius-5 `0.16F` Hub Circuit fixture only after production generation fails.
+
+Systems-plan validation requires Start, Hub, Anchor-capable Combat, Reward, and Exit rooms.
+It requires three relay targets.
+It requires Expansion, Anchor, Reward, and Exit gates.
+Physical validation checks player-relative geometry and map-wide capacity.
+Progression validation checks each simulated gate state.
+The static post-gate spawn-packing check evaluates each simulated post-gate state.
+
+A radius-8 layout with `worldScale = 0.16F` fails.
+`--seed` supplies the public match seed.
+The fixed Hub Circuit, Broken Ring, and Twin Wings presets use room seeds 7, 2, and 3.
+`--recipe=hub|ring|wings` and the six F2 previews are deterministic regression tools.
+
+Replay determinism applies to the same game build and toolchain.
+Lower-level grid and room generation use standard-library shuffle and distribution implementations.
+A different C++ standard library can produce a different result.
+Portable replay requires project-owned random algorithms and a generation-version contract.
 
 ## Completed implementation slice: automatic endless rounds and scaling
 
-The replacement for the finite input-gated director and the first bounded pressure profile are implemented. Deterministic fixed-step simulation and the generated-level ownership boundaries remain unchanged.
+The automatic director and bounded pressure profile are implemented.
+Fixed-step simulation and generated-level ownership did not change.
 
 ### 1. Decouple and automate the round director — complete
 
-- Removed `HORDE_FINAL_ROUND`, `PlayerInput::startRoundPressed`, `KEY_N`, queued round-start input, and the deploy-next-wave prompt.
-- Round 1 starts after a three-second countdown; cleanup starts a five-second intermission that advances automatically.
-- `Intermission`, `Buildup`, `Peak`, and `Cleanup` remain explicit, director-owned phases. Puzzle, gate, Hub, and Anchor state cannot block them.
-- The round index is overflow-safe `std::uint64_t`; schedule and profile arithmetic clamps before multiplication, including at the maximum representable round.
-- The HUD shows the current round and intermission countdown. Hostile projectiles clear at cleanup/intermission while player attacks, purchases, upgrades, and puzzle state persist.
+- The implementation removed `HORDE_FINAL_ROUND`.
+- It removed `PlayerInput::startRoundPressed`, queued round-start input, and the deploy-next-wave prompt.
+- `KEY_N` no longer starts a round.
+- `KEY_N` still requests a fresh match.
+- Round 1 starts after a three-second countdown.
+- Cleanup starts a five-second intermission.
+- The next round starts automatically.
+- `Intermission`, `Buildup`, `Peak`, and `Cleanup` stay as director-owned phases.
+- Puzzle, gate, Hub, and Anchor state cannot block these phases.
+- The round index uses `std::uint64_t`.
+- Schedule and profile arithmetic clamps before multiplication.
+- This rule also applies at the maximum round value.
+- The HUD shows the round and intermission countdown.
+- Hostile projectiles remain active during `Cleanup`.
+- They clear at the `Cleanup`-to-`Intermission` transition.
+- Whole-match reset also clears them.
+- Player attacks, purchases, upgrades, and puzzle state stay active.
 
 ### 2. Add deterministic difficulty scaling — complete
 
-One reproducible profile now derives from round index and map recipe:
+One reproducible profile uses the round index and map recipe:
 
-1. Spawn budget grows from 6 to a cap of 48; simultaneous living pressure grows from 6 to 18 while pacing shortens within fixed bounds.
-2. Composition substitutes Runners, Casters, and up to three Elites for Drifters as pressure tiers rise.
-3. Deterministic role ordering and monotonic spawn IDs vary role/ingress sequencing by round and recipe.
-4. Health, movement, hostile projectile speed, firing cadence, damage, and rewards scale from tier-0 baseline through ten bounded escalation tiers.
-5. Every fifth round schedules an Elite event without creating a terminal round.
+1. Spawn budget grows from 6 to 48.
+2. Simultaneous living pressure grows from 6 to 18.
+3. Spawn pacing becomes shorter within fixed limits.
+4. Higher pressure replaces Drifters with Runners, Casters, and a maximum of three Elites.
+5. Deterministic role order and increasing spawn IDs vary role and ingress order by round and recipe.
+6. Health, movement, hostile projectile speed, fire cadence, damage, and rewards use ten bounded tiers.
+7. Each fifth round schedules an Elite event.
+8. An Elite event does not make a terminal round.
 
-Health tops out at 1.8×, movement at 1.25×, hostile projectile speed at 1.4×, firing interval at 0.65×, damage at two, and reward income at 1.5×. Spawn budget and simultaneous population cap by Round 25; attribute and role-substitution scaling reaches its final pressure tier at Round 51, while five-round Elite events continue. Recipe-scaled gate costs preserve the opening economy, three increasingly expensive tiers of each upgrade match the bounded threat curve, and activated-Hub repairs remain a repeatable post-cap sink. Bespoke bosses and mutation events remain future content.
+Health has a maximum scale of 1.8×.
+Movement has a maximum scale of 1.25×.
+Hostile projectile speed has a maximum scale of 1.4×.
+Fire interval has a minimum scale of 0.65×.
+Damage has a maximum value of two.
+Reward income has a maximum scale of 1.5×.
+Spawn budget and simultaneous population reach their limits at Round 25.
+Attribute and role changes reach the final pressure tier at Round 51.
+Five-round Elite events continue after Round 51.
+
+Recipe-scaled gate costs protect the opening economy.
+Three upgrade tiers follow the bounded threat curve.
+Powered-Hub repair is a repeatable resource sink after the pressure cap.
+Bosses and mutation events are future work.
 
 ## Generation foundation status and superseded plan notes
 
-Sections 3–4 record completed foundations. The old ordering in sections 5–7 is superseded by the circulation → room grammar → semantic anchors/quests → component validation → feel-gate sequence in [`level-generation-lock-in.md`](level-generation-lock-in.md). Keep the technical constraints below, but do not implement them in their former order.
+The new-match boundary and Fortress V1 scale are complete.
+The cycle requirements and progression stages are complete.
+The static post-gate spawn-packing check is complete.
+Next, bound circulation and implement room-shape and combat grammar.
+Then implement semantic anchors and quests.
+After that, complete the remaining spawn checks, runtime recovery, endurance tests, and map-quality gate.
 
 ### 3. Add the new-match generation boundary — complete
 
-- Normal play creates one 64-bit match seed and deterministically derives grid seed, room seed, physical profile, and candidate retries from it.
-- `N` requests a fresh match. `R` continues to reset the current match on the same accepted map.
-- `--seed=<unsigned decimal>` replays a match, and the HUD/F2 overview display the accepted seed, attempt count, and fallback status.
-- Candidate construction and systems-plan/physical validation use an eight-attempt budget. Exhaustion selects the known-valid Hub Circuit fixture and marks fallback use visibly.
-- Representative configurations remain tests and F2 previews rather than the normal runtime selection pool.
-- Headless coverage verifies same-seed reproduction, cross-seed input variation, same-map restart, deterministic fallback, and scale-profile participation in derivation.
+- Normal play creates one 64-bit match seed.
+- Each generator attempt derives its grid and room seeds from this seed.
+- `MatchGenerationRequest` selects the physical profile.
+- The profile defaults to `FortressV1`.
+- `N` requests a new match.
+- `R` resets the current match on the same accepted map.
+- `--seed=<unsigned decimal>` replays a match.
+- HUD shows profile, seed, and fallback status.
+- F2 also shows generator attempts.
+- `MatchGenerationRequest::attemptBudget` sets the generator-attempt limit.
+- The default `attemptBudget` is eight.
+- The generator selects the Hub Circuit Systems fallback after attempt exhaustion.
+- HUD and F2 show fallback use.
+- Fixed configurations stay in tests and F2 previews.
+- Headless tests cover replay, variation, reset, fallback, profile selection, and fixed-brief identity.
 
-The boundary is now independent of the old systems dimensions, but topology/quest choice still lacks authored recipe/anchor metadata.
+The boundary does not depend on the old systems dimensions.
+The selected quest-recipe identity is fixed across retries.
+The full semantic-anchor quest compiler is not implemented.
 
 ### 4. Increase physical map scale, not only grid radius — Fortress V1 complete
 
-- Normal maps now use radius 8 and `worldScale = 0.22F`; player/enemy collision bodies remain unchanged. Systems fixtures and deterministic fallback remain radius 5 at `0.16F`.
-- `PhysicalMapProfile` is recorded with accepted match metadata and displayed in the HUD/F2 overview.
-- `MatchMapMetrics` measures doorway width, substantial and Anchor room area, objective clearance, Anchor room-center span, Start-to-Exit route distance, statically usable cross-room ingress separation, usable spawn candidates, spawn-bearing rooms, and Hub doorway degree. The span is a room-size proxy, not a true line-of-sight test.
-- Fortress V1 rejects candidates below explicit thresholds and rejects a radius-8 map left at systems world scale. Larger shooter layouts publish one high-degree Hub and prefer a leaf arena for Reward so the existing optional route remains bindable.
-- Camera framing was widened independently to a 25-unit orthographic view with adjusted height, offset, and look-ahead; actors and all combat distances were not globally scaled.
-- Headless coverage proves profile replay, accepted metric thresholds, larger semantic roles, and radius-only rejection.
+- Normal maps use radius 8 and `worldScale = 0.22F`.
+- Player and enemy collision bodies do not change.
+- Systems fixtures and fallback use radius 5 and `0.16F`.
+- `PhysicalMapProfile` stays in match metadata.
+- HUD and F2 show the profile.
+- `MatchMapMetrics` measures doorway width, room area, objective clearance, room span, route distance, ingress separation, spawn capacity, and Hub degree.
+- Room span is a room-size proxy.
+- It is not a line-of-sight test.
+- Fortress V1 rejects candidates below its limits.
+- It rejects radius 8 at the systems world scale.
+- The camera uses an independent 25-unit orthographic view.
+- Actor size and combat distance did not receive a global scale change.
+- Headless tests cover profile replay, metric limits, semantic roles, and radius-only rejection.
 
-Fortress V1 acceptance currently requires:
+Fortress V1 acceptance requires:
 
 | Metric | Minimum |
 |---|---:|
@@ -298,58 +715,120 @@ Fortress V1 acceptance currently requires:
 | Rooms with statically usable spawn candidates | 12 |
 | Hub published doorway degree | 3 |
 
-Static spawn usability currently means reachable in the immutable all-open graph, sufficient enemy-sized source clearance, and no overlap with immutable walls. It does not claim that a candidate is reachable through current locks, far from the player's dynamic position, or unoccupied at a particular spawn step.
+Static spawn usability requires reachability in the immutable all-open graph.
+It requires enemy-size source clearance and no immutable-wall overlap.
+It does not prove initial-lock access.
+It does not check distance from the current player.
+It does not check occupancy at a spawn step.
 
-The remaining physical work is pacing and deeper validation: connector-specific dimensions, true sightline bands, opening-component ingress/circulation/economy, traversal time, movement/dash, projectile reach/lifetime, enemy visibility, interaction radii, lighting/shadows, floor-detail density, and navigation performance.
+Progression-stage acceptance also requires approachable gates and reachable objectives.
+A stage must add reachable floor or save at least two cell transitions.
+Each checked post-gate Fortress stage must have 18 statically packed spawn slots in at least two rooms.
+This result does not prove runtime spawn placement.
+Runtime placement also uses player distance and active walls.
+It also uses occupancy and a larger separation distance.
+
+The remaining physical work includes connector dimensions and true sightline bands.
+It includes initial-lock capacity and physical route separation.
+It includes traversal time, movement, dash, projectile reach, enemy visibility, and interaction range.
+It also includes lighting, shadows, floor-detail density, and navigation performance.
 
 ### 5. Bind concurrent recipe-authored quests
 
-Puzzle logic becomes an independent persistent state machine. A step may advertise `minimumRound`, enemy-role, kill, currency, room, or powered-device requirements, but it must never own the round transition.
+Puzzle logic must be an independent persistent state machine.
+A step can specify `minimumRound`, enemy role, kill, currency, room, or powered-device requirements.
+It must not control round transitions.
 
-- Round requirements unlock puzzle actions; they do not hold an intermission open.
-- Incomplete puzzle steps persist across any number of rounds.
-- Combat-linked steps must define whether progress persists, pauses, or resets, and communicate that rule before activation.
-- Anchor holdouts, relays, clue sequences, and future devices must remain usable while the endless director advances.
-- Quest completion should unlock extraction, a boss, a major reward, or a new pressure tier. It must not silently stop spawning.
-- If extraction ends a run, make it an explicit player interaction; otherwise the match continues until defeat.
+- Round requirements must unlock puzzle actions.
+- They must not keep an intermission open.
+- Incomplete puzzle steps must continue across rounds.
+- Combat steps must define whether progress continues, pauses, or resets.
+- The game must show this rule before activation.
+- Anchor holdouts, relays, clues, and devices must work while rounds advance.
+- Quest completion must unlock extraction, a boss, a major reward, or a pressure tier.
+- Quest completion must not stop spawning without a visible rule.
+- Run extraction must require explicit player input.
+- Otherwise, the match must continue until defeat.
 
-Replace the current hard-coded `Round 2` Anchor and `Round 5` Exit checks with recipe-authored requirement metadata. The puzzle model should consume semantic room/device anchors rather than world coordinates or assumptions about a five-round schedule.
+Replace the hard-coded Round 2 Anchor and Round 5 Exit checks with recipe-authored metadata.
+The puzzle model must use semantic room and device anchors.
+It must not use world coordinates or a fixed five-round schedule.
 
 ### 6. Rework generation for sustained endless play
 
-Fortress V1 establishes large random spaces but does not yet prove sustained endless-combat quality. Generation and candidate scoring still need to account for:
+Fortress V1 provides large random spaces.
+It now provides two useful cycles and safe checked progression stages.
+It does not pass all endurance, room-variation, and runtime spawn requirements.
 
-- Multiple separated enemy ingress regions with wall-safe spawn capacity.
-- Loops, alternate kiting routes, and recovery space after gates open.
-- Room-shape grammar for compact, elongated, concave, split, and multi-entrance combat briefs.
-- Objective sites that do not permanently collapse circulation or create dominant safe spots.
-- Puzzle dependencies distributed across meaningful route choices rather than one round-gated branch.
-- Population capacity, sightline variety, ranged-enemy positions, and late-round navigation cost.
-- Economy pacing and unlock order under automatic rounds, including a viable opening component before the first gate purchase.
+Generation and scoring still need these properties:
 
-Keep the three small recipes as deterministic regression fixtures. Normal play now uses fresh validated Fortress V1 layouts with larger extent and world-space geometry. Current gates prove map-wide spawn capacity and ingress separation; the next validation must prove capacity within the currently opened component, enough valid ingress lanes as it expands, authored quest realization, circulation, and economy order. Curated large configurations may support balancing but must not replace random normal play.
+- Bounded ordinary Combat leaves.
+- Limited routine dead-end depth.
+- Physical separation of alternate routes.
+- Room-shape and combat grammar for compact, elongated, concave, split, and multi-entrance briefs.
+- Objective sites that preserve required circulation and enemy ingress.
+- Quest dependencies across useful route choices.
+- Initial-lock spawn capacity.
+- Visibility bands and spawn-role compatibility.
+- Bounded recovery from temporary runtime spawn failure.
+- Population capacity, sightline variety, ranged-enemy positions, and late-round navigation limits.
+- Economy pacing for automatic rounds.
+- A viable opening component before the first gate purchase.
+
+Keep the three small recipes as deterministic regression fixtures.
+Normal generation requests a Fortress V1 layout.
+It can return the Systems fallback after attempt exhaustion.
+Current gates prove map-wide capacity and safe checked progression.
+They also prove that checked post-gate states pass the static post-gate spawn-packing check.
+They do not prove runtime spawn placement.
+Future gates must prove the initial lock state, runtime recovery, quest realization, endurance, and physical route separation.
+Curated large layouts can support balance work.
+They must not replace random normal play.
 
 ### 7. Acceptance and test coverage
 
-Headless coverage now verifies automatic Round 1 startup, cleanup → intermission → next-round transitions, input and puzzle independence, deterministic recipe-aware schedules, snapshots at rounds 1/5/10/25/100, monotonic bounded pressure, maximum-round arithmetic, concurrent Anchor progress, explicit extraction, tiered upgrades, scaled economy rewards, and reset of countdown/difficulty/match state.
+Headless tests cover automatic Round 1 startup.
+They cover cleanup, intermission, and next-round transitions.
+They cover input and puzzle independence.
+They cover deterministic recipe schedules and rounds 1, 5, 10, 25, and 100.
+They cover bounded pressure and maximum-round arithmetic.
+They cover Anchor progress, extraction, upgrades, rewards, and reset.
 
-The new match-generation suite covers different seeds deriving different geometry inputs, exact same-seed accepted-layout/profile/retry reproduction, `R` preserving the accepted map, the separate generation path used by `N`, deterministic visible fallback, actor-relative Fortress V1 thresholds, larger-map Hub/Reward semantics, and radius-only rejection. The next slices must add coverage for:
+Match-generation tests cover cross-seed input variation and same-seed replay.
+They cover fixed generation briefs across retries.
+They cover restart input that preserves the accepted map.
+They do not cover `R` or `N` keyboard wiring.
+They cover fallback, structured rejection data, and best-valid ranking.
+They cover Fortress V1 physical limits and radius-only rejection.
+They cover progression stages and the static post-gate spawn-packing check.
 
-- Cross-seed structural diversity and future semantic quest bindings beyond the current spatial-tree tier.
-- Exact reproduction of future semantic anchors and quest placement.
-- Recipe-authored minimum-round puzzle unlocks that neither reset nor stop the director.
-- Quest completion with continued spawning before voluntary extraction.
-- Generated maps meeting ingress-capacity, circulation, objective-clearance, and late-round navigation constraints.
+Room-generation tests assert exactly two useful cycles for production archetypes.
+They also assert that each production Shortcut saves at least two arena transitions.
 
-The updated [`small-puzzle-horde-slice.md`](small-puzzle-horde-slice.md) remains the acceptance guide for the fixed automatic-endless systems fixtures. The match-generation suite now covers random generation and physical scale; a successor guide still needs quest-aware binding and full Fortress V1 pacing.
+Add future coverage for these items:
+
+- Bound ordinary Combat leaves and dead-end depth.
+- Check physical route separation.
+- Reproduce room briefs, semantic anchors, and quest placement.
+- Check recipe-authored round requirements without director blocking.
+- Check quest completion with continued spawning before extraction.
+- Check initial-lock capacity, visibility bands, and spawn-role compatibility.
+- Check runtime spawn recovery.
+- Run endurance and navigation tests at representative pressure levels.
+- Reproduce seeds with the portable project RNG.
+
+[`small-puzzle-horde-slice.md`](small-puzzle-horde-slice.md) is the acceptance guide for fixed systems fixtures.
+A later guide must cover quest binding and complete Fortress V1 pacing.
 
 ## Intended horde-mode boundary
 
-The completed game keeps `GeneratedLevel` immutable and layers the persistent match on top of it:
+The game finalizes `GeneratedLevel` before gameplay.
+Gameplay then treats it as read-only data.
+The game puts persistent match state above it:
 
 ```text
 GeneratedLevel
-    └── replayable random map, physical-scale profile, room roles, semantic anchors, doorway thresholds, navigation, spawn candidates
+    └── replayable random map, physical-scale profile, room roles, Start/Exit sites, typed quest anchors, doorway thresholds, navigation, spawn candidates
 
 Horde match state
     ├── authoritative LevelSession player and active collision walls
@@ -361,32 +840,91 @@ Horde match state
     └── terminal state: death or explicit player-chosen extraction
 ```
 
-The vertical slice maps purchasable and objective gates onto exact doorway lock bits; purchases and Hub activation update rendering, collision, player traversal, and enemy navigation together. Waves operate across the currently opened component rather than isolated room encounters. The revised director must continue advancing even when a required route remains closed, so every generated opening component needs enough ingress, circulation, and economy capacity for its scheduled early rounds. A future expansion should replace the current boolean lock with explicit sealed, purchasable, open, and temporary-lock reasons.
+The vertical slice maps gates and objectives to exact doorway lock bits.
+Gate purchase and Hub activation update rendering, collision, player traversal, and enemy navigation together.
+Waves use the current open component.
+They do not use separate room encounters.
+The director advances while required routes stay closed.
+For this reason, the initial component must support early ingress, circulation, and economy.
+A future lock model can replace the Boolean lock.
+It can use sealed, purchasable, open, and temporary-lock reasons.
 
-The published room roles provide map semantics: Start is the opening survival area, Hub owns the central machine, Combat rooms host training routes and holdouts, Connectors become chokepoints and trap sites, Reward rooms contain services or secrets, and Exit becomes an optional extraction site rather than the automatic end of a final round. Authored recipe families bind devices, minimum-round requirements, clue families, enemy access, and wonder-weapon behavior to semantic rooms and generated anchors after a random candidate is accepted; they must never hard-code world coordinates or require one curated seed.
+Published room roles provide map semantics.
+Start is the opening survival area.
+Hub contains the central machine.
+Combat rooms contain routes and holdouts.
+Connectors are choke and trap sites.
+Reward rooms contain services or secrets.
+Exit is an optional extraction site.
 
-Common enemies should create crowd pressure through pursuit and interception. The existing deterministic orb enemy and projectile systems establish the ranged language for Casters, elites, and bosses. Bullet patterns must remain identifiable exceptions inside the horde rather than becoming undifferentiated projectile noise.
+Authored recipe families must bind to semantic rooms and generated anchors after candidate acceptance.
+They can define devices and round requirements.
+They can define clues and enemy access.
+They can also define wonder-weapon behavior.
+They must not use fixed world coordinates or one curated seed.
 
-Main quest steps should communicate state through world geometry, animation, lighting, symbols, and audio. Optional Easter eggs can demand deeper observation, but every accepted action must produce persistent feedback. Puzzle verbs should remain physical and combat-linked: hold a zone, defeat enemies near a device, shoot or ricochet into targets, carry a component, lure an elite, or activate a discovered sequence.
+Common enemies must use pursuit and interception.
+The orb enemy and projectile systems define ranged attacks for Casters, Elites, and bosses.
+Each bullet-pattern event must use a distinct telegraph.
+Limit simultaneous bullet-pattern events so the player can identify each event.
 
-Keep the `F1` hard-coded arena as the focused combat regression path. The destination does not require multi-floor progression, an ECS, a generic asset manager, save-anywhere support, or a general scripting system.
+Main quest steps must show state through geometry and animation.
+They must also use lighting, symbols, or audio where applicable.
+Optional discovery steps can require inspection of additional world-state signals.
+Each accepted action must give persistent feedback.
+Puzzle verbs must stay physical and combat-linked.
+The player can hold a zone or defeat enemies near a device.
+The player can shoot or ricochet into targets.
+The player can carry a component or lure an Elite.
+The player can also activate a discovered sequence.
+
+Keep the `F1` hard-coded arena as the focused combat regression path.
+The product does not need multi-floor progression or an ECS.
+It does not need a generic asset manager or save-anywhere support.
+It does not need a general scripting system.
 
 ## Known limitations
 
-- The current large-map archetype pass still accepts zero/one-cycle trees, too many single-entry Combat rooms, deep routine dead ends, and uniformly compact room mechanics. This is the primary blocker; named archetypes and F2 signatures do not satisfy the new feel gate.
-- Normal runtime selection is fresh, replayable, and physically larger under Fortress V1, but still binds the fixed Anchor/Hub/relay/Exit systems plan rather than an authored semantic quest recipe.
-- Fortress V1 proves actor-relative map-wide geometry and spawn capacity, not opening-component circulation/economy or final pacing. Movement, dash, projectiles, interactions, visibility, lighting, detail density, and traversal time still need large-map playtests.
-- Larger maps now use five deterministic topology archetypes with archetype-specific graph validation and published structural signatures. They still share compact-room growth, so room-shape grammar, districts, negative-space briefs, and puzzle-specific geometry remain the main oatmeal risk.
-- Navigation recomputes a cell BFS per enemy update and should be replaced with cached reverse distance fields by player cell and topology revision before raising population/performance targets on Fortress V1.
-- The first economy has one point currency, recipe-scaled gate prices, three tiers each of damage/fire-rate/dash upgrades, pressure-scaled rewards, and repeatable activated-Hub health repair. It has no ammunition economy, traps, service placement variants, or dynamic price balancing.
-- The required Anchor interaction is a combat holdout: press E, remain inside the gold ring for eight accumulated seconds, and resume after leaving. It is a pressure objective, not a logic puzzle. The optional three-relay sequence is the only current puzzle and exposes the next correct target directly, so puzzle depth remains a primary design gap.
-- Hub Circuit deliberately has no Start → Anchor shortcut: each semantic room receives one distinct Hub branch. Broken Ring and Twin Wings may retain their recipe-specific optional route, but accepted Start and Anchor Hub transitions must be separated by at least about 65 degrees.
-- The automatic director, bounded recipe-aware scaling, and voluntary extraction are implemented. There are no bespoke boss roles or mutation mechanics yet; every fifth round currently uses the existing Elite as its readable event.
-- World lighting uses one directional shadow map and two presentation-driven point lights; actor contact shadows remain projected decals rather than full dynamic occlusion.
-- The combat regression ground and debug grid cover a finite 80-by-80 area.
-- Gameplay constants are compiled into their owning modules.
-- Generated-level and combat regression tests retain all prior geometry, doorway, navigation, encounter, projectile, damage, and reset coverage. Horde coverage also verifies that the complete displayed 2.2-unit gate interaction range purchases and unlocks a Fortress V1 threshold. Room-generation tests enforce exact small-recipe edges plus one Hub/Reward arena on larger layouts. `stalberg_match_generation_tests` covers same-seed profile/layout/retry replay, cross-seed variation, same-map reset, real candidate rejection/fallback, Fortress V1 thresholds, and radius-only failure. `stalberg_horde_match_tests` covers automatic progression, difficulty, economy, gates, spawning, concurrent objectives, extraction, upgrades, repair, and reset. Audio and rendering remain graphical-smoke coverage.
-- Debug runtime builds use debugger-friendly optimization (`-Og` with GCC/Clang or `/O1` with MSVC) for `stalberg_game` and a bundled raylib while retaining debug symbols and assertions. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized instruction-by-instruction stepping is required. Use a separate Release build when profiling performance.
+- Some production archetypes can exceed two ordinary Combat leaves.
+- Routine dead-end depth does not have a hard production limit.
+- Useful-cycle and Shortcut metrics use arena transitions.
+- These metrics do not measure physical centerline or doorway-angle separation.
+- Multi-entry substantial-room coverage is 66.7% for the 94 accepted Fortress maps in the latest audit.
+- This result is below the 70% target.
+- The room-shape and combat grammar uses one main growth rule.
+- Room-shape and combat briefs are not published.
+- Firing lanes, holdout footprints, and presentation attachments are not published.
+- Gate and Anchor binding is constraint-based, but the complete quest set does not compile to immutable semantic anchors.
+- The static post-gate spawn-packing check is a hard gate.
+- Initial-lock capacity is not a hard gate.
+- The static post-gate spawn-packing check does not prove runtime spawn placement.
+- Spawn validation does not check visibility bands or role compatibility.
+- Runtime spawn failure does not have a bounded recovery rule.
+- Automated endurance runs and reverse-field navigation caching are not complete.
+- Portable seed replay still depends on standard-library random behavior.
+- Movement, dash, projectiles, interactions, lighting, detail density, and traversal time need large-map playtests.
+- Navigation runs a cell BFS for each enemy update.
+- The first economy has one point currency and recipe-scaled gate prices.
+- It has three damage, fire-rate, and dash tiers.
+- It has pressure-scaled rewards and repeatable Hub repair.
+- It has no ammunition economy, traps, service variants, or dynamic price balance.
+- The Anchor objective is an eight-second holdout in the gold ring.
+- Progress pauses when the player leaves the ring.
+- The optional three-relay sequence shows the next target directly.
+- Hub Circuit has no Start-to-Anchor Shortcut by design.
+- Broken Ring and Twin Wings can keep their optional recipe route.
+- Start and Anchor transitions from the Hub must have a normalized direction dot product of `0.42F` or less.
+- The automatic director, bounded scaling, and voluntary extraction are implemented.
+- Bespoke bosses and mutation systems are not implemented.
+- Each fifth round uses the current Elite as its event.
+- World lighting uses one directional shadow map and two presentation point lights.
+- Actor contact shadows use projected decals.
+- The combat regression ground and debug grid cover 80 by 80 units.
+- Gameplay constants are compiled into their owner modules.
+- Audio and rendering have graphical smoke coverage only.
+- Debug runtime builds use `-Og` with GCC/Clang or `/O1` with MSVC.
+- Use `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` for fully unoptimized stepping.
+- Use a Release build for performance tests.
 
 ## Validation and debugging
 
@@ -398,25 +936,32 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-Graphical smoke test:
+Run the seed audit:
+
+```sh
+./build/stalberg_level_seed_audit 1 100 > level-audit.csv
+```
+
+Run the graphical smoke test:
 
 ```sh
 timeout 3s xvfb-run -a ./build/stalberg_game
 ```
 
-Interactive local display:
+Run on the local display:
 
 ```sh
 DISPLAY=:0 ./build/stalberg_game
 ```
 
-Useful runtime evidence in raylib logs:
+Look for this runtime evidence in raylib logs:
 
-- Custom vertex and fragment shaders compile successfully.
-- Ground, wall, player, projectile, target, enemy, and shadow VAOs upload successfully.
-- Models unload before the custom shader when the window closes.
+- Custom vertex and fragment shaders compile.
+- Ground, wall, player, projectile, target, enemy, and shadow VAOs upload.
+- Models unload before the custom shader at window close.
 
-When investigating performance, still configure and compare a Release build rather than drawing final conclusions from a Debug build:
+Use a Release build for performance conclusions.
+Do not use only a Debug build for performance conclusions.
 
 ```sh
 cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release

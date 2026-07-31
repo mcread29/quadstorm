@@ -1,38 +1,112 @@
 # Stålberg grid and 2.5D game (raylib)
 
-A compact C++ implementation of the grid-generation technique associated with Oskar Stålberg's *Townscaper*:
+This file uses ASD-STE100 Simplified Technical English for its prose.
 
-The grid generator:
+This repository contains a compact C++ implementation of the grid-generation method from Oskar Stålberg's *Townscaper*.
 
-1. Generates a triangular lattice with a hexagonal boundary.
-2. Randomly pairs adjacent triangles into four-sided faces.
-3. Subdivides every triangle and four-sided face using shared edge midpoints and a face center.
-4. Applies iterative Laplacian relaxation while pinning the hexagonal boundary.
+The grid generator does these steps:
 
-As a separate pass, the room generator consumes a neutral cell graph with physical cell area, clearance, traversal distance, shared-boundary width, and explicit entrance candidates. Its default shooter method plans a mission graph first, embeds several combat arenas—including occasional dense two-to-three-room clusters or one larger landmark room when the map supports them—and joins them with explicit corridor regions where space permits, side branches, a meaningful start-to-exit route, and at most one deliberate loop. Legacy branching-shape and organic-growth methods remain available. Every method generates several deterministic candidates and keeps the highest-scoring valid layout.
+1. It generates a triangular lattice with a hexagonal boundary.
+2. It randomly pairs adjacent triangles into four-sided faces.
+3. It subdivides each triangle and four-sided face.
+4. It uses shared edge midpoints and one face center for subdivision.
+5. It applies iterative Laplacian relaxation.
+6. It keeps the hexagonal boundary fixed during relaxation.
 
-The application-level match generator now turns the systems slice into the normal procedural match flow. Each new match derives fresh grid and room seeds plus the **Fortress V1** physical profile from one replayable match seed, retries complete candidates within a fixed budget, and falls back visibly to a validated fixture only when that budget is exhausted. Fortress V1 uses radius 8 and `worldScale = 0.22`, publishes Hub and optional Reward semantics on larger spatial-tree layouts, and rejects maps that miss actor-relative geometry, route, objective, ingress, or spawn-capacity targets. The next passes must add broader topology and room grammar, semantic quest binding, and deeper circulation/economy validation. Fixed representative seeds remain regression fixtures and an emergency fallback, not the normal content model. The F2 overview and seed browser remain the main inspection tools.
+The subdivision step makes only quads in the final mesh.
+This rule also applies to unmatched triangles.
 
-The subdivision step guarantees that the final mesh consists entirely of quads, including where random pairing leaves unmatched triangles.
+The room generator runs as a separate pass.
+It uses a neutral cell graph.
+The graph contains physical cell area, clearance, traversal distance, shared-boundary width, and explicit entrance candidates.
+The default shooter method plans a mission graph before it embeds rooms.
+It embeds several combat arenas.
+It can make a dense cluster of two or three rooms.
+It can make one larger landmark room when the map has sufficient space.
+It adds explicit corridor regions where space permits.
+It also adds side branches and a connected Start-to-Exit route.
+Production radius-8 maps now require exactly two useful cycles.
+Each production Shortcut must save at least two arena transitions.
+The legacy branching-shape and organic-growth methods are still available.
+Each method generates deterministic candidates and keeps the valid candidate with the highest score.
 
-The repository also contains a complete small-map **systems** vertical slice of a top-down 2.5D round-based horde shooter. The current `stalberg_game` executable starts from a fresh replayable match seed, derives a validated Fortress V1 gameplay map, then runs a persistent automatic endless match with bounded pressure, points, gates, hordes, objectives, upgrades, and voluntary extraction. `R` restarts mutable state on that map, while `N` creates a new match. The three radius-5, `worldScale = 0.16` recipe presets remain explicit regression and fallback fixtures.
+`MatchGenerator` supplies the procedural map for normal game startup.
+It validates and ranks generated candidates.
+Each new match starts from one replayable match seed.
+Each generator attempt derives fresh grid and room seeds from this seed.
+`MatchGenerationRequest` selects the physical profile.
+The request defaults to **Fortress V1**.
+`MatchGenerationRequest::attemptBudget` sets the generator-attempt limit.
+Its default value is eight.
+The generator publishes the validated Systems fallback after attempt exhaustion.
+Fortress V1 uses radius 8 and `worldScale = 0.22`.
+It publishes Hub and optional Reward semantics on larger layouts.
+Match admission rejects maps that fail geometry, route, objective, ingress, spawn-capacity, or progression-stage requirements.
+Match admission also applies the static post-gate spawn-packing check.
+Fixed representative seeds are regression fixtures and an emergency fallback.
+They are not the normal content model.
+Use the F2 overview and seed browser to inspect maps.
 
-Fortress V1 increases both map extent and physical geometry relative to unchanged player/enemy bodies. Validation measures doorway width, substantial and Anchor room area, objective clearance, Anchor room span, Start-to-Exit route distance, statically usable cross-room ingress separation, usable spawn candidates, and spawn-bearing rooms in player-relative units. Radius-only growth explicitly fails. Camera framing has received an initial independent wider pass; movement, projectile, interaction, lighting, detail-density, navigation-performance, and economy pacing still need playtest-driven tuning for the larger world.
+The latest audit sent 100 production requests to the match generator.
+Six of the 100 requests used fallback.
+The generator used a mean of 3.29 attempts across all 100 requests.
+The other audit values describe the 94 accepted Fortress maps.
+These maps had `mean score=58.751` and `useful cycles=2.00`.
+They had `multi-entry substantial rooms=66.7%` and `progression safe=100%`.
+All 94 maps passed the static post-gate spawn-packing check (`100%`).
+
+The repository also contains a complete small-map **systems** vertical slice.
+It is a top-down 2.5D round-based horde shooter.
+The `stalberg_game` executable starts with a fresh replayable match seed.
+The generator returns an accepted Fortress V1 map or the validated Systems fallback.
+It then runs a persistent automatic endless match.
+The match has bounded pressure, points, gates, hordes, objectives, upgrades, and voluntary extraction.
+`R` restarts mutable state on the current map.
+`N` creates a new match.
+The three radius-5 presets use `worldScale = 0.16`.
+They remain regression and fallback fixtures.
+
+Fortress V1 increases the map extent and physical geometry.
+It does not change player and enemy body sizes.
+Validation measures doorway width and room area.
+It measures substantial-room and Anchor-room properties.
+It also measures objective clearance and Anchor-room span.
+It measures Start-to-Exit route distance and usable cross-room ingress separation.
+It measures usable spawn candidates and spawn-bearing rooms.
+Progression-stage checks reject gate sequences that block required progress.
+The static post-gate spawn-packing check requires 18 packed spawn slots in at least two rooms for each checked post-gate state.
+This check does not prove runtime spawn placement.
+Runtime placement also uses player distance, active walls, occupancy, and a larger separation distance.
+Radius-only growth fails validation.
+Fortress V1 uses a wider gameplay-camera framing profile.
+Camera framing is independent of `worldScale`.
+
+The remaining generation work includes bounded ordinary Combat leaves and limited dead-end depth.
+It includes physical route separation and room-shape and combat grammar.
+It includes semantic anchors and a quest compiler.
+It includes initial-lock spawn, visibility-band, and spawn-role compatibility checks.
+It includes runtime spawn recovery, endurance, and navigation work.
+It also includes a portable project RNG.
+Movement and projectile ranges still need large-map playtests.
+Interaction ranges and economy pacing still need large-map playtests.
+Lighting, detail density, and navigation performance also need large-map playtests.
 
 ## Documentation
 
-- [`docs/game-roadmap.md`](docs/game-roadmap.md) — complete horde-shooter concept, match structure, and milestones.
-- [`docs/game-handoff.md`](docs/game-handoff.md) — current runtime architecture, decisions, limitations, and immediate implementation slice.
-- [`docs/level-identity-pass.md`](docs/level-identity-pass.md) — in-progress random large-map topology, physical-scale, room-grammar, landmark, and diversity-validation pass.
-- [`docs/small-puzzle-horde-slice.md`](docs/small-puzzle-horde-slice.md) — interactive and headless acceptance guide for recipes, economy, rounds, puzzles, enemies, and upgrades.
-- [`docs/demo-and-algorithm.md`](docs/demo-and-algorithm.md) — base mesh mathematics, topology, relaxation, rendering, and source map.
-- [`docs/room-generation-model.md`](docs/room-generation-model.md) — neutral physical input, output API, roles, doorways, and gameplay integration contract.
-- [`docs/shooter-level-generation.md`](docs/shooter-level-generation.md) — complete graph-first arena, route, corridor, entrance, doorway, and tactical-annotation pipeline.
-- [`docs/layout-quality-and-testing.md`](docs/layout-quality-and-testing.md) — deterministic candidates, validation, scoring formulas, fallback behavior, and test coverage.
+- [`docs/level-generation-lock-in.md`](docs/level-generation-lock-in.md) is the only active roadmap.
+- [`docs/game-roadmap.md`](docs/game-roadmap.md) is a summary of the active roadmap and redirects readers to it.
+- [`docs/game-handoff.md`](docs/game-handoff.md) gives the current runtime architecture, decisions, limits, and next work.
+- [`docs/level-identity-pass.md`](docs/level-identity-pass.md) records the first large-map identity pass.
+- [`docs/small-puzzle-horde-slice.md`](docs/small-puzzle-horde-slice.md) gives interactive and headless acceptance steps for recipes, economy, rounds, puzzles, enemies, and upgrades.
+- [`docs/demo-and-algorithm.md`](docs/demo-and-algorithm.md) gives the mesh mathematics, topology, relaxation, rendering, and source map.
+- [`docs/room-generation-model.md`](docs/room-generation-model.md) gives the neutral physical input, output API, roles, doorways, and gameplay contract.
+- [`docs/shooter-level-generation.md`](docs/shooter-level-generation.md) gives the graph-first arena, route, corridor, entrance, doorway, and tactical-annotation pipeline.
+- [`docs/layout-quality-and-testing.md`](docs/layout-quality-and-testing.md) gives candidate validation, scoring formulas, fallback behavior, and test coverage.
 
 ## Build
 
-A system raylib installation is used when available. Otherwise CMake downloads raylib 5.5 automatically.
+The build uses a system raylib installation when one is available.
+Otherwise, CMake downloads raylib 5.5.
 
 ```sh
 cmake -S . -B build
@@ -44,7 +118,8 @@ ctest --test-dir build --output-on-failure
 
 ### Web game build
 
-Install and activate the Emscripten SDK, then configure through its CMake wrapper:
+Install and activate the Emscripten SDK.
+Then use its CMake wrapper.
 
 ```sh
 git clone https://github.com/emscripten-core/emsdk.git
@@ -61,18 +136,69 @@ cmake --build build-web --target stalberg_game -j
 python3 -m http.server 8000 --directory build-web
 ```
 
-Open `http://localhost:8000/stalberg_game.html`. The web target keeps a fixed 16:10 framebuffer and scales it uniformly with CSS so letterboxing, rendering, and mouse coordinates remain aligned across browser sizes. It uses an Emscripten browser main loop and WebGL-compatible shaders; the native grid diagnostic and native test executables are intentionally excluded from the web configuration. Combat audio is currently disabled on web because raylib 5.5's
-ScriptProcessor backend cannot be initialized safely before a browser user
-gesture; native builds retain audio. The HUD uses the bundled ComicShannsMono
-Nerd Font Mono; its MIT license is included in `assets/fonts/`.
+Open `http://localhost:8000/stalberg_game.html`.
+The web target uses a fixed 16:10 framebuffer.
+CSS scales the framebuffer uniformly.
+This keeps letterboxing, rendering, and mouse coordinates aligned at different browser sizes.
+The target uses an Emscripten browser main loop and WebGL-compatible shaders.
+The web configuration does not build the native grid diagnostic or native test executables.
+The web build disables combat audio.
+The raylib 5.5 ScriptProcessor backend cannot start safely before a browser user gesture.
+Native builds keep combat audio.
+The HUD uses the bundled ComicShannsMono Nerd Font Mono.
+The MIT license for the font is in `assets/fonts/`.
 
-The runtime starts in the generated horde match. `GeneratedLevel` retains the relaxed source grid, exact dual geometry, neutral room graph, shooter layout, and exact doorway threshold segments together. Assigned dual polygons become a cached floor mesh; floor/void edges and unauthorized cross-room contacts become walls; only exact published doorway cell pairs remain open. Mutable player, room-lifecycle, lock, and active-wall state lives separately in `LevelSession`. The player spawns at a high-clearance cell in Start and can move through the matching door-aware navigation graph without leaving the floor.
+The runtime starts in the generated horde match.
+`GeneratedLevel` keeps the relaxed source grid, exact dual geometry, neutral room graph, shooter layout, and exact doorway threshold segments together.
+Assigned dual polygons make a cached floor mesh.
+Floor edges, void edges, and unauthorized cross-room contacts make walls.
+Only published doorway cell pairs stay open.
+`LevelSession` keeps mutable player, room-lifecycle, lock, and active-wall state separate.
+The player starts in a high-clearance cell in Start.
+The player uses the matching door-aware navigation graph.
+The player cannot leave the floor.
 
-Use **WASD** to move, **Space** to dash, the **mouse** to aim, and hold the **left mouse button** to fire. Round 1 starts after a three-second countdown, and every cleared round advances automatically after a five-second intermission. Press **E** to buy nearby gates, activate devices, or repair at the powered Hub; gate prompts and purchases share the same 2.2-world-unit interaction range; use **1/2/3** there for upgrades. Press **R** to restart the same accepted map or **N** to generate a new match. Press **F1** for the combat regression arena. Press **F2** for the fitted full-level overview; Left/Right browses six fixed regression layouts and Home returns to the active session. `--seed=<unsigned decimal>` reproduces a match with the same game build/toolchain; cross-standard-library replay is not yet guaranteed because lower-level generation still uses standard-library shuffle/distribution algorithms. `--recipe=hub|ring|wings` forces a fixed fixture for inspection and cannot be combined with `--seed`. Simulation runs at a fixed 120 Hz and rendering interpolates simulation state.
+Use **WASD** to move.
+Use **Space** to dash.
+Use the **mouse** to aim.
+Hold the **left mouse button** to fire.
+Round 1 starts after a three-second countdown.
+Each cleared round starts a five-second intermission.
+The next round starts automatically.
+Press **E** to buy a nearby gate, activate a device, or repair at the powered Hub.
+Gate prompts and gate purchases use the same 2.2-world-unit range.
+Use **1/2/3** at the Hub to buy upgrades.
+Press **R** to restart the current map.
+Press **N** to generate a new match.
+Press **F1** to open the combat regression arena.
+Press **F2** to open the fitted full-level overview.
+Use Left/Right to browse six fixed regression layouts.
+Press Home to return to the active session.
+`--seed=<unsigned decimal>` reproduces a match with the same game build and toolchain.
+Replay across different standard libraries is not guaranteed.
+Lower-level generation still uses standard-library shuffle and distribution algorithms.
+`--recipe=hub|ring|wings` starts a fixed fixture for inspection.
+Do not use `--recipe` with `--seed`.
+Simulation runs at a fixed 120 Hz.
+Rendering interpolates simulation state.
 
-Debug builds apply debugger-friendly optimization to the game runtime and bundled raylib so interactive frame pacing remains representative while symbols and assertions stay enabled. Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` when fully unoptimized stepping is required.
+Debug builds use debugger-friendly optimization for the game runtime and bundled raylib.
+This keeps frame pacing representative while symbols and assertions stay enabled.
+Configure with `-DSTALBERG_OPTIMIZE_DEBUG_RUNTIME=OFF` for fully unoptimized stepping.
 
-Grid generation and room generation are independent libraries. The room library has no dependency on `StalbergGrid`; `src/integration/room_grid_adapter.cpp` is the translation layer between the generated mesh and the room module's owned `RoomGrid` snapshot. Grid-specific policy, including dual-cell measurement and selecting centers from the six-sided boundary as entrance candidates, stays in the grid and adapter layers. The demo completes relaxation before creating that snapshot so visual geometry, room scoring, and physical metrics agree. Generation, generated-level runtime/session behavior, and combat simulation have dedicated headless test executables. Runtime tests include dash cooldown and wall collision, traversal firing and in-flight-shot preservation, deterministic multi-spawn identities and order, earliest enemy-hit selection, all-enemies-clear doorway transitions, hostile-shot cleanup, closed-wall containment, reset behavior, and custom encounter wall injection.
+Grid generation and room generation are independent libraries.
+The room library does not depend on `StalbergGrid`.
+`src/integration/room_grid_adapter.cpp` converts the generated mesh to the room module's owned `RoomGrid` snapshot.
+Grid-specific policy stays in the grid and adapter layers.
+This policy includes dual-cell measurement and selection of entrance candidates from the six-sided boundary.
+The demo completes relaxation before it creates the snapshot.
+This keeps visual geometry, room scores, and physical metrics in agreement.
+Dedicated headless tests cover generation, generated-level runtime and session behavior, and combat simulation.
+Runtime tests cover dash cooldown and wall collision.
+They cover traversal firing and preservation of shots in flight.
+They cover deterministic multi-spawn identity and order.
+They cover earliest enemy-hit selection and all-enemies-clear doorway transitions.
+They cover hostile-shot cleanup, closed-wall containment, reset behavior, and custom encounter walls.
 
 ## Game controls
 
@@ -85,7 +211,7 @@ Grid generation and room generation are independent libraries. The room library 
 | E | Buy a gate within the displayed 2.2-unit range, activate Anchor/Hub/Exit, or repair one missing health at a powered Hub |
 | 1 / 2 / 3 at Hub | Buy the next damage, fire-rate, or dash tier |
 | R | Restart mutable match state on the same generated map, or restart regression combat |
-| N | Generate and enter a fresh seeded match |
+| N | Generate and enter a new seeded match |
 | F1 | Toggle generated horde match / combat regression arena |
 | F2 | Toggle the full-level developer overview |
 | Left / Right in overview | Browse fixed representative configurations read-only |
@@ -93,7 +219,14 @@ Grid generation and room generation are independent libraries. The room library 
 | F3 | Toggle rendering/gameplay diagnostics |
 | Escape/window close | Exit |
 
-`LevelSession` owns the authoritative generated player, doorway collision, and traversal state. `HordeMatch` owns persistent weapon/projectile state, points, gates, tiered upgrades, the automatic endless director, bounded recipe-aware difficulty, the map-wide enemy collection, Anchor/Hub/relay/Exit objective state, and terminal progression. Gate purchases update collision and player/enemy navigation together through exact published thresholds. Drifters and Runners pursue through opened cells, Casters and periodic Elites preserve the ranged fan-pattern language, and the optional relay sequence grants the next persistent fire-rate tier.
+`LevelSession` owns the authoritative generated player, doorway collision, and traversal state.
+`HordeMatch` owns the persistent weapon and projectile state.
+It also owns points, gates, tiered upgrades, the automatic endless director, and bounded recipe-aware difficulty.
+It owns the map-wide enemy collection, Anchor/Hub/relay/Exit objective state, and terminal progression.
+Gate purchases update collision and player and enemy navigation through the same published thresholds.
+Drifters and Runners pursue through open cells.
+Casters and periodic Elites use ranged fan patterns.
+The optional relay sequence grants the next persistent fire-rate tier.
 
 ## Generator demo controls
 
@@ -109,18 +242,50 @@ Grid generation and room generation are independent libraries. The room library 
 | Mouse wheel | Zoom around cursor |
 | Middle/right drag | Pan |
 
-Each solid-line junction is one logical floor cell. The default **shooter layout** chooses start and exit anchors near well-separated selected entrances, usually distributes additional arena seeds with farthest-point sampling, occasionally concentrates two or three substantial rooms into a local cluster or gives one site a larger landmark arena, and plans a spatial mission graph between them. Every planned arena connection is routed with clearance- and portal-width-aware pathfinding. Longer routes become independently identified corridor regions and are widened laterally where geometry permits. Routes shorter than an arena's approximate diameter are folded into an endpoint arena and become direct arena doorways instead of tiny connector rooms; separate connector identities are reserved for long passages. A tree supplies the main route and side branches; larger maps may receive one intentional loop. Only planned room contacts become doorways, so incidental touching does not create unwanted shortcuts.
+Each solid-line junction is one logical floor cell.
+The default **shooter layout** selects Start and Exit sites near separated entrances.
+It usually distributes more arena seeds with farthest-point sampling.
+It can put two or three substantial rooms in one local cluster.
+It can also make one larger landmark arena.
+It plans a spatial mission graph between these arenas.
+Pathfinding uses clearance and portal width to route each planned connection.
+Long routes become separate corridor regions.
+The generator widens these routes where geometry permits.
+Short routes become direct arena doorways.
+This prevents small connector rooms.
+The generator uses separate connector identities only for long passages.
+Production maps use two required useful cycles.
+Typed Shortcut edges must save at least two arena transitions.
+Only planned room contacts become doorways.
+Incidental contacts do not make shortcuts.
 
-The legacy branching method builds geometric room masks, while organic generation grows and partitions a connected noisy footprint. Every method preserves exterior negative space, connects the selected three-to-six boundary entrances, and combines the room seed with a fingerprint of the neutral topology and physical metrics. Layout metadata identifies start, exit, hub, connector, reward, and combat rooms, plus cover and enemy-spawn candidate cells kept away from published internal doorway thresholds. Games should separately filter around connected exterior entrances. Region boundaries remain continuous in this 2D diagnostic renderer, and hovering highlights the complete room under the pointer.
+The legacy branching method builds geometric room masks.
+Organic generation grows and partitions a connected irregular footprint.
+Each method keeps exterior negative space.
+Each method connects the selected three-to-six boundary entrances.
+Each method combines the room seed with a fingerprint of neutral topology and physical metrics.
+Layout metadata identifies Start, Exit, Hub, Connector, Reward, and Combat rooms.
+It also identifies cover and enemy-spawn candidate cells.
+These cells stay away from published internal doorway thresholds.
+Games must also filter cells near connected exterior entrances.
+Region boundaries stay continuous in the 2D diagnostic renderer.
+Hovering highlights the complete room under the pointer.
 
 ## Linux: missing `DISPLAY`
 
-raylib needs access to a graphical desktop. If startup reports that `DISPLAY` is missing, run the application from a terminal inside your desktop session rather than a text console or ordinary SSH session.
+raylib needs a graphical desktop.
+If startup reports that `DISPLAY` is missing, run the application in a terminal in your desktop session.
+Do not run it from a text console or a normal SSH session.
 
 For a remote machine, use one of these options:
 
-- Connect with X11 forwarding: `ssh -X user@host`, then run the application. The local machine must have an X server.
-- Use a VNC/RDP desktop session and launch it from a terminal there.
-- For a non-visible CI smoke test only: `xvfb-run -a ./build/stalberg_game` or `xvfb-run -a ./build/stalberg_grid`.
+- Use X11 forwarding with `ssh -X user@host`.
+- Run the application after the connection starts.
+- Make sure that the local machine has an X server.
+- Use a VNC/RDP desktop session and start the application from a terminal in that session.
+- For a non-visible CI smoke test, use `xvfb-run -a ./build/stalberg_game` or `xvfb-run -a ./build/stalberg_grid`.
 
-`xvfb-run` supplies a virtual display, so it verifies that an application starts but does not show an interactive window. The development workstation used for the game can launch interactively with `DISPLAY=:0 ./build/stalberg_game`.
+`xvfb-run` supplies a virtual display.
+It verifies that an application starts.
+It does not show an interactive window.
+The development workstation can start the game with `DISPLAY=:0 ./build/stalberg_game`.

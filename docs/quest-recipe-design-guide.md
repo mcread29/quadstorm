@@ -1,29 +1,61 @@
 # Procedural Quest Recipe Design Guide
 
-This guide defines how quests should be authored, presented, bound to generated levels, validated, and eventually generated. It expands the quest-realization phase in [`level-generation-lock-in.md`](level-generation-lock-in.md).
+This guide uses practical ASD-STE100 Simplified Technical English. It uses short requirements and consistent terms.
 
-The near-term goal is a curated library of strong, multi-stage puzzle recipes whose rooms, routes, devices, clues, rewards, and optional discoveries are placed procedurally. The long-term goal is to generate complete quest graphs from validated authored motifs without rewriting the runtime.
+This guide defines how to author, show, bind, validate, and generate quests. It expands the quest-realization phase in [`level-generation-lock-in.md`](level-generation-lock-in.md).
+
+Development goals:
+
+- Build a curated library of validated multi-stage puzzle recipes.
+- Place rooms, routes, devices, clues, rewards, and optional discoveries procedurally.
+- Generate full quest graphs from validated authored motifs later.
+- Use the same runtime for curated and generated quest graphs.
+
+Current production status:
+
+- Production maps have exactly two useful cycles.
+- Each Shortcut saves at least two arena transitions.
+- Progression-stage checks are complete.
+- The implemented stage-spawn validation is a static post-gate spawn-packing check.
+- The static post-gate spawn-packing check does not prove runtime spawn behavior.
+
+Current audit:
+
+- The audit used 100 requested match seeds.
+- Six requests used the radius-5 fallback.
+- The audit calculated production-map metrics from 94 accepted radius-8 maps.
+- The mean multi-entry substantial-room ratio was 66.7%, not 70%.
+
+Current gaps:
+
+- Bounded Combat leaves and dead ends.
+- Physical route separation.
+- Room and combat grammar.
+- Typed semantic anchors.
+- The full quest compiler.
+- Initial-lock, visibility, and role spawn checks.
+- Runtime recovery, endurance, and navigation checks.
 
 ## Experience goal
 
-A quest should feel like a mechanism embedded in a fortress, not a task list placed on top of a random map.
+A quest must use fortress geometry, routes, and persistent world state. It must not operate as a checklist that is independent of the generated map.
 
-The player should:
+The player must be able to:
 
-- Discover dormant machinery, strange symbols, blocked routes, and reactive objects while moving through the level.
+- Find dormant machines, strange symbols, blocked routes, and reactive objects during normal movement.
 - Infer relationships from repeated visual, spatial, and audio language.
-- Complete multi-stage objectives during uninterrupted horde rounds.
-- Cause persistent, visible changes to landmarks and circulation.
-- Find optional discoveries that reward attention and exploration.
-- Receive local interaction help without being told the complete solution.
+- Complete multi-stage objectives during continuous horde rounds.
+- Cause persistent and visible changes to landmarks and routes.
+- Find optional content that rewards observation and exploration.
+- Get local interaction help without disclosure of the full solution.
 
-The level generator and quest binder must cooperate. A good dependency graph bound to poor geometry is not a good quest, and an interesting room graph with arbitrary objective placement is not a good generated level.
+The level generator and quest binder must operate together. A valid dependency graph does not correct geometry that fails its spatial requirements. A valid room graph does not correct objective placement that ignores route and anchor constraints.
 
-## Presentation philosophy: assistance without signposting
+## Presentation rules: assistance without signposting
 
 ### The directive
 
-The directive communicates only broad state and major consequences. It should not name the next room, draw a route, enumerate undiscovered stages, or reveal a sequence.
+The directive gives global state only. It can report a route, service, reward, or extraction change. It must not name the next room. It must not draw a route. It must not list undiscovered stages. It must not reveal a sequence.
 
 Good directive messages:
 
@@ -39,11 +71,11 @@ Messages to avoid:
 - `The next symbol is the triangle.`
 - `Follow the marker to the Anchor.`
 
-The F2/F3 developer views may expose the complete binding for debugging. Normal play should not.
+F2 and F3 can show the full binding for development. Normal play must not show it.
 
 ### Local tooltips
 
-Tooltips appear only when the player is near an interactable and, where appropriate, has line of sight to it. They explain the available verb or an immediate prerequisite, not the puzzle solution.
+Show a tooltip only when the player is near an interactable. Require line of sight when it is applicable. Explain the available action or the immediate prerequisite. Do not explain the puzzle solution.
 
 Examples:
 
@@ -54,36 +86,46 @@ Examples:
 - `The mechanism rejects this sequence`
 - `Resonates when enemies fall nearby`
 
-An undiscovered object receives no global marker. A discovered object may retain a subtle world-state treatment, but it should not become a permanent navigation arrow by default.
+Do not give an undiscovered object a global marker. A discovered object can keep a low-intensity world-state signal. Do not make it a permanent navigation arrow by default.
 
 ### Environmental communication
 
-Related quest elements should share a generated presentation language:
+Give related quest elements one generated presentation language. Use:
 
 - A symbol family.
-- A color or light rhythm supported by shape and sound.
+- A color or light rhythm with shape and sound support.
 - Cable, conduit, beam, or floor-trace connections.
 - A repeated mechanical silhouette.
-- A distinct activation tone.
-- Persistent states for dormant, discovered, partially complete, failed, and complete.
+- A separate activation tone.
+- Persistent dormant, discovered, partial, failed, and complete states.
 
-Color alone is insufficient. The same relationship should remain readable through symbol, placement, animation, or audio.
+Do not use color as the only signal. Show the same relationship with symbol, placement, animation, or audio.
 
 ### Discovery record
 
-If a player-facing record is added, it should contain only discovered facts: copied symbols, heard tone patterns, inspected device text, and visible machine reactions. It should not convert those facts into an explicit ordered checklist.
+A player discovery record can contain discovered facts only. These facts can include copied symbols and heard tone patterns. They can also include inspected device text and visible machine reactions. Do not convert these facts into an ordered checklist.
 
-## Three graphs, kept separate
+## Keep three graphs separate
 
-Quest realization involves three related graphs.
+Quest realization uses three related graphs.
 
 ### 1. Spatial circulation graph
 
-This is the generated network of substantial rooms, connectors, and authorized doorway thresholds. It determines routes, cycles, dead ends, gates, shortcuts, and enemy navigation.
+This graph is the generated network of substantial rooms, connectors, and authorized doorway thresholds. It defines routes, cycles, dead ends, gates, Shortcuts, and enemy navigation.
+
+Useful-cycle metric:
+
+- Start with the connector-contracted arena graph.
+- Remove one non-Primary mission edge.
+- Find the shortest alternate path between that edge's arenas.
+- Count the edge as a useful cycle only when the alternate path has at least three arena transitions.
+- Require exactly two useful cycles for production circulation.
+- Require each Shortcut to save at least two arena transitions.
+- Calculate Shortcut savings as the alternate-path length minus the direct Shortcut edge.
 
 ### 2. Semantic-anchor graph
 
-This describes where meaningful content can safely exist within the generated geometry. Anchors may include:
+This graph defines valid positions for quest content in the generated geometry. Anchors can include:
 
 - High-clearance focal points.
 - Doorway-facing device sites.
@@ -96,148 +138,203 @@ This describes where meaningful content can safely exist within the generated ge
 - Hidden or partially occluded discovery sites.
 - Landmark and presentation attachment points.
 
-Anchors publish capabilities and measurements. They do not decide which quest uses them.
+Anchors publish types, capabilities, and measurements. They do not select a quest. Typed semantic anchors are not implemented yet.
 
 ### 3. Quest dependency graph
 
-A recipe is a directed acyclic graph of discoveries, requirements, actions, state changes, optional branches, and rewards. Its nodes refer to semantic requirements rather than room IDs or world coordinates.
+A recipe is a directed acyclic graph. It contains discoveries, requirements, actions, state changes, optional branches, and rewards. Its nodes use semantic requirements. They do not use room IDs or world coordinates.
 
-The quest binder maps this dependency graph onto the semantic-anchor and circulation graphs. If no coherent binding exists, the complete map candidate is rejected.
+Binding requirements:
 
-## Curated recipes now, generated recipes later
+- Map the dependency graph to the semantic-anchor and circulation graphs.
+- Satisfy all mandatory role constraints.
+- Satisfy all route-order and distance constraints.
+- Satisfy all visibility, clearance, and separation constraints.
+- Reject the full map candidate if no valid binding exists.
 
-The first implementation should curate complete dependency graphs. A curated recipe defines intentional puzzle logic but leaves realization variable.
+Current binder status:
 
-A recipe should not hard-code:
+- The binder handles gates and the Anchor.
+- The full quest compiler is not complete.
+
+## Use curated recipes before generated recipes
+
+The first implementation must use curated dependency graphs. A curated recipe defines intentional puzzle logic. It permits variable spatial realization.
+
+A recipe must not hard-code:
 
 - Room IDs.
 - Cell IDs or world coordinates.
-- A fixed east/west orientation.
+- A fixed east or west orientation.
 - One exact path through the level.
 - Specific weapon instances or random rewards.
 - Round 2 or Round 5 as universal progression rules.
 
-For each match, deterministic binding may vary:
+For each match, deterministic binding can change:
 
-- Which compatible rooms host stages.
-- Which anchors host devices and clues.
-- Symbol, tone, or light vocabulary.
+- The compatible rooms that contain stages.
+- The anchors that contain devices and clues.
+- The symbol, tone, or light vocabulary.
 - The required order of equivalent devices.
-- Which valid parallel branch is encountered first.
-- Shortcut and optional-branch placement.
-- Passageway supplies and final reward variants.
+- The first valid parallel branch that the player finds.
+- The position of Shortcuts and optional branches.
+- The passageway supplies and final reward variants.
 
-This progression preserves the runtime architecture:
+Use this implementation sequence:
 
-1. Curated graph with generated placement.
-2. Curated graph with generated clue, order, branch, and reward variants.
-3. Generated graph assembled from curated motifs.
-4. Fully generated and validated dependency graph plus placement.
+1. Use a curated graph with generated placement.
+2. Add generated clue, order, branch, and reward variants to the curated graph.
+3. Assemble a generated graph from curated motifs.
+4. Generate and validate the full dependency graph and its placement.
 
-Generated recipes should eventually produce the same declarative data consumed by curated recipes. Runtime quest code should not need a second execution path.
+Generated recipes must produce the same declarative data as curated recipes. Runtime quest code must use one execution path.
 
 ## Recipe model
 
-Each recipe should publish the following information.
+Each recipe must publish the following data.
 
 ### Recipe-level fields
 
-- Stable recipe and version identifier.
-- Main and optional dependency graphs.
+- Stable recipe identifier and version identifier.
+- Main dependency graph and optional dependency graph.
 - Required topology capabilities.
-- Minimum and maximum stage counts.
+- Minimum stage count and maximum stage count.
 - Required interaction verbs.
 - Clue and presentation families.
-- Gate and shortcut effects.
+- Gate and Shortcut effects.
 - Reward categories and fallback rewards.
-- Allowed recovery policies.
-- Complexity or implementation tier.
+- Permitted recovery policies.
+- Complexity tier or implementation tier.
 
 ### Stage-level fields
 
 - Stable stage identifier.
 - Prerequisite stages.
-- Whether prerequisites use `all`, `any`, an ordered sequence, or a configured count.
+- Prerequisite mode: `all`, `any`, ordered sequence, or configured count.
 - Interaction verb and completion condition.
 - Room-role and room-shape requirements.
-- Route-order, distance, visibility, clearance, and separation constraints.
-- Whether the stage is hidden, discoverable, active, optional, or complete.
+- Route-order, distance, visibility, clearance, and separation limits.
+- Hidden, discoverable, active, optional, or complete state.
 - Persistent world feedback for each state.
-- Failure and recovery behavior.
-- Outputs such as power, clues, gates, shortcuts, rewards, or extraction availability.
+- Failure behavior and recovery behavior.
+- Outputs such as power, clues, gates, Shortcuts, rewards, or extraction availability.
 
 ### Generic interaction verbs
 
-The initial executor should prefer reusable verbs:
+The first executor must use reusable verbs where possible:
 
 - Inspect a device or clue.
 - Activate or hold an interaction.
 - Hold a zone while combat continues.
-- Kill enemies near a device or inside a region.
-- Shoot a target or ordered target sequence.
+- Kill enemies near a device or in a region.
+- Shoot a target or an ordered target sequence.
 - Power or redirect a route.
-- Return to an altered landmark.
-- Install or carry a component when that system is introduced.
-- Lure a normal enemy, crowd, or Elite into a readable region.
-- Use a compatible weapon property when weapon classification exists.
+- Return to a changed landmark.
+- Install or carry a component after the carry system exists.
+- Lure a normal enemy, crowd, or Elite into a marked region.
+- Use a compatible weapon property after weapon classification exists.
 
-A recipe combines these verbs; it should not implement its own round director, enemy simulation, interaction input, or navigation system.
+A recipe combines these verbs. It must not implement a separate round director. It must not implement enemy simulation, interaction input, or navigation.
 
 ## Binding pipeline
 
-One match seed deterministically derives the geometry inputs, circulation brief, room-shape briefs, semantic anchors, selected recipe, binding variants, rewards, and bounded retry sequence.
+One match seed must derive these binding inputs deterministically:
 
-Recommended binding order:
+- Geometry.
+- The circulation brief.
+- Room-shape briefs.
+- Semantic anchors.
+- The selected recipe and binding variants.
+- Rewards.
+- The bounded retry sequence.
+
+Use this binding order:
 
 1. Generate and validate the circulation graph.
 2. Generate room-shape and combat briefs.
 3. Publish semantic, presentation, and loot anchors.
 4. Select a compatible curated recipe from the match seed.
 5. Select deterministic recipe variants, such as symbol vocabulary and device order.
-6. Bind mandatory stages in dependency and route order.
+6. Bind mandatory stages in dependency order and route order.
 7. Bind optional branches and their rewards.
-8. Bind gates and shortcuts to exact doorway thresholds.
-9. Populate ordinary loot sockets around the completed quest binding.
-10. Validate every progression component and reject an impossible candidate.
-11. Persist the complete binding and retry metadata for replay and tests.
+8. Bind gates and Shortcuts to exact doorway thresholds.
+9. Populate normal loot sockets around the finished quest binding.
+10. Validate each progression component.
+11. Reject an impossible candidate.
+12. Store the full binding and retry metadata for replay and tests.
 
-Quest selection must happen early enough that candidates cannot accept geometry incapable of realizing the selected recipe. Candidate scoring must not silently switch to an easier recipe.
+Select the quest before candidate acceptance. This prevents acceptance of geometry that cannot realize the selected recipe. Candidate scoring must not change to an easier recipe without a report.
+
+Current binding status:
+
+- Progression-stage admission is complete for the current gate and Anchor plan.
+- The static post-gate spawn-packing check is complete.
+- The static post-gate spawn-packing check measures capacity in simulated lock states.
+- The static post-gate spawn-packing check does not run the runtime spawn system.
+- The full recipe compiler remains incomplete.
+- Immutable typed-anchor binding remains incomplete.
 
 ## Binding and acceptance rules
 
-Every accepted quest must satisfy the following.
+Each accepted quest must satisfy these rules.
 
 ### Solvability
 
-- Every mandatory stage is reachable when its prerequisites can be satisfied.
-- No required item can spawn behind the gate that consumes it.
-- A stage cannot permanently invalidate another required stage.
-- Extraction or another declared finale remains possible after completion.
-- Failure-capable stages provide a recovery rule.
+- Make each mandatory stage reachable when its prerequisites are satisfied.
+- Do not put a required item behind the gate that consumes it.
+- Do not let one stage permanently invalidate another required stage.
+- Keep extraction or another declared finale possible after completion.
+- Give each failure-capable stage a recovery rule.
 
 ### Spatial meaning
 
-- Devices are separated enough to require navigation and observation.
-- Route ordering supports the dependency graph without excessive Hub backtracking.
-- A shortcut saves a measured amount of travel and changes a useful route.
-- Optional branches occupy genuinely optional space.
-- A dead end used by the quest or loot has a clear payoff.
+- Make each recipe supply a minimum device-separation distance.
+- Reject a binding when two devices are closer than that limit.
+- Make route order support the dependency graph.
+- Make each recipe supply a maximum Hub-backtracking distance or arena-transition count.
+- Reject a binding when it exceeds that limit.
+- Make a Shortcut save at least its required measured travel.
+- Make a Shortcut reduce measured travel or add a separate approach.
+- Keep optional branches outside every mandatory route.
+- Do not put a mandatory stage or item in an optional branch.
+- Give each used dead end a quest result or loot result.
+- Make each recipe supply a minimum physical route-separation limit.
+- Reject a binding when alternate routes do not meet that limit.
+
+Current production graph status:
+
+- Minimum Shortcut savings are two arena transitions.
+- The code does not measure physical centerline separation.
+- The code does not measure doorway-angle separation.
 
 ### Combat safety and pressure
 
-- Holdouts have sufficient footprint, ingress, spawn capacity, and readable entry space.
-- Shootable targets preserve firing lanes and do not overlap doors or walls.
-- Device interactions do not require standing inside an unavoidable spawn point.
-- Late-stage objectives support the scheduled enemy population.
-- Puzzle state never pauses or authorizes automatic rounds.
+- Make each holdout recipe supply minimum footprint area, ingress count, packed spawn count, and entry-space clearance.
+- Reject a holdout binding when it fails one of these limits.
+- Make each target recipe supply a minimum firing-lane length and width.
+- Reject a target binding when it fails one of these limits.
+- Keep targets clear of doors and walls.
+- Do not overlap a required device footprint with a packed spawn slot.
+- Make each late-stage recipe supply its maximum scheduled living population.
+- Reject a binding when that population exceeds validated room or packed-spawn capacity.
+- Quest state must not start, pause, or advance the round director.
+
+Static post-gate spawn-packing check:
+
+- Each checked Fortress state requires 18 packed slots.
+- These slots must occur in at least two rooms.
+- The static post-gate spawn-packing check does not simulate runtime occupancy.
+- The static post-gate spawn-packing check does not run runtime spawn selection.
+- The static post-gate spawn-packing check does not prove that runtime spawning can complete a round.
+- Initial-lock, visibility, role compatibility, and runtime recovery checks remain incomplete.
 
 ### Legibility
 
-- Necessary clues exist before their answer is required.
-- Related objects share a consistent presentation family.
-- Every accepted action produces persistent feedback.
-- Wrong actions communicate failure without requiring arbitrary repetition.
-- Mandatory progression never depends on finding an untelegraphed random drop.
+- Put necessary clues before the point that requires their answer.
+- Give related objects one consistent presentation family.
+- Give persistent feedback for each accepted action.
+- Communicate a wrong action without arbitrary repetition.
+- Do not make mandatory progress depend on an unmarked random drop.
 
 ### Determinism
 
@@ -247,29 +344,31 @@ The same match seed must reproduce:
 - Stage graph and selected variants.
 - Room and anchor binding.
 - Clue vocabulary and order.
-- Gates, shortcuts, and reward category.
+- Gates, Shortcuts, and reward category.
 - Retry count and rejection metadata.
 
 ## Persistent state and automatic rounds
 
-Quest state is concurrent with the endless director.
+Quest state operates at the same time as the endless director.
 
-- Round requirements may make an interaction available; they never hold an intermission open.
-- Incomplete stages persist across any number of rounds.
-- Combat-linked progress explicitly persists, pauses, or resets according to the recipe.
-- Hostile cleanup must not erase quest devices, clues, carried components, or completed state.
-- Quest completion may enable extraction, a major reward, a route change, or a pressure change, but must not silently stop spawning.
-- Extraction remains a voluntary interaction.
+- A round requirement can make an interaction available.
+- A round requirement must not hold an intermission open.
+- Keep incomplete stages across all rounds.
+- Define whether combat progress persists, pauses, or resets.
+- Do not remove quest devices, clues, carried components, or complete state during hostile cleanup.
+- Quest completion can enable extraction, a configured reward, a route change, or a pressure change.
+- Quest completion must not stop spawning without an explicit rule.
+- Keep extraction as a voluntary interaction.
 
-The current hard-coded Round 2 Anchor and Round 5 Exit checks should become recipe-authored requirements or be removed where the selected recipe does not need them.
+Replace the hard-coded Round 2 Anchor and Round 5 Exit checks with recipe requirements. Remove the checks when a selected recipe does not need them.
 
 ## Passageways, supplies, weapons, and upgrades
 
-Connectors should be useful resource routes rather than empty traversal tubes. The generator should publish passageway loot sockets with clearance, visibility, concealment, route-stage, nearby-door, and risk measurements.
+Put resource opportunities in connectors. Do not make them empty traversal tubes. Publish passageway loot sockets with clearance, visibility, concealment, route stage, nearby-door, and risk measurements.
 
 ### Content categories
 
-Depending on the eventual economy, sockets may contain:
+Sockets can contain these items when the related economy exists:
 
 - Weapon pickups or weapon-swap stations.
 - Damage, fire-rate, dash, health, or armor upgrades.
@@ -280,48 +379,53 @@ Depending on the eventual economy, sockets may contain:
 - Quest components and clue fragments.
 - Breakable or inspectable secret caches.
 - Risk/reward shrines.
-- Ammunition if an ammunition economy is introduced.
+- Ammunition after an ammunition economy exists.
 
 ### Distribution rules
 
-Placement is random only within deterministic constraints.
+Use random placement only inside deterministic limits.
 
-- The opening component receives enough basic survival resources.
-- Dangerous, expensive, or long routes may receive better reward weights.
-- Dead ends justify themselves with loot, a clue, a service, or a secret.
-- Shortcuts usually contain utility rather than mandatory progression.
-- Mandatory quest components use guaranteed recipe placement, not the ordinary loot roll.
-- Ordinary loot is populated only after quest binding so it cannot occupy required anchors.
-- Items remain clear of doorway reading space, gate collision, objective footprints, and primary crowd lanes.
-- The binder limits clustering so one lucky corridor does not contain the entire map economy.
-- The same match seed reproduces all placements.
+- Make each recipe supply minimum opening-component resource counts or values by category.
+- Reject a binding when the opening component fails one of these limits.
+- Increase reward weights for routes with higher measured risk, cost, or length when applicable.
+- Give each dead end loot, a clue, a service, or a secret.
+- Put utility in Shortcuts instead of mandatory progression where possible.
+- Use guaranteed recipe placement for mandatory quest components.
+- Do not use the normal loot roll for mandatory components.
+- Populate normal loot only after quest binding.
+- Keep items clear of doorway reading space and gate collision.
+- Keep items clear of objective footprints and primary crowd lanes.
+- Limit clustering across the map economy.
+- Make each recipe supply a maximum resource count or value for one connector.
+- Reject a loot binding when one connector exceeds that limit.
+- Reproduce all placements from the same match seed.
 
 ## Recovery patterns
 
-Multi-stage puzzles need explicit recovery instead of accidental soft locks.
+Give each multi-stage puzzle explicit recovery. Do not permit accidental soft locks.
 
-Useful policies include:
+Use these policies where applicable:
 
-- **Persist:** completed work remains complete permanently.
-- **Pause:** accumulated progress stops while a condition is false and resumes later.
-- **Reset stage:** only the active local sequence resets.
-- **Re-arm:** the player performs a short interaction before retrying.
-- **Respawn component:** a lost mandatory component returns to its last safe socket.
-- **Alternate proof:** a failed optional challenge can be replaced with a more expensive combat or currency requirement.
+- **Persist:** Keep completed work complete.
+- **Pause:** Stop progress while a condition is false. Continue it when the condition is true again.
+- **Reset stage:** Reset only the active local sequence.
+- **Re-arm:** Require a short interaction before another attempt.
+- **Respawn component:** Return a lost mandatory component to its last safe socket.
+- **Alternate proof:** Replace a failed optional challenge with a more expensive combat or currency requirement.
 
-Whole-quest reset should be rare in an endless horde match.
+Permit a full-quest reset only when the recipe declares that policy. A bounded runtime recovery rule for impossible spawn conditions is still a current gap.
 
 # Ten curated quest recipes
 
-The recipes below are authored dependency graphs intended for procedural binding. Names, symbols, rooms, directions, device counts within stated bounds, and rewards may vary by seed.
+The following recipes are authored dependency graphs for procedural binding. The seed can change names, symbols, rooms, directions, and rewards. It can also change device counts inside the stated limits.
 
 ## 1. Awaken the Fortress
 
 [Open quest graph](diagrams/quest-recipes/01-awaken-the-fortress.html)
 
-**Identity:** The player reconstructs the purpose of a dormant central machine, completes two parallel combat trials, and brings the transformed fortress online.
+**Identity:** The player finds the purpose of a dormant central machine. The player completes two parallel combat trials. The player then starts the changed fortress.
 
-**Primary novelty:** A clue-driven ordered activation opens into parallel objectives that reconverge at a newly exposed target.
+**Primary novelty:** A clue defines an ordered activation. This activation opens two parallel objectives. The objectives join again at a newly exposed target.
 
 ```text
 Discover dormant machine
@@ -343,27 +447,28 @@ Enable voluntary extraction
 
 **Realization requirements:**
 
-- A memorable Hub or focal landmark visible from multiple approaches.
-- Two separated clue sites available before ordered activation is required.
-- Two combat-capable rooms on different branches or sides of a useful cycle.
-- A locked shortcut whose opening saves meaningful return travel.
-- A target anchor visible only after the parallel trials complete.
+- Give the Hub or focal landmark a unique silhouette.
+- Make the landmark visible from several approaches.
+- Put two separate clue sites before the ordered activation.
+- Put two combat-capable rooms on different branches or different sides of a useful cycle.
+- Use a locked Shortcut that meets the configured return-travel savings limit.
+- Expose a target anchor only after both parallel trials are complete.
 
-**Clue language:** Two or three symbols appear on environmental fragments and on the corresponding power devices. Inspecting the Hub establishes that order matters but does not state the order.
+**Clue language:** Put two or three symbols on environmental fragments. Put the same symbols on the related power devices. Inspection of the Hub tells the player that order is important. It does not give the order.
 
-**Recovery:** A wrong activation resets only the two-device sequence. Holdout progress pauses when the player leaves. Conduit kills persist.
+**Recovery:** Reset only the two-device sequence after a wrong activation. Pause holdout progress when the player leaves. Keep the kill count for the conduit trial.
 
-**Optional branch:** A third, damaged fragment reveals a Reward-room cache after the shortcut opens.
+**Optional branch:** A third damaged fragment shows a Reward-room cache. Make the cache available after the Shortcut opens.
 
-**Reward:** Extraction plus one major upgrade or weapon choice at the transformed Hub.
+**Reward:** Enable extraction. Give one configured high-tier upgrade or weapon choice at the changed Hub.
 
 ## 2. Broken Circuit
 
 [Open quest graph](diagrams/quest-recipes/02-broken-circuit.html)
 
-**Identity:** A power network is active but routing energy into a damaged branch. The player traces the fault, isolates it, repairs two endpoints, and safely reconnects the network.
+**Identity:** A power network sends energy into a damaged branch. The player finds the fault and isolates it. The player repairs two endpoints and reconnects the network safely.
 
-**Primary novelty:** Diagnosis through comparing network behavior rather than following a prescribed device order.
+**Primary novelty:** The player compares network behavior to find a fault. The player does not follow a specified device order.
 
 ```text
 Inspect unstable network terminal
@@ -385,26 +490,28 @@ Stabilize the remaining destination through an optional challenge
 
 **Realization requirements:**
 
-- A junction room with three or more readable outgoing routes.
-- Two test devices and one faulty endpoint in distinct route directions.
-- A defendable repair site and a separate kill-near-device site.
-- Two meaningful power destinations, neither required to be a room leaf.
+- Use a junction room with three or more separate outgoing thresholds.
+- Put two test devices and one faulty endpoint in different route directions.
+- Use one defendable repair site.
+- Use a separate kill-near-device site.
+- Provide two power destinations. Each destination must open a route or activate a service.
+- Do not require either destination to be a room leaf.
 
-**Clue language:** Healthy branches return matching light and sound pulses. The faulty branch returns a reversed rhythm or broken segment. Cables or floor traces make relationships observable without a marker.
+**Clue language:** Make healthy branches return matching light and sound pulses. Make the faulty branch return a reverse rhythm or a broken segment. Use cables or floor traces to show the relationships. Do not use a marker.
 
-**Recovery:** Testing is unlimited. Isolating the wrong branch causes a visible harmless rejection and short re-arm delay. Repair progress persists.
+**Recovery:** Permit unlimited tests. A wrong isolation gives a visible and harmless rejection. It also causes a short re-arm delay. Keep repair progress.
 
-**Optional branch:** After choosing the first destination, the unpowered destination can be restored by surviving a harder local surge.
+**Optional branch:** After the first destination gets power, let the player restore the other destination. Use a higher configured enemy budget for the local surge.
 
-**Reward:** The first choice immediately opens a useful shortcut or an armory service. Completing both grants an economy bonus.
+**Reward:** Open a Shortcut that reduces route cost, or open an armory service. Give an economy bonus after both destinations operate.
 
 ## 3. Resonant Sequence
 
 [Open quest graph](diagrams/quest-recipes/03-resonant-sequence.html)
 
-**Identity:** Separate districts contain resonators that teach pieces of a tone-and-symbol sequence. The player reconstructs and performs it while under pressure.
+**Identity:** Different districts contain parts of a tone and symbol sequence. The player reconstructs the sequence. The player performs it during combat pressure.
 
-**Primary novelty:** Information is split across spatially separated observations, and the answer combines sound with symbols.
+**Primary novelty:** The player combines information from separate places. The answer uses sound and symbols.
 
 ```text
 Discover sealed resonant door
@@ -424,26 +531,27 @@ Enter the opened chamber
 
 **Realization requirements:**
 
-- Two or three clue anchors separated by route and district.
-- One arena with three safely spaced shootable target anchors.
-- A reward chamber or previously sealed passage.
-- Presentation support for both tone and shape so the puzzle is not audio-only.
+- Put two or three clue anchors in separate routes and districts.
+- Use one arena with three safely separated shootable target anchors.
+- Provide a Reward chamber or a sealed passage.
+- Support tone and shape.
+- Do not make the puzzle audio-only.
 
-**Clue language:** Each observation presents an ordered fragment with one overlap, allowing the complete sequence to be inferred. The target resonators reuse the same shapes and tones.
+**Clue language:** Give each observation an ordered fragment. Give adjacent fragments one overlap. This lets the player infer the full sequence. Use the same shapes and tones on the target resonators.
 
-**Recovery:** A wrong hit resets only performance progress and plays the expected relationship without naming the next target. The chamber can be re-primed immediately after a short cooldown.
+**Recovery:** Reset only performance progress after a wrong hit. Play the expected relationship. Do not name the next target. Let the player prime the chamber again after a short cooldown.
 
-**Optional branch:** Completing the sequence without an error opens a secondary cache; ordinary completion still advances the quest.
+**Optional branch:** Open a second cache if the player makes no error. Normal completion must still progress the quest.
 
-**Reward:** Reward-room access, a fire-rate or weapon upgrade, and an optional flawless bonus.
+**Reward:** Give access to the Reward room. Give a fire-rate or weapon upgrade. Give an optional flawless bonus.
 
 ## 4. Perimeter Wake
 
 [Open quest graph](diagrams/quest-recipes/04-perimeter-wake.html)
 
-**Identity:** The fortress contains a sleeping perimeter network. Activating its stations changes circulation and turns a previously fragmented outer route into a complete loop.
+**Identity:** The fortress has a dormant perimeter network. The player activates its stations. This action changes circulation and completes an outer loop.
 
-**Primary novelty:** The puzzle is organized around traversal direction and progressive route transformation rather than a central-room sequence.
+**Primary novelty:** Traversal direction and route changes organize the puzzle. A central-room sequence does not organize it.
 
 ```text
 Discover a dormant perimeter station
@@ -463,26 +571,27 @@ Use the new loop to approach the finale from either side
 
 **Realization requirements:**
 
-- A partial or gated cycle with three or four station anchors distributed around it.
-- Physically separated alternate routes.
-- A final defendable station with multiple ingress regions.
-- A missing shortcut edge whose activation completes a useful loop.
+- Use a partial or gated cycle.
+- Put three or four station anchors around it.
+- Provide physically separate alternate routes.
+- Use a defendable final station with several ingress regions.
+- Activate a missing Shortcut edge to complete a useful cycle.
 
-**Clue language:** Activation sends a visible pulse along walls or floor traces toward the next network segment. It identifies a relationship, not a map destination.
+**Clue language:** Send a visible pulse on walls or floor traces after activation. Point the pulse toward the next network segment. Show a relationship. Do not show a map destination.
 
-**Recovery:** Completed stations remain active. The final defense pauses rather than resets if the player leaves.
+**Recovery:** Keep completed stations active. Pause the final defense if the player leaves. Do not reset it.
 
-**Optional branch:** Activating the stations in the less obvious reverse direction exposes a hidden perimeter cache.
+**Optional branch:** Let activation in the reverse direction expose a hidden perimeter cache.
 
-**Reward:** A major permanent shortcut, improved passageway loot rolls, and finale access.
+**Reward:** Open a permanent Shortcut with measured route savings. Improve passageway loot rolls. Give access to the finale.
 
 ## 5. The Hollow Signal
 
 [Open quest graph](diagrams/quest-recipes/05-the-hollow-signal.html)
 
-**Identity:** Directional listening devices detect an unknown transmission. The player triangulates its source, opens the correct wall section, and confronts what is broadcasting.
+**Identity:** Directional receivers detect an unknown transmission. The player finds the source by triangulation. The player opens the correct wall section and confronts the transmitter.
 
-**Primary novelty:** Spatial inference from directional readings rather than a sequence or explicit route.
+**Primary novelty:** The player uses directional readings for spatial inference. The puzzle does not use an explicit route or sequence.
 
 ```text
 Hear an intermittent unknown signal
@@ -504,26 +613,27 @@ Trace its return signal to a changed landmark
 
 **Realization requirements:**
 
-- Two mandatory receiver anchors with strong physical separation and distinct facing.
-- One optional receiver on a riskier or gated branch.
-- A hidden passage or obscured alcove near the inferred intersection.
-- A transmitter site that supports either shooting or a short hold interaction.
+- Use two mandatory receiver anchors that meet the configured separation limit.
+- Give the receiver anchors different directions.
+- Put one optional receiver on a branch with higher measured risk or a gate.
+- Put a hidden passage or obscured alcove near the inferred intersection.
+- Use a transmitter site that supports shooting or a short hold interaction.
 
-**Clue language:** Each receiver shows a broad directional arc using orientation, pulse strength, and sound. The optional third narrows ambiguity but is not mandatory.
+**Clue language:** Show a broad directional arc on each receiver. Use orientation, pulse strength, and sound. The optional third receiver reduces ambiguity. Do not make it mandatory.
 
-**Recovery:** Incorrect wall controls reject the signal and remain retryable. The transmitter cannot be permanently destroyed before the quest reaches that stage.
+**Recovery:** Make incorrect wall controls reject the signal. Keep them available for another attempt. Do not permit permanent transmitter destruction before the correct stage.
 
-**Optional branch:** The third receiver reveals a second weak source containing a cache or lore fragment.
+**Optional branch:** Use the third receiver to show a second weak source. Put a cache or lore fragment at that source.
 
-**Reward:** Hidden-route access, a weapon pickup, and progression toward extraction.
+**Reward:** Open a hidden route. Give a weapon pickup. Progress the player toward extraction.
 
 ## 6. Predator's Lens
 
 [Open quest graph](diagrams/quest-recipes/06-predators-lens.html)
 
-**Identity:** An ancient focusing machine responds only to a powerful hostile signature. The player charges its sensors, then deliberately lures an Elite through the lens intersection.
+**Identity:** An old focusing machine responds only to an Elite-class hostile signature. The player charges its sensors. The player then lures an Elite through the lens intersection.
 
-**Primary novelty:** The player manipulates a dangerous enemy's position instead of merely killing everything near a static objective.
+**Primary novelty:** The player controls the position of an Elite. The player does not only kill enemies near a fixed objective.
 
 ```text
 Inspect inactive focusing lens
@@ -543,26 +653,28 @@ Collect the crystallized output
 
 **Realization requirements:**
 
-- A long-lane or crossfire arena with two separated pylon anchors.
-- A readable central intersection with safe player escape routes.
-- Enemy navigation that can reach the marked region through current gates.
-- A deterministic way to provide an Elite without stopping normal round advancement.
+- Use a long-lane or crossfire arena.
+- Put two pylon anchors far from each other.
+- Use a marked central intersection with at least two player escape routes.
+- Confirm that enemy navigation can reach the marked region through current gates.
+- Provide an Elite deterministically.
+- Do not stop normal round advancement.
 
-**Clue language:** Ordinary enemies briefly flicker near the dormant lens, while Elite attacks produce a stronger matching signature. Pylons visually project their intersection after alignment.
+**Clue language:** Make normal enemies flicker briefly near the dormant lens. Make Elite attacks produce a higher-intensity matching signal. After alignment, make the pylons show their intersection.
 
-**Recovery:** Pylon charge persists. Missing the Elite with the lens incurs a cooldown but does not consume the quest. If the Elite dies elsewhere, another eligible Elite can satisfy the stage later.
+**Recovery:** Keep pylon charge. Apply a cooldown after a missed Elite. A miss must not consume the stored pylon charge. If the Elite dies in another place, permit a later eligible Elite to complete the stage.
 
-**Optional branch:** Triggering the lens while several ordinary enemies also occupy the region increases the reward tier.
+**Optional branch:** Increase the reward tier if several normal enemies are also in the region when the lens operates.
 
-**Reward:** A powerful temporary modifier, rare weapon, or upgrade token.
+**Reward:** Give a top-tier temporary modifier, weapon, or upgrade token.
 
 ## 7. Borrowed Charge
 
 [Open quest graph](diagrams/quest-recipes/07-borrowed-charge.html)
 
-**Identity:** The player transports an unstable power charge through the fortress, choosing a route and keeping it alive through combat interactions.
+**Identity:** The player moves an unstable charge through the fortress. The player selects a route. The player keeps the charge stable through combat interactions.
 
-**Primary novelty:** A carried state turns traversal and route selection into the puzzle.
+**Primary novelty:** A carried state makes traversal and route selection part of the puzzle.
 
 ```text
 Discover portable charge cradle
@@ -582,28 +694,33 @@ Power the destination and open the return shortcut
 
 **Realization requirements:**
 
-- A source and destination separated by meaningful travel.
-- Two viable approaches or one route plus a later unlockable shortcut.
-- Stabilizer sockets distributed through passageways without obstructing combat lanes.
-- Clear carry-state presentation and deterministic safe respawn behavior.
+- Make the source-to-destination route meet the configured travel-distance limit.
+- Use the route-choice stage only when two outbound approaches exist before installation.
+- For the linked route-choice recipe, provide two outbound approaches before installation.
+- If a binding has one outbound route and a later return Shortcut, omit the route-choice stage.
+- Do not present the later return Shortcut as an outbound route choice before it opens.
+- Put stabilizer sockets in passageways.
+- Keep the sockets clear of combat lanes.
+- Show the carry state clearly.
+- Provide deterministic respawn behavior at a valid socket.
 
-**Clue language:** The charge's pulse accelerates as stability falls. Passageway stabilizers share its silhouette and respond visibly when approached.
+**Clue language:** Increase the charge pulse rate as stability decreases. Give passageway stabilizers the same silhouette. Make them react when the player comes near.
 
-**Recovery:** Dropping or losing the charge returns it to the last activated stabilizer after a short delay. The player never permanently loses a mandatory component.
+**Recovery:** Return a dropped or lost charge to the last active stabilizer after a short delay. Do not let the player lose a mandatory component permanently.
 
-**Optional branch:** Bypassing one stabilizer and arriving with high residual charge powers an additional cache.
+**Optional branch:** Power an additional cache if the player omits one stabilizer and arrives with high residual charge.
 
-**Reward:** Destination service activation, a traversal shortcut, and a high-charge bonus.
+**Reward:** Activate a destination service. Open a traversal Shortcut. Give a high-charge bonus.
 
-**Implementation note:** This recipe requires a reusable carry/install system and should follow the first recipes built entirely from existing interaction verbs.
+**Implementation note:** This recipe needs a reusable carry and install system. Implement it after recipes that use existing interaction verbs.
 
 ## 8. Arsenal Covenant
 
 [Open quest graph](diagrams/quest-recipes/08-arsenal-covenant.html)
 
-**Identity:** A sealed armory tests whether the player understands and uses different weapon properties rather than simply possessing enough currency.
+**Identity:** A sealed armory tests the player's use of different weapon properties. Currency alone cannot complete the test.
 
-**Primary novelty:** Weapon behavior becomes a puzzle input.
+**Primary novelty:** Weapon behavior is a puzzle input.
 
 ```text
 Discover sealed armory and three weapon sigils
@@ -621,28 +738,28 @@ Receive a weapon and alter future passageway drops
 
 **Realization requirements:**
 
-- An armory or Reward room with three readable trial anchors.
-- Passageway weapon pickups or swap stations guaranteeing access to required properties.
-- Trial geometry that safely supports alignment, clustering, or tracking.
-- A fallback trial if a weapon class is unavailable in the current build.
+- Use an armory or Reward room with three separated trial anchors.
+- Guarantee access to required weapon properties through passageway pickups or swap stations.
+- Use trial geometry that safely supports alignment, clustering, or tracking.
+- Provide a fallback trial if the current build does not have a weapon class.
 
-**Clue language:** Environmental traces demonstrate effects through damaged plates, aligned holes, scorch clusters, or moving machinery. Tooltips identify weapon properties, not which seal to use.
+**Clue language:** Use damaged plates, aligned holes, scorch clusters, or moving machines to show effects. Tooltips identify weapon properties. They do not identify the correct seal.
 
-**Recovery:** Trials are independently retryable. The recipe requires only two of three, preventing one disliked or unavailable weapon style from blocking progression.
+**Recovery:** Make each trial independently repeatable. Require only two of three trials. Do not let one unavailable or unwanted weapon style stop progress.
 
-**Optional branch:** Completing all three before choosing grants an enhanced version or reroll token.
+**Optional branch:** Give an enhanced item or reroll token if the player completes all three trials before selection.
 
-**Reward:** A weapon choice plus deterministic weighting toward a selected weapon family in later passageway drops.
+**Reward:** Give a weapon choice. Increase deterministic weights for the selected weapon family in later passageway drops.
 
-**Implementation note:** This recipe requires weapon-property tags and generated access guarantees.
+**Implementation note:** This recipe needs weapon-property tags and generated access guarantees.
 
 ## 9. Blackout Protocol
 
 [Open quest graph](diagrams/quest-recipes/09-blackout-protocol.html)
 
-**Identity:** Activating an emergency system darkens part of the fortress. The player navigates by pulses, restores local substations, and decides which district returns first.
+**Identity:** An emergency system makes part of the fortress dark. The player navigates with pulses. The player restores one local substation and selects the first district to restore.
 
-**Primary novelty:** Lighting and temporary information loss change navigation without relying on an objective marker.
+**Primary novelty:** Lighting and temporary information loss change navigation. The puzzle does not use an objective marker.
 
 ```text
 Inspect emergency power console
@@ -653,7 +770,7 @@ Follow pulse path A   Follow pulse path B
        ↓                 ↓
 Restore local substation A or B
         ↓
-Use the restored district to reach the second substation
+Join either first restoration to the master restart
         ↓
 Defend the master restart
         ↓
@@ -662,27 +779,31 @@ Observe newly illuminated clue or passage
 
 **Realization requirements:**
 
-- Two districts or spatially distinct branches.
-- Safe minimum lighting and high-contrast floor or wall pulses.
-- Substation anchors reachable during blackout.
-- A master console in a multi-ingress combat room.
-- Accessibility options that preserve the route language without requiring darkness perception.
+- Use two districts or two spatially different branches.
+- Keep the configured minimum light level.
+- Use high-contrast floor or wall pulses.
+- Keep both alternative substation anchors reachable during blackout.
+- Join either first substation restoration to the master restart.
+- Do not require restoration of the second substation.
+- Put the master console in a multi-entry Combat room.
+- Provide accessibility options.
+- Keep the route language usable without darkness perception.
 
-**Clue language:** Emergency pulses travel physically from the master console toward substations. Restored lights reveal previously invisible symbols or doorway controls.
+**Clue language:** Send emergency pulses from the master console to the substations. Make the pulses move through physical space. Use restored lights to show hidden symbols or doorway controls.
 
-**Recovery:** Leaving the blackout area does not reset substations. The master restart defense pauses if abandoned. The player can re-inspect the console to replay the pulse pattern.
+**Recovery:** Do not reset the selected substation when the player leaves the blackout area. Pause the master restart defense if the player leaves. Let console inspection replay the pulse pattern.
 
-**Optional branch:** Restoring the more dangerous district first keeps a hidden cache powered long enough to open it.
+**Optional branch:** Keep a hidden cache powered if the player restores the district with higher measured risk first. Let the player open it before power stops.
 
-**Reward:** A revealed shortcut, clue, or service plus a first-route bonus.
+**Reward:** Show a Shortcut, clue, or service. Give a first-route bonus.
 
 ## 10. The Living Lock
 
 [Open quest graph](diagrams/quest-recipes/10-the-living-lock.html)
 
-**Identity:** A gate is controlled by biological occupancy sensors. The player must shape horde movement through several zones instead of immediately killing every enemy.
+**Identity:** Biological occupancy sensors control a gate. The player controls horde movement through several zones. Immediate kills do not solve the puzzle.
 
-**Primary novelty:** Crowd routing and restraint become puzzle mechanics in a horde shooter.
+**Primary novelty:** Crowd routing and restraint are puzzle mechanics in a horde shooter.
 
 ```text
 Discover gate with dormant occupancy sensors
@@ -691,9 +812,9 @@ Activate sensor calibration
         ↓
 Charge outer sensor with a crowd presence
         ↓
-Redirect surviving enemies through the inner sensor
-        ↓
 Seal or open a temporary route to shape movement
+        ↓
+Redirect surviving enemies through the inner sensor
         ↓
 Kill the marked crowd inside the final chamber
         ↓
@@ -702,88 +823,114 @@ Open the living lock
 
 **Realization requirements:**
 
-- A multi-entry arena or connected pair of rooms with distinct ingress regions.
-- Two readable occupancy zones and a final kill zone.
-- Door-aware enemy navigation that updates when the temporary route changes.
-- Sufficient safe exits so the optimal tactic is not standing in one doorway.
-- Population scheduling that guarantees enough ordinary enemies without pausing rounds.
+- Use a multi-entry arena or a connected pair of rooms.
+- Provide separate ingress regions.
+- Use two non-overlapping occupancy zones and one final kill zone.
+- Bind the temporary route-control stage after the outer sensor stage.
+- Bind the temporary route-control stage before the inner sensor stage.
+- Update door-aware enemy navigation when the temporary route changes.
+- Provide at least two exits with actor clearance.
+- Do not make one doorway the best standing position.
+- Make the recipe supply a minimum normal-enemy count for each occupancy stage.
+- Count only enemies from the normal automatic schedule.
+- Do not pause the round director to meet the minimum count.
+- Reject the recipe if its normal automatic schedule cannot supply the minimum count.
 
-**Clue language:** Sensors brighten according to occupancy and project their required direction toward the next zone. The final chamber changes from a movement symbol to a defeat symbol once enough enemies cross.
+**Clue language:** Increase sensor brightness with occupancy. Project the required direction toward the next zone. The recipe supplies the required occupancy count. Change the final chamber symbol from movement to defeat when the configured number of enemies has crossed into the final chamber.
 
-**Recovery:** Sensor charge decays only to the current stage floor. Killing the crowd too early delays progress until later spawns but never fails the complete quest. Temporary route controls reset safely after each attempt.
+**Recovery:** Let sensor charge decrease only to the current stage floor. Early crowd kills can delay progress until later spawns. They must not fail the full quest. Reset temporary route controls safely after each attempt.
 
-**Optional branch:** Moving a larger crowd through both sensors without losing members opens a secondary biological cache.
+**Optional branch:** Open a second biological cache if a larger crowd crosses both sensors without losses.
 
-**Reward:** Gate access, a crowd-control upgrade, and an optional mastery reward.
+**Reward:** Open the gate. Give a crowd-control upgrade. Give an optional mastery reward.
 
 # Recipe coverage matrix
 
 | Recipe | Distinctive mechanic | Reused foundations | Additional system cost |
 |---|---|---|---|
-| Awaken the Fortress | Clue order plus parallel trials | Inspect, hold, nearby kills, shoot target, shortcut | Low |
+| Awaken the Fortress | Clue order plus parallel trials | Inspect, hold, nearby kills, shoot target, Shortcut | Low |
 | Broken Circuit | Diagnose a faulty branch | Inspect, hold, nearby kills, route power | Low–medium |
 | Resonant Sequence | Reconstruct split audiovisual sequence | Ordered targets, combat survival | Low–medium |
-| Perimeter Wake | Traversal around a changing cycle | Activate, defend, shortcut | Low |
+| Perimeter Wake | Traversal around a changing cycle | Activate, defend, Shortcut | Low |
 | The Hollow Signal | Directional triangulation | Inspect, shoot/hold, hidden passage | Medium |
 | Predator's Lens | Lure an Elite into a device | Nearby kills, Elite schedule, activate | Medium |
-| Borrowed Charge | Carry unstable state through routes | Hold, kills, shortcut | High: carry system |
+| Borrowed Charge | Carry unstable state through routes | Hold, kills, Shortcut | High: carry system |
 | Arsenal Covenant | Weapon properties as puzzle inputs | Shoot targets, passageway weapons | High: weapon tags/trials |
 | Blackout Protocol | Navigation through controlled darkness | Activate, defend, district routing | Medium: lighting states |
 | The Living Lock | Manipulate crowd movement and occupancy | Enemy navigation, zones, route locks | High: occupancy sensors |
 
-The initial implementation should begin with recipes whose system cost is low, but the data model should represent all ten without recipe-specific runtime architecture.
+Start implementation with recipes that have a low system cost. Make the data model represent all ten recipes. Do not add recipe-specific runtime architecture.
 
 ## Testing strategy
 
 ### Per-recipe tests
 
-- The same seed reproduces the exact recipe variant and binding.
-- Every mandatory stage has a compatible bound anchor.
-- Dependency ordering and optionality are correct.
-- Wrong actions apply the declared recovery rule.
-- Automatic rounds continue during every incomplete stage.
-- Completion enables the declared reward and voluntary finale behavior.
-- Reset restores initial quest state without changing the accepted map.
+- Reproduce the exact recipe variant and binding from the same seed.
+- Bind each mandatory stage to a compatible anchor.
+- Check dependency order and optional status.
+- Apply the declared recovery rule after each wrong action.
+- Continue automatic rounds during each incomplete stage.
+- Enable the declared reward and voluntary finale behavior after completion.
+- Restore initial quest state during reset.
+- Do not change the accepted map during reset.
 
 ### Progression-component tests
 
-For every gate stage:
+For each gate stage:
 
-- Mandatory stages and clues are reachable.
-- The reachable component supports scheduled population and ingress.
-- Required passageway supplies are present.
-- Temporary and permanent route changes update player and enemy navigation together.
-- Shortcut savings meet the recipe requirement.
+- Keep mandatory stages and clues reachable.
+- Make the recipe supply a minimum ingress count and maximum scheduled population.
+- Check the reachable component against those limits.
+- Make the recipe supply passageway resource counts or values by category.
+- Check the bound passageway supplies against those limits.
+- Update player and enemy navigation together after temporary or permanent route changes.
+- Meet the recipe Shortcut savings requirement.
+- Run the static post-gate spawn-packing check after each gate.
+- Check the initial-lock state when that validator is implemented.
+- Check visibility bands and spawn role compatibility when those validators are implemented.
+
+Current progression-test status:
+
+- Progression-stage checks are complete for the current production plan.
+- The static post-gate spawn-packing check is complete.
+- The static post-gate spawn-packing check is an admission check only.
+- The static post-gate spawn-packing check does not prove runtime spawn behavior.
+- Initial-lock, visibility, role spawn, and runtime recovery checks remain incomplete.
 
 ### Cross-seed tests
 
-Across a fixed seed matrix, record:
+Record these values across a fixed seed matrix:
 
 - Recipe and variant distribution.
 - Stage-room and anchor signatures.
 - Clue-order and presentation-family distribution.
 - Optional-branch placement.
 - Passageway loot category and risk distribution.
-- Backtracking before and after quest shortcuts.
+- Backtracking before and after quest Shortcuts.
+- Useful-cycle count and Shortcut savings.
+- Multi-entry ratio, Combat leaves, and dead-end depth.
 
-Tests should reject impossible or collapsed distributions without requiring nondeterminism. Identical inputs must remain identical.
+Reject impossible or collapsed distributions. Do not require nondeterminism. Identical inputs must remain identical.
 
-### Manual feel review
+### Manual play review
 
-For fixed regressions and fresh seeds, verify:
+Use fixed regressions and new seeds. Verify these conditions:
 
-- The player notices important mechanisms without a global marker.
-- Clues are inferable before the solution is required.
-- Local tooltips clarify verbs without revealing answers.
-- Quest stages use different parts and properties of the generated map.
-- Puzzle activity remains readable during horde pressure.
-- Passageways contain useful discoveries without becoming cluttered vending corridors.
-- Completing the quest visibly changes navigation or a major landmark.
-- Optional branches feel discovered rather than assigned.
+- The player sees important mechanisms without a global marker.
+- The player can infer clues before the solution is necessary.
+- Local tooltips explain actions without disclosure of answers.
+- Quest stages use different map areas and map properties.
+- The player can read the current puzzle state during horde pressure.
+- Passageways contain resources, clues, services, or secrets.
+- Passageways do not become cluttered vending corridors.
+- Quest completion changes doorway state or landmark state visibly.
+- The player can enter optional branches without a directive that assigns them.
+- Alternate routes use separate approaches and entry regions.
+- Late rounds do not fail because of spawn or navigation exhaustion.
 
 ## Future generated-recipe grammar
 
-After several curated recipes prove the executor and binder, recipe generation can compose authored motifs such as:
+First, use several curated recipes to prove the executor and binder. Then compose authored motifs such as:
 
 ```text
 Discovery
@@ -796,6 +943,17 @@ Discovery
     → Reward and voluntary finale
 ```
 
-Generation should select only compatible motifs, enforce bounded complexity, and validate the complete dependency graph before binding. Novelty should come from meaningful combinations and spatial realization, not arbitrary stage shuffling.
+Select compatible motifs only. Keep complexity in defined limits. Validate the full dependency graph before binding. Vary validated motif combinations and spatial bindings. Do not vary only the stage order.
 
-The curated recipes remain valuable as regression fixtures, quality references, and fallback content even after generated recipes become available.
+Keep curated recipes after generated recipes become available. Use them as regression fixtures, quality references, and fallback content.
+
+Complete this work before full quest generation:
+
+- Bound Combat leaves and dead ends.
+- Measure physical route separation.
+- Add room and combat grammar.
+- Publish typed semantic anchors.
+- Implement the full quest compiler.
+- Add initial-lock, visibility, and role spawn checks.
+- Add bounded runtime recovery.
+- Complete endurance and navigation validation.

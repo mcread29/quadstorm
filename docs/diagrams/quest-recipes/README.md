@@ -1,6 +1,15 @@
 # Quest Recipe Graphs
 
-These Archify workflow diagrams visualize the ten curated recipes in [`quest-recipe-design-guide.md`](../../quest-recipe-design-guide.md). Each standalone HTML file includes dark/light themes and PNG, JPEG, WebP, and SVG export controls. The adjacent `.workflow.json` file is its editable Archify source.
+This README uses practical ASD-STE100 Simplified Technical English. It uses short instructions and consistent terms.
+
+These Archify workflow diagrams show the ten curated recipes in [`quest-recipe-design-guide.md`](../../quest-recipe-design-guide.md).
+
+Each recipe includes:
+
+- One standalone HTML file.
+- Dark and light themes.
+- PNG, JPEG, WebP, and SVG export controls.
+- One adjacent `.workflow.json` source file for editing.
 
 | # | Recipe | Diagram | Source |
 |---:|---|---|---|
@@ -17,7 +26,7 @@ These Archify workflow diagrams visualize the ten curated recipes in [`quest-rec
 
 ## Re-render
 
-From the Archify installation directory:
+Run these commands from the Archify installation directory:
 
 ```sh
 for source in /path/to/stalberg-grid/docs/diagrams/quest-recipes/*.workflow.json; do
